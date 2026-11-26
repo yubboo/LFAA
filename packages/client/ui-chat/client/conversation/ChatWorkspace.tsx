@@ -203,6 +203,8 @@ export function ChatWorkspace({
   const restoringSession = !state.loaded && Boolean(state.activeSessionId);
   // 空会话时输入栏并入中心引导区，有消息后回到底部停靠位；停靠时统一用「占位行 + 工具行」的宽卡片。
   const composerInHero = messages.length === 0 && !restoringSession && view === "chat";
+  // 提示条只在有内容时才把输入盒子撑起来：空会话没有提示时不留一条空白行。
+  const dockHasNotices = Boolean(state.errorMessage || state.streamStatusNotice || state.handoffs.length > 0);
   const composerNode = (
     <ChatComposer
       locale={locale}
@@ -327,7 +329,9 @@ export function ChatWorkspace({
         }}
       />}
 
-      <ComposerDock
+
+      {/* 输入框大盒子：空会话时输入卡片并入引导区，这里只保留提示条，不留空行。 */}
+      {(composerInHero === false || dockHasNotices) && <ComposerDock
         dockRef={composerDockRef}
         isZh={locale.isZh}
         view={view}
@@ -373,7 +377,7 @@ export function ChatWorkspace({
         )}
       >
         {!composerInHero && composerNode}
-      </ComposerDock>
+      </ComposerDock>}
 
       <WorkspaceDialogs
         locale={locale}

@@ -23,15 +23,17 @@ export function ChatFlowArea({
   children: ReactNode;
 }) {
   return (
-    <div
-      ref={scrollAreaRef}
-      className={styles.scroller}
-      hidden={hidden}
-      onScroll={onScroll}
-      onWheel={onWheel}
-    >
-      {children}
-      {/* 渐隐贴在视口底部而非输入区上：它是这个盒子的一部分，滚动条、命中都不受影响。 */}
+    <div className={styles.box}>
+      <div
+        ref={scrollAreaRef}
+        className={styles.scroller}
+        hidden={hidden}
+        onScroll={onScroll}
+        onWheel={onWheel}
+      >
+        {children}
+      </div>
+      {/* 渐隐贴在会话区盒子底缘：它是这个盒子的一部分，只淡出正文，不参与滚动、不吃指针。 */}
       {fade && <div className={styles.fade} aria-hidden="true" />}
     </div>
   );

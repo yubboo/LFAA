@@ -1,0 +1,26 @@
+import { existsSync } from "node:fs";
+import { chromium } from "playwright-core";
+const candidates = ["C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe","C:/Program Files/Microsoft/Edge/Application/msedge.exe","C:/Program Files/Google/Chrome/Application/chrome.exe"];
+const executablePath = candidates.find((p) => existsSync(p));
+const browser = await chromium.launch({ executablePath, headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on("console", (m) => { if (m.type() === "error") errors.push(m.text().slice(0, 160)); });
+await page.goto("http://127.0.0.1:5173/", { waitUntil: "domcontentloaded" });
+await page.waitForSelector("[data-columns]", { timeout: 60000 });
+await page.evaluate(() => { localStorage.setItem("lfaa:terminal-placement", "bottom"); });
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForSelector("[data-columns]", { timeout: 60000 });
+await page.waitForTimeout(2500);
+const dock = () => page.evaluate(() => Boolean(document.querySelector("[data-bottom-dock]")));
+const before = await dock();
+// 折叠右栏（顶栏右侧按钮）
+const collapse = page.locator('[data-region="context-panel"] button[aria-label*="收起右侧菜单栏"]').first();
+if (await collapse.count()) await collapse.click();
+await page.waitForTimeout(1200);
+const afterCollapse = await dock();
+if (await collapse.count()) await collapse.click();
+await page.waitForTimeout(1200);
+const afterExpand = await dock();
+console.log(JSON.stringify({ before, afterCollapse, afterExpand, errors: errors.slice(0, 4) }, null, 1));
+await browser.close();

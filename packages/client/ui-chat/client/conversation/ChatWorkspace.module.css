@@ -2,8 +2,9 @@
 .root {
   container-type: inline-size;
   --chat-side-padding: 1.25rem;
-  /* 正文列与输入栏共用同一条宽度轴：任何一侧单独改宽度都会立刻暴露成左右不对称。 */
-  --chat-column-width: min(100%, 48rem);
+  /* 正文列与输入栏共用同一条宽度轴：任何一侧单独改宽度都会立刻暴露成左右不对称。
+   中间区独占整屏（右栏收起）时跟着容器放宽，但最多 64rem，避免行长过长难读。 */
+  --chat-column-width: min(100%, clamp(48rem, 62cqi, 64rem));
   /* 会话区两侧各收 0.5rem，再叠加滚动条槽差，输入卡片比正文左右各宽约 16px。 */
   --chat-thread-inset: 0.5rem;
   /* 滚动条右缘与中间栏分隔线之间的空隙：贴到边但留一点，避免拖滚动条时误触调宽手柄；
@@ -12,8 +13,8 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  /* 四块盒子各占一行：顶部切换条 / 会话区 / 输入框大盒子；轨迹视图复用会话区那一行。 */
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* 四块盒子各占一行：顶部切换条 / 会话区 / 刻度胶囊（仅窄栏占位）/ 输入框大盒子。 */
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   /* 外层视口常驻预留的滚动条槽由 ChatWorkspace 量出后收回（见 --chat-gutter-reclaim），
      否则消息滚动条会被挤到离分隔线 14px 处、正文列也会相对栏宽偏左。 */
   margin-inline-end: var(--chat-gutter-reclaim, 0px);

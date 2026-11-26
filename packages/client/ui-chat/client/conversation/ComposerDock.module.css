@@ -1,6 +1,6 @@
 /* 输入框大盒子：独立占一行，排在会话区下方；不再叠在滚动视口上，所以没有遮罩层。 */
 .dock {
-  grid-row: 3;
+  grid-row: 4;
   grid-column: 1;
   position: relative;
   z-index: 2;

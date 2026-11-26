@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**67 个包、2908 个文件、493 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**67 个包、2909 个文件、493 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -64,14 +64,14 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (542 个文件)
+├── docs/  (543 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (5 个文件)
 │   ├── features/  (33 个文件)
 │   ├── plans/  (24 个文件)
 │   ├── standards/  (3 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (462 个文件)
+│   └── updata-log/  (463 个文件)
 ├── packages/  (2119 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
@@ -1293,7 +1293,7 @@ lfaa/
 - `blank-tab-policy.test.ts` — 右栏空白占位标签策略单测：空面板才补「新标签页」，切到真实内容标签后必须让位。
 - `browser-subagent-card.test.tsx` — 验证思维链中专属浏览器子智能体卡片的运行中提示、步骤列表与完成态摘要渲染。
 - `chat-anchor-bar.test.ts` — 验证轮次导航刻度滑动窗口：最多 20 根，以当前轮次居中并夹紧边界，保证所有轮次都能通过滚动/点击到达。
-- `chat-bottom-hover.test.ts` — 验证会话贴底判定与消息动作栏悬停契约：悬停只换配色，不改变盒模型，也不留半像素滚动缝隙。
+- `chat-bottom-hover.test.ts` — 验证中间区四个盒子互不重叠：会话区自己带底部渐隐，输入框单独一行，不再用遮罩盖住正文。
 - `chat-error-banner.test.tsx` — 验证错误条：文案常驻，工作区冲突时多出「用工作树并行」入口。
 - `chat-lifecycle.test.ts` — 验证 @lfaa/chat Host/Client 双端 Cordis 生命周期、最近会话注入与项目聊天计数统计。
 - `chat-queue.test.ts` — 验证排队消息纯操作：新增去空、删除、编辑（空文本删除）、上下移动与队首取出。
@@ -3164,6 +3164,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 5 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 462 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 463 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |
