@@ -16,7 +16,7 @@ import { ComposerDock } from "./ComposerDock";
 import { selectWorkspaceSlice } from "./workspace-slice";
 import type { ThreadWindowHandle } from "./use-thread-window";
 import { ChatComposer } from "../composer/ChatComposer";
-import { ChatMessageList } from "./ChatMessageList";
+import { ChatMessageList, buildHeroProject } from "./ChatMessageList";
 import { ConversationTrace } from "./Conversation-Trace";
 import { HandoffBar } from "../session/HandoffBar";
 import { latestSessionTodos } from "../session/session-todos";
@@ -66,12 +66,15 @@ export function ChatWorkspace({
 
   const activeSession = state.activeSession;
   const messages = activeSession?.messages ?? [];
+  // 没有消息时不存在可用轨迹：视图立即按「对话」渲染，避免先闪一帧空轨迹再被 effect 收回。
+  const currentView = messages.length === 0 ? "chat" : view;
   const lastMessage = messages.at(-1);
   const clarification = lastMessage?.status === "done" ? lastMessage.clarification : undefined;
   const turnChanges = useMemo(() => summarizeTurnChanges(lastMessage), [lastMessage]);
+  // 新会话没有可看的轨迹：清空消息时回到「对话」，避免停在无入口的空轨迹页。
+  useEffect(() => { if (messages.length === 0) setView("chat"); }, [messages.length]);
 
   const activeProjectId = activeSession ? activeSession.projectId : state.draftProjectId;
-  // 项目内空会话展示项目范围，提醒用户与模型都围绕该项目工作。
   const activeProject = activeProjectId ? projects.find((item) => item.id === activeProjectId) ?? null : null;
   // 已绑定或草稿绑定的工作树；发送前由草稿状态展示，发送后以服务端会话为准。
   const activeWorktree = activeSession?.worktree ?? state.draftWorktree ?? null;
@@ -198,11 +201,11 @@ export function ChatWorkspace({
     busy: isRunning || state.submittingMessage === true || bindingProject,
   });
 
-  // 刷新后已记住会话但详情尚未回来：先按会话骨架渲染，避免闪一下「我们要做什么？」再跳到历史对话。
+  // 刷新后已记住会话但详情尚未回来：先按会话骨架渲染，避免闪一下新会话空态再跳到历史对话。
   // 只有确定没有活动会话（全是新会话）时才展示中心引导区，输入栏位置不会来回跳。
   const restoringSession = !state.loaded && Boolean(state.activeSessionId);
   // 空会话时输入栏并入中心引导区，有消息后回到底部停靠位；停靠时统一用「占位行 + 工具行」的宽卡片。
-  const composerInHero = messages.length === 0 && !restoringSession && view === "chat";
+  const composerInHero = messages.length === 0 && !restoringSession && currentView === "chat";
   // 提示条只在有内容时才把输入盒子撑起来：空会话没有提示时不留一条空白行。
   const dockHasNotices = Boolean(state.errorMessage || state.streamStatusNotice || state.handoffs.length > 0);
   const composerNode = (
@@ -244,15 +247,16 @@ export function ChatWorkspace({
 
   return (
     <section ref={rootRef} className={styles.root} aria-label={locale.workspaceTitle}>
-      <ChatTopBar view={view} onChange={setView} isZh={locale.isZh} />
-      {view === "trace" && (
+      {/* 新会话保持简洁：没有消息时不显示「对话 / 轨迹」切换条。 */}
+      {messages.length > 0 && <ChatTopBar view={currentView} onChange={setView} isZh={locale.isZh} />}
+      {currentView === "trace" && (
         <div className={styles.traceBox}>
           <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />
         </div>
       )}
       <ChatFlowArea
         scrollAreaRef={scrollAreaRef}
-        hidden={view !== "chat"}
+        hidden={currentView !== "chat"}
         onWheel={handleWheel}
         fade={messages.length > 0}
         onScroll={(event) => {
@@ -278,9 +282,7 @@ export function ChatWorkspace({
           lastMessage={lastMessage}
           clarification={clarification}
           starterSuggestions={starterSuggestions}
-          projectScope={activeProject
-            ? { name: activeProject.name, description: activeProject.description?.trim() ?? "" }
-            : null}
+          heroProject={buildHeroProject(activeProject, projects, Boolean(projectProvider), changeProjectBinding, () => setCreateDialogOpen(true))}
           workspaceMode={workspaceMode}
           onWorkspaceModeChange={onWorkspaceModeChange}
           restoring={restoringSession}
@@ -311,7 +313,7 @@ export function ChatWorkspace({
         />
       </ChatFlowArea>
 
-      {view === "chat" && <ChatAnchorBar
+      {currentView === "chat" && <ChatAnchorBar
         turns={turnAnchors}
         activeTurnIndex={activeTurnIndex}
         onJumpToTurn={(anchorMsgId, idx) => {
@@ -334,7 +336,7 @@ export function ChatWorkspace({
       {(composerInHero === false || dockHasNotices) && <ComposerDock
         dockRef={composerDockRef}
         isZh={locale.isZh}
-        view={view}
+        view={currentView}
         todos={sessionTodos}
         paused={paused}
         settled={!isRunning && lastMessage?.role === "assistant" && lastMessage.status === "done"}

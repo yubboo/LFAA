@@ -2,8 +2,9 @@
 
 > 状态：已实施（2026-11-26 负责人确认「以后所有悬浮卡片都按账号卡片这套要求做，全部统一」）。
 > 适用：任何从入口展开的悬浮层 —— 账号菜单、更多/应用菜单、项目与会话操作菜单、模型与推理选择、工作台标签菜单、设置里的下拉与气泡等。
-> 基线实现：`packages/ui/layout/client/navigation/UserMenu.*` + `user-menu-geometry.ts`（几何单测 `packages/ui/layout/tests/user-menu-geometry.test.ts`）。
-> 尺寸令牌：`@lfaa/ui-theme` 的 `client/tokens.css`（`--popover-*` 一组）。参照样张：`pnpm ui:shot --only=app-user-menu`。
+> 基线实现：`packages/ui/layout/client/navigation/UserMenu.*` + 共用几何 `popover-geometry.ts`（单测 `packages/ui/layout/tests/user-menu-geometry.test.ts`）。
+> 模式菜单同一套口径：`NavigationSidebar` 的模式卡片 + `mode-menu-geometry.ts`（单测 `packages/ui/layout/tests/mode-menu-geometry.test.ts`）。
+> 尺寸令牌：`@lfaa/ui-theme` 的 `client/tokens.css`（`--popover-*` 一组）。参照样张：`pnpm ui:shot --only=app-user-menu`、`--only=app-mode-menu`。
 
 悬浮卡片是「临时工具」，不是第二个页面。它必须**贴着入口出现、不越出所在栏、不压住别人的滚动条**，同样内容下尽量矮、尽量紧。账号卡片（204×292）就是这套要求的基准样张。
 
@@ -72,9 +73,9 @@
 以下浮层在本规范之前实现，宽度 / 密度仍是旧口径。新建或改到这些文件时必须顺手收敛，不搞一次性大改：
 
 - `packages/ui/layout/client/navigation/AppMenu.*`（图标栏「更多」菜单）：固定 `min(21.5rem, …)` 宽度、行高偏大。
-- `packages/ui/layout/client/navigation/NavigationSidebar.module.css`：模式菜单、搜索浮层。
+- `packages/ui/layout/client/navigation/NavigationSidebar.module.css`：搜索浮层。
 - `packages/ui/layout/client/navigation/GroupHeaderTools.tsx`：排序菜单。
 - `packages/client/ui-chat/client/models/ModelReasoningPicker.tsx`、`ModelReasoningTrigger.tsx`。
 - `packages/client/ui-chat/client/workbench/WorkbenchTabMenu.*`：标签页右键菜单。
 
-已符合新基线的参照实现：`UserMenu.*`（几何 + 密度 + 容器查询）与 `ThemeModeQuickSwitch.*`（60×30 三档开关、同心圆角）。
+已符合新基线的参照实现：`UserMenu.*`（几何 + 密度 + 容器查询）、`NavigationSidebar` 的模式卡片（几何 + 密度 + 容器查询窄栏降级）与 `ThemeModeQuickSwitch.*`（60×30 三档开关、同心圆角）。

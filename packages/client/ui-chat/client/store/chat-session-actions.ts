@@ -2,10 +2,12 @@
 import type { ChatGoalItem, ChatHandoffItem, ChatSearchResult, ChatSessionDetail, ChatSessionItem, ChatSessionWorktree } from "./chat-types";
 import { fetchJson } from "./chat-http";
 import {
+  writeStoredDraftActive,
   writeStoredDraftProjectId,
   writeStoredDraftSectionId,
   writeStoredSessionId,
 } from "./chat-preferences";
+import { beginDraftExit, cancelDraftExitTimer } from "./draft-session-exit";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 
 /** 清除会话摘要上的待回答字段；没有时原样返回，避免无谓的状态变更。 */
@@ -14,6 +16,23 @@ function clearPendingQuestion<T extends ChatSessionItem>(session: T): T {
   const next = { ...session };
   delete next.pendingQuestion;
   return next;
+}
+
+/** 新会话草稿的虚拟会话行：左二栏据此在项目下立即显示入口，切到历史会话时随状态清空。 */
+export function createDraftSession(projectId: string | null, sectionId: string | null): ChatSessionItem {
+  const now = Date.now();
+  return {
+    id: `draft:${projectId ?? "global"}`,
+    title: "新聊天",
+    projectId,
+    sectionId,
+    pinned: false,
+    archived: false,
+    draft: true,
+    messageCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export class ChatSessionActions {
@@ -32,12 +51,17 @@ export class ChatSessionActions {
     this.port.trackLeavingActiveRun(null);
     this.port.detachActiveStream?.();
     writeStoredSessionId(null);
+    writeStoredDraftActive(true);
     writeStoredDraftProjectId(nextProjectId);
     writeStoredDraftSectionId(nextSectionId);
+    // 新草稿接管时取消上一行的退场计时，避免旧行短暂与新行并排。
+    cancelDraftExitTimer();
     this.port.patchState({
       activeSessionId: null,
       activeSession: null,
       activeGoal: null,
+      draftSession: createDraftSession(nextProjectId, nextSectionId),
+      exitingDraftSession: null,
       draftProjectId: nextProjectId,
       draftSectionId: nextSectionId,
       draftWorktree: options.worktree,
@@ -64,12 +88,17 @@ export class ChatSessionActions {
       const res = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(sessionId)}`);
       if (seq !== this.openSessionSeq) return;
       writeStoredSessionId(res.session.id);
+      writeStoredDraftActive(false);
       writeStoredDraftProjectId(res.session.projectId);
       writeStoredDraftSectionId(res.session.sectionId);
+      const exitingDraft = beginDraftExit(this.port, this.port.getState().draftSession);
       this.port.patchState({
         activeSessionId: res.session.id,
         activeSession: res.session,
         activeGoal: undefined,
+        // 打开真实会话即撤下草稿行；先保留退场行一个动画时长，未发送内容仍按分区记忆。
+        draftSession: null,
+        ...(exitingDraft ? { exitingDraftSession: exitingDraft } : {}),
         draftProjectId: res.session.projectId,
         draftSectionId: res.session.sectionId,
         runningRunId: null,
@@ -260,10 +289,18 @@ export class ChatSessionActions {
   }
 
   async setActiveProjectBinding(projectId: string | null): Promise<void> {
-    const current = this.port.getState().activeSession;
+    const state = this.port.getState();
+    const current = state.activeSession;
     if (!current) {
       writeStoredDraftProjectId(projectId);
-      this.port.patchState({ draftProjectId: projectId });
+      const draftSession = state.draftSession;
+      this.port.patchState({
+        draftProjectId: projectId,
+        // 草稿行跟着项目上下文走；没有草稿行（用户只是选了项目）时保持不出现。
+        ...(draftSession
+          ? { draftSession: { ...draftSession, id: `draft:${projectId ?? "global"}`, projectId } }
+          : {}),
+      });
       return;
     }
     if (current.projectId === projectId) {
@@ -323,12 +360,16 @@ export class ChatSessionActions {
     const forked = res.session;
     if (forked) {
       writeStoredSessionId(forked.id);
+      writeStoredDraftActive(false);
       writeStoredDraftProjectId(forked.projectId);
       writeStoredDraftSectionId(forked.sectionId);
+      const exitingDraft = beginDraftExit(this.port, this.port.getState().draftSession);
       this.port.patchState({
         activeSessionId: forked.id,
         activeSession: forked,
         activeGoal: undefined,
+        draftSession: null,
+        ...(exitingDraft ? { exitingDraftSession: exitingDraft } : {}),
         draftProjectId: forked.projectId,
         draftSectionId: forked.sectionId,
       });

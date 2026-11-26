@@ -5,18 +5,22 @@ import type {
   WorkbenchChatSessionSummary,
   WorkbenchProjectProvider,
 } from "../../contract/index";
-import type { LocalProject, NavigationView, RecentItem } from "./navigation";
+import type { LocalProject, NavigationView, RecentItem, WorkspaceMode } from "./navigation";
 import type { SessionListControl } from "./session-list-paging";
 import type { SidebarItemConfig } from "../panels/SidebarSectionList";
 
-/** 解析左二顶部「新聊天」应继承的项目：按当前项目上下文、活动会话项目、草稿绑定项目顺序兜底。 */
+/** 解析左二顶部「新聊天」应继承的项目：聊天模式一律不绑项目，工作模式按上下文 + 草稿绑定兜底。 */
 export function resolveNewChatProject(input: {
   activeProjectId: string | null;
   activeChatSessionId: string | null;
   chatSessions: WorkbenchChatSessionSummary[];
   draftProjectId?: string | null | undefined;
   projects: LocalProject[];
+  /** 当前工作区模式：聊天模式的新会话固定落「最近」。 */
+  mode?: WorkspaceMode | undefined;
 }): LocalProject | null {
+  // 聊天模式是规划陪聊，不绑定项目；只有工作模式才继承当前项目上下文。
+  if (input.mode === "chatgpt") return null;
   const activeSessionProjectId = input.activeChatSessionId
     ? input.chatSessions.find((session) => session.id === input.activeChatSessionId)?.projectId ?? null
     : null;
@@ -192,9 +196,29 @@ export function createSessionSidebarItem(
   deps: SessionItemDeps,
   opts?: SessionItemOptions,
 ): SidebarItemConfig {
+  const rowId = `${opts?.idPrefix ?? ""}${sessionObj.id}`;
+  const isDraft = Boolean(sessionObj.draft);
+  // 草稿行没有历史记录菜单与置顶/改名语义：点击只回到输入区继续写，不打开不存在的会话。
+  if (isDraft) {
+    return {
+      id: rowId,
+      label: sessionObj.title,
+      icon: "newChat",
+      ...(opts?.nested ? { nested: true } : {}),
+      ...(opts?.hideIcon ? { hideIcon: true } : {}),
+      // 草稿行是新会话入口：出现时展开、退出时收起，历史会话行不参与这套动画。
+      animate: true,
+      ...(sessionObj.draftExiting ? { exiting: true } : {}),
+      active: deps.showActive && deps.activeView === "workspace" && deps.activeChatSessionId === null,
+      onClick: () => {
+        if (opts?.groupId) deps.onRowActivate(opts.groupId);
+        deps.chatProvider?.closeSessionMenus?.();
+        void deps.chatProvider?.startNewChat?.({ projectId: sessionObj.projectId, sectionId: sessionObj.sectionId ?? null });
+      },
+    };
+  }
   const trailingHint = formatRelativeSessionAge(sessionObj.updatedAt);
   const actions = deps.chatProvider?.renderSessionRowActions?.(sessionObj);
-  const rowId = `${opts?.idPrefix ?? ""}${sessionObj.id}`;
   // Agent 还在该会话里工作时，行首状态槽转圈；图标位保持常态，避免转圈把标题挤开。
   const working = deps.chatProvider?.isSessionRunning?.(sessionObj.id) ?? false;
   const isActive = deps.showActive && deps.activeView === "workspace" && deps.activeChatSessionId === sessionObj.id;
@@ -285,6 +309,8 @@ export interface RecentItemDeps {
   chatSessions: WorkbenchChatSessionSummary[];
   activeView: NavigationView;
   activeProjectId: string | null;
+  /** 当前活动会话；草稿行据此判断「没有活动会话」时的高亮。 */
+  activeChatSessionId?: string | null | undefined;
   chatProvider?: WorkbenchChatProvider<ReactNode> | null | undefined;
   onOpenProject: (project: LocalProject) => void;
   onNavigate: (view: NavigationView) => void;
@@ -298,10 +324,14 @@ export function createRecentSidebarItems(recents: RecentItem[], deps: RecentItem
     const sessionObj = item.sessionId
       ? deps.chatSessions.find((s) => s.id === item.sessionId)
       : undefined;
+    // 未绑定项目的全局新会话草稿只在「最近」出现：没有历史记录 id，高亮按「当前没有活动会话」判断。
+    const isDraft = Boolean(sessionObj?.draft);
     const trailingHint = formatRelativeSessionAge(sessionObj?.updatedAt ?? item.updatedAt);
     const actions = sessionObj ? deps.chatProvider?.renderSessionRowActions?.(sessionObj) : undefined;
     const working = sessionObj ? deps.chatProvider?.isSessionRunning?.(sessionObj.id) ?? false : false;
-    const isActive = item.active ?? (deps.activeView === item.view && (item.projectId ?? null) === deps.activeProjectId);
+    const isActive = isDraft
+      ? deps.activeView === "workspace" && (deps.activeChatSessionId ?? null) === null
+      : item.active ?? (deps.activeView === item.view && (item.projectId ?? null) === deps.activeProjectId);
     const attention = isActive ? null : (sessionObj ? deps.chatProvider?.getSessionAttention?.(sessionObj.id) ?? null : null);
     // 与项目/置顶行同一套状态：进行中隐藏未读点，需要确认/回答时用徽标替代完成点。
     const showUnread = !working && !isActive && !attention && Boolean(sessionObj?.unread ?? item.unread);

@@ -4,6 +4,14 @@ import type { ChatClientStore } from "../store/chat-store";
 import type { ChatLocaleMessages } from "../locales";
 import type { ChatSessionDetail, ChatStoreSnapshot } from "../store/chat-types";
 import { collectImageAttachmentIds } from "./composer-attachments";
+import {
+  dropAttachmentFromHistory,
+  pushInsertBatch,
+  takeUndoBatch,
+  type AttachmentInsertBatch,
+} from "./composer-attachment-undo";
+import { composerDraftScope } from "./composer-draft-memory";
+import { useComposerDraftMemory } from "./useComposerDraftMemory";
 import { useMediaOptions } from "./useMediaOptions";
 import { submitMediaGeneration } from "./media-submit";
 import { buildContextualMessage, type ComposerAttachment } from "./composer-context";
@@ -51,7 +59,24 @@ export function useChatComposer({
   const [draft, setDraft] = useState("");
   const [allAttachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const attachments = allAttachments.filter((item) => !item.mediaSource || item.mediaSource.sessionId === activeSession?.id);
+  // 附件插入历史只服务「Ctrl+Z 撤回刚插入的图片/文件」：批次基于全部附件，避免切换会话时丢撤销线索。
+  const allAttachmentsRef = useRef<ComposerAttachment[]>(allAttachments);
+  allAttachmentsRef.current = allAttachments;
+  const insertHistoryRef = useRef<AttachmentInsertBatch[]>([]);
   const [contextNotice, setContextNotice] = useState("");
+  // 未发送内容按「新会话（按项目）/ 已有会话」分区记忆；切走再回来时恢复文字与图片。
+  useComposerDraftMemory({
+    scope: composerDraftScope({ sessionId: state.activeSessionId, projectId }),
+    activeSessionId: state.activeSessionId,
+    draft,
+    setDraft,
+    allAttachments,
+    setAttachments,
+  });
+  // 切换会话/项目后，图片与草稿来自另一个分区：撤销历史必须清空，否则 Ctrl+Z 会撤掉别的分区内容。
+  useEffect(() => {
+    insertHistoryRef.current = [];
+  }, [state.activeSessionId, projectId]);
   // 生图选项：画幅与风格（auto 交给宿主识别 / 提示词导演），发送后按实际比例回写。
   const media = useMediaOptions();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -71,19 +96,49 @@ export function useChatComposer({
     store.consumeComposerInsert();
   }, [state.pendingComposerInsert, store]);
 
+  const applyAttachments = (next: ComposerAttachment[]) => {
+    allAttachmentsRef.current = next;
+    setAttachments(next);
+  };
+
   const appendAttachments = (items: ComposerAttachment[]) => {
-    setContextNotice("");
-    setAttachments((prev) => {
-      const next = [...prev];
-      for (const item of items) {
-        if (item.mediaSource && next.some((existing) => existing.id === item.id)) continue;
-        if (item.kind === "mode" && next.some((existing) => existing.kind === "mode" && existing.modeId === item.modeId)) {
-          continue;
-        }
-        next.push(item);
+    const next = [...allAttachmentsRef.current];
+    const addedIds: string[] = [];
+    for (const item of items) {
+      if (item.mediaSource && next.some((existing) => existing.id === item.id)) continue;
+      if (item.kind === "mode" && next.some((existing) => existing.kind === "mode" && existing.modeId === item.modeId)) {
+        continue;
       }
-      return next;
-    });
+      next.push(item);
+      addedIds.push(item.id);
+    }
+    if (addedIds.length === 0) return;
+    // 记下插入前的草稿：文字随后被改动时不再接管 Ctrl+Z，保留浏览器原生文字撤销。
+    pushInsertBatch(insertHistoryRef.current, addedIds, draft);
+    setContextNotice("");
+    applyAttachments(next);
+  };
+
+  /** 清空输入区附件（发送、切新会话时调用）：撤销历史一并丢弃，避免撤回已发出的图片。 */
+  const resetAttachments = () => {
+    insertHistoryRef.current = [];
+    applyAttachments([]);
+  };
+
+  /** 手动移除某个附件：同步裁掉撤销历史里的同 id，再回到浏览器原生行为。 */
+  const removeAttachment = (id: string) => {
+    dropAttachmentFromHistory(insertHistoryRef.current, id);
+    applyAttachments(allAttachmentsRef.current.filter((item) => item.id !== id));
+  };
+
+  /** Ctrl+Z 撤回最近一次附件插入；返回 false 时输入框走浏览器原生撤销。 */
+  const undoAttachmentInsert = (): boolean => {
+    const ids = takeUndoBatch(insertHistoryRef.current, draft);
+    if (!ids) return false;
+    const removed = new Set(ids);
+    applyAttachments(allAttachmentsRef.current.filter((item) => !removed.has(item.id)));
+    setContextNotice("");
+    return true;
   };
 
   const focusTextareaAt = (pos: number) => {
@@ -106,7 +161,7 @@ export function useChatComposer({
     draft,
     setDraft,
     appendAttachments,
-    clearAttachments: () => setAttachments([]),
+    clearAttachments: resetAttachments,
     focusTextareaAt,
     fileInputRef,
     setContextNotice,
@@ -124,7 +179,7 @@ export function useChatComposer({
       const mediaKind = selectedMediaKind;
       if (!raw) { focusTextareaAt(0); return; }
       setDraft("");
-      setAttachments([]);
+      resetAttachments();
       setSlashTrigger(null);
       // 生成中的进度由消息区的生成占位呈现，不再占用输入框上方的状态行。
       const result: { ok: boolean; error?: string; ratio?: string } = await submitMediaGeneration({
@@ -138,7 +193,7 @@ export function useChatComposer({
       }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : String(error) }));
       if (!result.ok) {
         setDraft((current) => current || raw);
-        setAttachments((current) => current.length ? current : attachments);
+        if (allAttachmentsRef.current.length === 0) applyAttachments(attachments);
       }
       setContextNotice(result.ok
         ? ""
@@ -152,7 +207,7 @@ export function useChatComposer({
       if (raw === "/new") {
         store.startNewChatDraft({ projectId, sectionId: activeSession?.sectionId ?? null });
         setDraft("");
-        setAttachments([]);
+        resetAttachments();
         setSlashTrigger(null);
         return;
       }
@@ -221,7 +276,7 @@ export function useChatComposer({
     const prevAttachments = attachments;
     if (!customText) {
       setDraft("");
-      setAttachments([]);
+      resetAttachments();
       setMentionTrigger(null);
       setSlashTrigger(null);
       setSkillTrigger(null);
@@ -257,7 +312,7 @@ export function useChatComposer({
     } catch (err) {
       if (!customText) {
         setDraft(prevDraft);
-        setAttachments(prevAttachments);
+        applyAttachments(prevAttachments);
       }
       if (err instanceof Error && !store.getSnapshot().errorMessage) {
         setContextNotice(err.message);
@@ -276,6 +331,8 @@ export function useChatComposer({
     setMediaStyle: media.setStyle,
     setAttachments,
     appendAttachments,
+    removeAttachment,
+    undoAttachmentInsert,
     contextNotice,
     setContextNotice,
     // 触发状态、候选列表与选中处理器由 useComposerTriggers 统一提供。

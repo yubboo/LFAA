@@ -123,6 +123,10 @@ export interface WorkbenchChatSessionSummary {
   unread?: boolean;
   /** 会话通知已静音；不显示待处理徽标、不播放该会话的提醒音。 */
   muted?: boolean;
+  /** 客户端临时新会话草稿：未落库，只用于在项目下显示可返回的草稿行。 */
+  draft?: boolean;
+  /** 草稿正在收起：保留约一个动画时长后由聊天侧移除，让行高平滑退场。 */
+  draftExiting?: boolean;
   messageCount: number;
   createdAt: number;
   updatedAt: number;

@@ -3,6 +3,7 @@ import type { WorkbenchChatProvider, WorkbenchChatSessionSummary } from "../../c
 import type { LocaleMessages } from "../locales";
 import { isSettingsView, type LocalProject, type NavigationTarget, type NavigationView, type RecentItem } from "./navigation";
 import { findSettingsCatalogItem } from "../panels/settings-catalog";
+import { isWithinChatWindow } from "./chat-time-buckets";
 
 /** 定义一级导航可选择的业务域。 */
 export type WorkbenchDomainId =
@@ -103,7 +104,7 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
 // 生成全局搜索与快捷跳转的统一目标列表，避免在侧栏和弹层重复维护。
 export function buildNavigationTargets(locale: LocaleMessages, projects: LocalProject[]): NavigationTarget[] {
   const destinations: Array<[NavigationView, string, string]> = [
-    ["workspace", locale.home, locale.chatModeDescription],
+    ["workspace", locale.home, locale.workspaceDescription],
     ["scheduled", locale.scheduled, locale.scheduledUnavailable],
     ["library", locale.library, locale.libraryUnavailable],
     ["plugins", locale.plugins, locale.pluginsUnavailable],
@@ -156,7 +157,7 @@ export function resolveViewLabel(view: string, locale: LocaleMessages, registere
   return labels[view] ?? view;
 }
 
-/** 将会话摘要映射为侧栏可排序、可选择的列表行。 */
+/** 将会话摘要映射为侧栏可排序、可选择的列表行；超过 7 天的聊天会话不再列出（仍在搜索中）。 */
 export function buildChatRecentItems({
   chatSessions,
   chatProvider,
@@ -164,6 +165,7 @@ export function buildChatRecentItems({
   activeChatSessionId,
   existingProjectIds,
   onSelectSession,
+  now = Date.now(),
 }: {
   chatSessions: WorkbenchChatSessionSummary[];
   chatProvider: WorkbenchChatProvider;
@@ -171,9 +173,12 @@ export function buildChatRecentItems({
   activeChatSessionId: string | null;
   existingProjectIds?: Set<string>;
   onSelectSession: (sessionId: string) => void;
+  now?: number;
 }): RecentItem[] {
   return chatSessions
-    .filter((item) => !item.archived && (!item.projectId || (existingProjectIds ? !existingProjectIds.has(item.projectId) : false)))
+    .filter((item) => !item.archived
+      && isWithinChatWindow(item.updatedAt, now)
+      && (!item.projectId || (existingProjectIds ? !existingProjectIds.has(item.projectId) : false)))
     .map((item) => ({
       id: item.id,
       sessionId: item.id,

@@ -7,6 +7,7 @@ import createStyles from "./SidebarSectionList.create.module.css";
 import styles from "./SidebarSectionList.module.css";
 import statusStyles from "./SidebarStatus.module.css";
 import badgeStyles from "./SidebarSectionList.badge.module.css";
+import presenceStyles from "./SidebarSectionList.presence.module.css";
 
 /** 定义侧栏列表行的名称、状态、动作和可选子层级。 */
 export interface SidebarItemConfig {
@@ -17,6 +18,10 @@ export interface SidebarItemConfig {
   hideIcon?: boolean;
   expanded?: boolean;
   active?: boolean;
+  /** 新会话草稿行：挂载时展开、exiting 时收起高度，普通行不参与进出场动画。 */
+  animate?: boolean;
+  /** 该行正在退场：保留 DOM 到高度收完，期间不可点击。 */
+  exiting?: boolean;
   unread?: boolean;
   /** 会话通知已静音，显示铃铛关闭标记。 */
   muted?: boolean;
@@ -127,12 +132,18 @@ function SidebarRow({ item }: { item: SidebarItemConfig }) {
     <span className={styles.label}>{item.label}</span>
   );
   const nativeTitle = item.labelTip || item.onMouseEnter ? undefined : (item.title ?? item.label);
+  const presenceClass = item.animate
+    ? `${presenceStyles.draftRow} ${item.exiting ? presenceStyles.draftRowExit : presenceStyles.draftRowEnter}`
+    : "";
 
   if (item.actions || item.onTogglePin) {
     return (
       <div
-        className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""}`}
+        className={`${styles.itemRow} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${presenceClass}`}
         data-sidebar-item={item.id}
+        data-draft-row={item.animate ? "true" : undefined}
+        data-exiting={item.exiting ? "true" : undefined}
+        aria-hidden={item.exiting ? true : undefined}
         data-actions-visible={item.actionsVisible ? "true" : undefined}
         draggable={Boolean(item.draggableProjectId)}
         onDragStart={item.draggableProjectId ? (event) => {
@@ -149,6 +160,7 @@ function SidebarRow({ item }: { item: SidebarItemConfig }) {
           aria-current={item.active ? "page" : undefined}
           aria-expanded={item.expanded}
           title={nativeTitle}
+          tabIndex={item.exiting ? -1 : undefined}
           onClick={item.onClick}
           onDoubleClick={item.onDoubleClick}
         >
@@ -200,11 +212,15 @@ function SidebarRow({ item }: { item: SidebarItemConfig }) {
   return (
     <button
       type="button"
-      className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${item.control ? controlStyles.moreButton : ""}`}
+      className={`${styles.item} ${item.nested ? styles.itemNested : ""} ${item.active ? styles.itemActive : ""} ${item.control ? controlStyles.moreButton : ""} ${presenceClass}`}
       aria-current={item.active ? "page" : undefined}
       aria-expanded={item.expanded}
+      aria-hidden={item.exiting ? true : undefined}
       title={nativeTitle}
+      tabIndex={item.exiting ? -1 : undefined}
       data-sidebar-item={item.id}
+      data-draft-row={item.animate ? "true" : undefined}
+      data-exiting={item.exiting ? "true" : undefined}
       data-sidebar-control={item.control ? "true" : undefined}
       onClick={item.onClick}
     >

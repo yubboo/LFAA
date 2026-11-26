@@ -55,6 +55,11 @@
   pointer-events: auto;
 }
 
+/* 刷新后指针还没移动：先不显示分组标题的悬停底色，避免页面一打开就像被选中了一块。 */
+:global(html[data-pointer-idle="true"]) :global([data-heading-row="true"]):hover {
+  background: transparent;
+}
+
 @media (hover: none) and (pointer: coarse) {
   .groupTools {
     opacity: 0.9;

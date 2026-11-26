@@ -7,11 +7,11 @@ import { mediaChatMessages } from "@lfaa/client-ui-tool-media/client";
 import type { ChatLocaleMessages } from "../locales";
 import type { ChatMessageItem, ChatSessionDetail } from "../store/chat-types";
 import { useComposerAttachInput, useComposerAutoGrow } from "./useComposerInput";
-import { handleComposerKeydown } from "./composer-keyboard";
 import type { ComposerStoreSlice, useChatComposer } from "./useChatComposer";
 import { ClarificationCard } from "../conversation/Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerAttachmentChip } from "./ComposerAttachmentChip";
+import { ComposerInputRow } from "./ComposerInputRow";
 import { ComposerMediaLibrary } from "./ComposerMediaLibrary";
 import { ComposerNotice } from "./ComposerNotice";
 import { ComposerProjectChip } from "./ComposerProjectChip";
@@ -28,6 +28,7 @@ import { SessionModeBar } from "./SessionModeBar";
 import { ComposerStats } from "./ComposerStats";
 import styles from "../conversation/ChatWorkspace.module.css";
 import composerStyles from "../conversation/ChatWorkspace.composer.module.css";
+import attachmentStyles from "../conversation/ChatWorkspace.attachments.module.css";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { WorkspaceMode } from "@lfaa/ui-layout/client";
 
@@ -94,19 +95,21 @@ export function ChatComposer({
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
 }) {
   const {
-    draft, setDraft, attachments, setAttachments, contextNotice, setContextNotice,
+    draft, setDraft, attachments, contextNotice, setContextNotice,
     mentionTrigger, setMentionTrigger, mentionIndex, setMentionIndex,
     slashTrigger, setSlashTrigger, slashIndex, setSlashIndex,
-    skillTrigger, setSkillTrigger, skillIndex, setSkillIndex,
+    skillTrigger, setSkillTrigger, skillIndex,
     openProjectSignal, visibleMentionEntries, visibleSlashCommands, visibleSkillEntries,
-    textareaRef, fileInputRef, syncMentionFromText, focusTextareaAt,
-    handleSelectSkillEntry, handleTabCompleteSlashCommand, handleSelectSlashCommand,
+    fileInputRef, focusTextareaAt,
+    handleSelectSkillEntry, handleSelectSlashCommand,
     handleSelectMentionEntry, handleSubmit, appendAttachments, selectedMediaKind,
+    removeAttachment, undoAttachmentInsert,
     mediaRatio, setMediaRatio, mediaStyle, setMediaStyle,
   } = composer;
 
   const mediaLabels = mediaChatMessages[locale.isZh ? "zh" : "en"];
-  const isWorkMode = workspaceMode === "codex";
+  // 项目内已经是工作形态：输入栏按工作密度渲染，和中心标题保持一致。
+  const isWorkMode = workspaceMode === "codex" || Boolean(activeProjectId);
   const showScopeShelf = isWorkMode && messagesCount === 0 && !isRunning;
   // 已绑定项目的空会话按项目名提示，让「这条新会话属于哪个项目」在输入框里就能读到。
   const activeProject = activeProjectId ? projects.find((project) => project.id === activeProjectId) ?? null : null;
@@ -145,8 +148,6 @@ export function ChatComposer({
     && !contextNotice
     && !clarification;
 
-  const removeAttachment = (id: string) => setAttachments((prev) => prev.filter((x) => x.id !== id));
-
   useComposerAutoGrow(composer.textareaRef, composer.draft);
   const { draggingFiles, setDraggingFiles, handlePaste, handleDrop } = useComposerAttachInput({
     sessionId: activeSession?.id ?? "",
@@ -160,6 +161,7 @@ export function ChatComposer({
       selectedProjectId={activeProjectId ?? null}
       /* 工作模式空会话在卡片头行提供唯一项目入口；聊天模式与停靠态由独立胶囊触发同一浮层。 */
       showShelf={showScopeShelf}
+      trailing={showScopeShelf && messagesCount === 0 ? <SessionModeBar store={store} isZh={locale.isZh} /> : undefined}
       projectMenuOpen={projectMenuOpen}
       onProjectMenuOpenChange={setProjectMenuOpen}
       canCreateProject={canCreateProject}
@@ -174,8 +176,35 @@ export function ChatComposer({
   // 位置/项目（或工作树）并到输入卡片头行，避免挂载条压在圆角上；只有浮层时仍留在卡片外，保持弹层向上展开。
   const scopeInCard = showScopeShelf || Boolean(worktree);
 
+  const addMenu = (
+    <ComposerAddMenu
+      locale={locale}
+      sessionId={activeSession?.id ?? ""}
+      fileInputRef={fileInputRef}
+      onPickProject={!showScopeShelf && !activeProject ? () => setProjectMenuOpen(true) : undefined}
+      onAttachItems={appendAttachments}
+      onTriggerMention={() => {
+        const nextDraft = draft.endsWith("@") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}@`;
+        setDraft(nextDraft);
+        setSlashTrigger(null);
+        setMentionTrigger({ query: "", startIndex: nextDraft.length - 1 });
+        setMentionIndex(0);
+        focusTextareaAt(nextDraft.length);
+      }}
+      onTriggerSlash={() => {
+        const nextDraft = draft.endsWith("/") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}/`;
+        setDraft(nextDraft);
+        setMentionTrigger(null);
+        setSlashTrigger({ query: "", startIndex: nextDraft.length - 1 });
+        setSlashIndex(0);
+        focusTextareaAt(nextDraft.length);
+      }}
+      onOpenBrowser={onOpenBrowser}
+    />
+  );
+
   return (
-    <div className={styles.composerStack} data-mode={workspaceMode} data-chat-row={singleRow ? "single" : undefined}>
+    <div className={styles.composerStack} data-mode={isWorkMode ? "codex" : "chatgpt"} data-chat-row={singleRow ? "single" : undefined}>
       {clarification && lastMessageId && (
         <ClarificationCard key={lastMessageId} messageId={lastMessageId} isZh={locale.isZh} prompt={clarification}
           busy={state.submittingMessage || isRunning}
@@ -202,6 +231,12 @@ export function ChatComposer({
       <div
         className={composerStyles.composerCard}
         data-dragging={draggingFiles ? "true" : undefined}
+        onKeyDown={(event) => {
+          // 焦点可能在缩略图或移除按钮上：整个卡片都接受 Ctrl+Z 撤回刚插入的图片；文本撤销仍由输入框原生处理。
+          if (event.defaultPrevented || event.shiftKey || event.altKey) return;
+          if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+          if (undoAttachmentInsert()) event.preventDefault();
+        }}
         onDragOver={(event) => { event.preventDefault(); setDraggingFiles(true); }}
         onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingFiles(false); }}
         onDrop={handleDrop}
@@ -217,9 +252,15 @@ export function ChatComposer({
         )}
 
         {attachments.length > 0 && (
-          <div className={composerStyles.attachmentRow}>
+          <div className={attachmentStyles.attachmentRow}>
             {attachments.map((item) => (
-              <ComposerAttachmentChip key={item.id} item={item} onRemove={() => removeAttachment(item.id)} />
+              <ComposerAttachmentChip
+                key={item.id}
+                item={item}
+                locale={locale}
+                onRemove={() => removeAttachment(item.id)}
+                onNotify={setContextNotice}
+              />
             ))}
           </div>
         )}
@@ -232,49 +273,13 @@ export function ChatComposer({
           onDismiss={() => setContextNotice("")}
         />
 
-        <textarea
-          ref={textareaRef}
-          className={composerStyles.textarea}
+        <ComposerInputRow
+          composer={composer}
+          store={store}
+          state={state}
           placeholder={placeholder}
-          value={draft}
           rows={isWorkMode && !singleRow ? 2 : 1}
-          onChange={(event) => {
-            const nextVal = event.target.value;
-            setDraft(nextVal);
-            syncMentionFromText(nextVal, event.target.selectionStart);
-          }}
-          onClick={(event) => {
-            syncMentionFromText(draft, event.currentTarget.selectionStart);
-          }}
           onPaste={handlePaste}
-          onKeyDown={(event) => handleComposerKeydown(event, {
-            mention: mentionTrigger ? {
-              entries: visibleMentionEntries,
-              index: mentionIndex,
-              setIndex: setMentionIndex,
-              close: () => setMentionTrigger(null),
-              pick: handleSelectMentionEntry,
-            } : null,
-            slash: slashTrigger ? {
-              entries: visibleSlashCommands,
-              index: slashIndex,
-              setIndex: setSlashIndex,
-              close: () => setSlashTrigger(null),
-              complete: handleTabCompleteSlashCommand,
-              pick: handleSelectSlashCommand,
-            } : null,
-            skill: skillTrigger ? {
-              entries: visibleSkillEntries,
-              index: skillIndex,
-              setIndex: setSkillIndex,
-              close: () => setSkillTrigger(null),
-              pick: handleSelectSkillEntry,
-            } : null,
-            queuedCount: state.queuedMessages.length,
-            flushQueue: () => void store.flushQueuedMessages(),
-            sendShortcut: state.generalSettings.sendShortcut,
-            submit: (invertFollowUp) => void handleSubmit(undefined, invertFollowUp),
-          })}
         />
 
         <ComposerFollowUpHint
@@ -287,8 +292,9 @@ export function ChatComposer({
         {/* 同一组入口随输入卡片宽度切换文字或图标，避免窄栏出现两排工具。 */}
         <div className={composerStyles.composerBar}>
           <div className={composerStyles.controls}>
-            {/* 空会话时模式胶囊留在输入栏；进入会话后改由顶栏标题右侧承载，避免和工具挤在一行。 */}
-            {messagesCount === 0 && <SessionModeBar store={store} isZh={locale.isZh} compact={!isWorkMode} />}
+            {/* 空会话时模式胶囊跟项目行：工作模式在卡片头行，聊天模式才留在工具行。 */}
+            {messagesCount === 0 && !showScopeShelf && <SessionModeBar store={store} isZh={locale.isZh} compact={!isWorkMode} />}
+            {isWorkMode && addMenu}
             {isWorkMode && (
               <ComposerMediaLibrary
                 isZh={locale.isZh}
@@ -298,30 +304,7 @@ export function ChatComposer({
                 }}
               />
             )}
-            <ComposerAddMenu
-              locale={locale}
-              sessionId={activeSession?.id ?? ""}
-              fileInputRef={fileInputRef}
-              onPickProject={!showScopeShelf && !activeProject ? () => setProjectMenuOpen(true) : undefined}
-              onAttachItems={appendAttachments}
-              onTriggerMention={() => {
-                const nextDraft = draft.endsWith("@") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}@`;
-                setDraft(nextDraft);
-                setSlashTrigger(null);
-                setMentionTrigger({ query: "", startIndex: nextDraft.length - 1 });
-                setMentionIndex(0);
-                focusTextareaAt(nextDraft.length);
-              }}
-              onTriggerSlash={() => {
-                const nextDraft = draft.endsWith("/") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}/`;
-                setDraft(nextDraft);
-                setMentionTrigger(null);
-                setSlashTrigger({ query: "", startIndex: nextDraft.length - 1 });
-                setSlashIndex(0);
-                focusTextareaAt(nextDraft.length);
-              }}
-              onOpenBrowser={onOpenBrowser}
-            />
+            {!isWorkMode && addMenu}
             {showInlineProjectChip && activeProject && (
               <ComposerProjectChip
                 locale={locale}

@@ -13,7 +13,6 @@ export function ShellWorkspace({
   locale,
   view,
   mode,
-  newChatSelected,
   workspaceNotice,
   isCompact,
   isRightMaximized,
@@ -30,7 +29,6 @@ export function ShellWorkspace({
   /** 中央列要呈现的视图；设置弹窗打开时仍传入背景视图，使工作区停在原页面。 */
   view?: string;
   mode: WorkspaceMode;
-  newChatSelected: boolean;
   workspaceNotice: string;
   isCompact: boolean;
   isRightMaximized: boolean;
@@ -55,13 +53,12 @@ export function ShellWorkspace({
   const activeChatSession = activeChatSessionId
     ? chatSessions.find((session) => session.id === activeChatSessionId)
     : undefined;
+  // 新会话和空会话不显示标题：用户真正开始对话（会话已有消息）后才出现会话名。
   const title = shownView === "project" && currentProject
     ? currentProject.name
-    : shownView === "workspace" && activeChatSession
-      ? activeChatSession.title
-      : shownView === "workspace" && newChatSelected
-        ? locale.newChat
-        : resolveViewLabel(shownView, locale, registeredView?.title);
+    : shownView === "workspace"
+      ? (activeChatSession && activeChatSession.messageCount > 0 ? activeChatSession.title : "")
+      : resolveViewLabel(shownView, locale, registeredView?.title);
 
   return (
     <main className={styles.workspace} data-region={WORKBENCH_REGIONS[2]} data-pane="right">

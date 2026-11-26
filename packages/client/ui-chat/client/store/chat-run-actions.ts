@@ -2,7 +2,9 @@
 import { AgentStreamClient } from "./stream-client";
 import { createRunStreamHandlers } from "./run-stream-handler";
 import { fetchJson } from "./chat-http";
+import { beginDraftExit } from "./draft-session-exit";
 import {
+  writeStoredDraftActive,
   writeStoredDraftProjectId,
   writeStoredDraftSectionId,
   writeStoredPermissionMode,
@@ -168,6 +170,7 @@ export class ChatRunActions {
   private async ensureActiveSession(): Promise<ChatSessionDetail> {
     const session = this.port.getState().activeSession;
     if (session) return session;
+    const draftSession = this.port.getState().draftSession;
     const created = await fetchJson<{ session: ChatSessionDetail }>("/api/chat/sessions", {
       method: "POST",
       body: JSON.stringify({
@@ -179,11 +182,16 @@ export class ChatRunActions {
     });
     // 新会话首次落库后立即持久化活动会话 ID，避免 Vite HMR 或 F5 刷新后被踢回空白「新聊天」。
     writeStoredSessionId(created.session.id);
+    writeStoredDraftActive(false);
     writeStoredDraftProjectId(created.session.projectId);
     writeStoredDraftSectionId(created.session.sectionId);
+    const exitingDraft = beginDraftExit(this.port, draftSession);
     this.port.patchState({
       activeSessionId: created.session.id,
       activeSession: created.session,
+      // 草稿首次落库后由真实会话行接管；退场行先收起，输入区草稿记忆随发送清空。
+      draftSession: null,
+      ...(exitingDraft ? { exitingDraftSession: exitingDraft } : {}),
       draftSessionPreset: undefined,
       draftWorktree: undefined,
       sessions: [created.session, ...this.port.getState().sessions],

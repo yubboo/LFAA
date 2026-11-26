@@ -14,6 +14,8 @@ const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const WEB_DIST = join(REPO_ROOT, "apps", "web", "dist");
 const SHOT_DIR = join(tmpdir(), "lfaa-verify");
 const WANT_BUILD = process.argv.includes("--build");
+/** 8×8 PNG：用于在浏览器里合成一次「粘贴图片」，验证输入区缩略图、撤回、放大与右键菜单。 */
+const PASTED_IMAGE_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAdklEQVR4nAXBIQEAIQwAQOIQghCEIMTp19PoafQ0mlh/17o3vOktjxdeeuW17g53usvlhptuua2roaZaigqVqlTrznCmsxxOOOmU07occsolyZApS7ZuD3vay2aHnXbZrYshpliCCJGiROu+4Zu+5eMLX/rK9wOBsWLBFtoPwAAAAABJRU5ErkJggg==";
 
 /** 本机 Edge/Chrome 可执行文件候选；没有时返回 null（跳过验收）。 */
 function findBrowserExecutable(): string | null {
@@ -63,7 +65,11 @@ const steps: StepResult[] = [];
 
 try {
   browser = await chromium.launch({ executablePath, headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const page = await context.newPage();
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
   });
@@ -79,7 +85,115 @@ try {
 
   await page.goto(server.url, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3500);
-  steps.push({ step: "壳层与对话", ok: (await text()).includes("我们从哪里开始") || (await text()).includes("我们要做什么"), screenshot: await shot("home") });
+  const homeText = await text();
+  steps.push({ step: "壳层与对话", ok: homeText.includes("我们要聊些什么") || homeText.includes("你想让我们构建什么"), screenshot: await shot("home") });
+
+  // 聊天模式：左二栏换成今天 / 昨天 / 最近（7 天内）的时间分组，不再出现置顶与项目分组。
+  await page.getByText("聊天", { exact: true }).first().click();
+  await page.waitForTimeout(900);
+  const chatHeadings = await page.evaluate(() => {
+    const nav = document.querySelector('[role="navigation"][aria-label="工作区导航"]');
+    return [...(nav?.querySelectorAll("section") ?? [])].map((section) => (
+      section.querySelector("button[class*='groupHeadingButton']")?.textContent
+      ?? section.querySelector("*[class*='sectionTitle']")?.textContent
+      ?? ""
+    ).trim());
+  });
+  const chatHeading = ["今天", "昨天", "最近（7 天内）"];
+  steps.push({
+    step: "聊天模式左二时间分组",
+    // 跨过午夜时「今天」可能没有会话：只要求标题都属于时间分组，且没有项目/置顶。
+    ok: chatHeadings.length > 0
+      && chatHeadings.every((title) => chatHeading.includes(title))
+      && !chatHeadings.includes("项目")
+      && !chatHeadings.includes("置顶"),
+    screenshot: await shot("chat-mode-groups"),
+  });
+  await page.getByText("工作", { exact: true }).first().click();
+  await page.waitForTimeout(800);
+
+  // 输入区图片：粘贴 → 缩略图 → Ctrl+Z 撤回 → 点击放大 → 右键菜单（复制 / 另存为 / 移除）。
+  const chipImage = page.locator('span[data-kind="image"] img');
+  const pasteImage = async (): Promise<void> => {
+    await page.locator("main textarea").first().click();
+    await page.evaluate((base64) => {
+      const textarea = document.querySelector("main textarea");
+      if (!textarea) throw new Error("composer textarea missing");
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      const data = new DataTransfer();
+      data.items.add(new File([bytes], "pasted.png", { type: "image/png" }));
+      textarea.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, PASTED_IMAGE_PNG);
+    await page.waitForTimeout(900);
+  };
+  await pasteImage();
+  steps.push({ step: "输入区图片粘贴（缩略图）", ok: (await chipImage.count()) === 1, screenshot: await shot("composer-image-chip") });
+
+  await page.locator("main textarea").first().focus();
+  await page.keyboard.press("Control+z");
+  await page.waitForTimeout(400);
+  steps.push({
+    step: "输入区图片 Ctrl+Z 撤回",
+    ok: (await page.locator('span[data-kind="image"]').count()) === 0,
+    screenshot: await shot("composer-image-undo"),
+  });
+
+  await pasteImage();
+  const thumb = page.locator('span[data-kind="image"] button[class*="attachmentThumb"]').first();
+  await thumb.click();
+  await page.waitForTimeout(500);
+  const preview = page.locator('[data-composer-image-preview="true"]');
+  steps.push({ step: "输入区图片点击放大", ok: await preview.isVisible(), screenshot: await shot("composer-image-preview") });
+
+  // 放大层默认约占屏幕七成（不是按原尺寸缩在中间，也不铺满整屏），小图放大时启用像素化渲染保证清晰。
+  const previewImage = preview.locator("img");
+  const previewBox = await previewImage.boundingBox();
+  const upscaled = await previewImage.getAttribute("data-upscaled");
+  steps.push({
+    step: "输入区图片默认占屏幕约七成",
+    ok: Boolean(previewBox && previewBox.width >= 1440 * 0.6 && previewBox.width <= 1440 * 0.75 && upscaled === "true"),
+    screenshot: await shot("composer-image-preview-fill"),
+  });
+
+  // 1:1 回到原始像素，再点「适应」恢复七成显示。
+  await preview.getByRole("button", { name: "实际大小" }).click();
+  await page.waitForTimeout(400);
+  const actualBox = await previewImage.boundingBox();
+  await preview.locator('[data-zoom-fit="true"]').click();
+  await page.waitForTimeout(400);
+  const fitAgain = await previewImage.boundingBox();
+  steps.push({
+    step: "输入区图片 1:1 与适应切换",
+    ok: Boolean(actualBox && actualBox.width <= 8.5 && fitAgain && fitAgain.width >= 1440 * 0.6 && fitAgain.width <= 1440 * 0.75),
+  });
+
+  await preview.getByRole("button", { name: "复制图片" }).click();
+  await page.waitForTimeout(700);
+  steps.push({ step: "输入区图片复制到剪贴板", ok: (await text()).includes("图片已复制"), screenshot: await shot("composer-image-copy") });
+
+  const downloadPromise = page.waitForEvent("download", { timeout: 5000 }).catch(() => null);
+  await preview.getByRole("button", { name: "另存为" }).click();
+  const download = await downloadPromise;
+  steps.push({
+    step: "输入区图片另存为",
+    ok: Boolean(download && /\.png$/iu.test(download.suggestedFilename())),
+    screenshot: await shot("composer-image-save"),
+  });
+
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  steps.push({ step: "输入区图片预览 Esc 关闭", ok: (await page.locator('[data-composer-image-preview="true"]').count()) === 0 });
+
+  await thumb.click({ button: "right" });
+  await page.waitForTimeout(500);
+  const menuText = await text();
+  steps.push({
+    step: "输入区图片右键菜单",
+    ok: menuText.includes("复制图片") && menuText.includes("另存为") && menuText.includes("移除"),
+    screenshot: await shot("composer-image-menu"),
+  });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
 
   // Agents 页：左一入口 + 列表渲染 + 内置 agent 与默认绑定。
   await page.locator('button[aria-label="Agents"]').first().click();
@@ -149,6 +263,17 @@ try {
   await page.getByRole("button", { name: "Git", exact: true }).first().click();
   await page.waitForTimeout(1200);
   steps.push({ step: "设置-Git", ok: (await text()).includes("分支前缀"), screenshot: await shot("settings-git") });
+
+  // 终端页：页头 + 分组 + 展示位置分段控件，三者缺一都说明退回旧的自定义排版。
+  await page.locator('[role="dialog"] aside button', { hasText: "终端" }).first().click();
+  await page.waitForTimeout(900);
+  const terminalSettingsText = await text();
+  steps.push({
+    step: "设置-终端（页头与展示位置）",
+    ok: terminalSettingsText.includes("展示位置") && terminalSettingsText.includes("布局") && terminalSettingsText.includes("底部面板"),
+    screenshot: await shot("settings-terminal"),
+  });
+
   // 长期记忆页：新增 → 搜索 → 编辑 → 删除，覆盖记忆管理的完整交互。
   await page.getByRole("button", { name: "模型与规则", exact: true }).first().click();
   await page.waitForTimeout(900);

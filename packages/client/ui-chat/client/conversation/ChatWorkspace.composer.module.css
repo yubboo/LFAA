@@ -1,82 +1,4 @@
-/* 聊天输入区（附件、上下文提示、输入卡片与工具栏）样式，双主题变量适配。 */
-
-.attachmentRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.attachmentChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 15rem;
-  padding: 0.2rem 0.45rem 0.2rem 0.55rem;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--color-panel);
-  color: var(--color-ink);
-  font-size: 0.78em;
-}
-
-.attachmentChipLabel {
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attachmentChipDetail {
-  max-width: 11rem;
-  overflow: hidden;
-  color: var(--color-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attachmentChipRemove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1rem;
-  height: 1.1rem;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.attachmentChipRemove:hover {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
-
-/* 图片附件使用方形缩略图，移除控件保留在图内右上角。 */
-.attachmentChip[data-kind="image"] {
-  position: relative;
-  padding: 0;
-  border-radius: 0.6rem;
-}
-
-.attachmentPreview {
-  width: 3.75rem;
-  height: 3.75rem;
-  border-radius: inherit;
-  object-fit: cover;
-}
-
-.attachmentChip[data-kind="image"] .attachmentChipRemove {
-  position: absolute;
-  inset: 0.15rem 0.15rem auto auto;
-  width: 1.4rem;
-  height: 1.4rem;
-  background: var(--color-panel);
-  color: var(--color-ink);
-}
-
-.attachmentChipRemove:focus-visible { outline: 2px solid var(--color-accent); }
+/* 聊天输入区（上下文提示、输入卡片与工具栏）样式，双主题变量适配；附件芯片样式在 attachments 分册。 */
 
 .contextNotice {
   display: flex;
@@ -265,11 +187,6 @@
 }
 
 /* 绝对路径附件用虚线边框区分（内容不复制字节，只把路径交给 Agent）。 */
-.attachmentChip[data-kind="path"] {
-  border-style: dashed;
-  border-color: rgb(var(--color-accent-rgb) / 0.45);
-}
-
 /* 输入框工具栏的图标按钮（生成素材库等），与 + 按钮同尺寸。 */
 .toolButton {
   display: inline-flex;

@@ -1,0 +1,220 @@
+/* 输入区图片大图预览：遮罩全屏、顶部工具条、默认约占屏幕七成的大图与缩放状态；颜色全部取 @lfaa/ui-theme 语义变量。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 1.25rem 1rem 1.5rem;
+  background: var(--color-scrim);
+  backdrop-filter: blur(6px);
+  animation: composerPreviewFadeIn 150ms ease-out;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: fit-content;
+  max-width: min(100%, 56rem);
+  margin: 0 auto;
+  padding: 0.28rem 0.28rem 0.28rem 0.8rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.8rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.action,
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  height: 1.85rem;
+  padding: 0 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.iconBtn {
+  width: 1.85rem;
+  padding: 0;
+  color: var(--color-muted);
+}
+
+.action:hover,
+.iconBtn:hover {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.divider {
+  width: 1px;
+  height: 1.15rem;
+  margin: 0 0.15rem;
+  background: var(--color-line);
+}
+
+/* 缩放比例同时是「回到适应屏幕」的按钮。 */
+.scaleLabel {
+  min-width: 2.9rem;
+  height: 1.85rem;
+  padding: 0 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scaleLabel:hover {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.actualSize {
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.action:focus-visible,
+.iconBtn:focus-visible,
+.scaleLabel:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* 默认占屏幕约七成：大图缩到七成、小图放到七成，四周留白，不贴边也不压满整屏。 */
+.stage {
+  width: min(100%, 70vw);
+  height: min(100%, 70vh);
+  margin: 0 auto;
+  align-self: center;
+  display: grid;
+  align-items: safe center;
+  justify-items: safe center;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 0.5rem;
+  object-fit: contain;
+  box-shadow: var(--color-menu-shadow);
+  cursor: zoom-in;
+  animation: composerPreviewZoomIn 170ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 按原始像素倍数显示时由内联宽高决定尺寸，不再被可用区域压住。 */
+.image[data-zoomed="true"] {
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+
+/* 显示尺寸大于原始像素（小图放大）时用像素化渲染：边缘保持锐利，不发虚。 */
+.image[data-upscaled="true"] {
+  image-rendering: pixelated;
+}
+
+/* 窄屏没有余量给七成宽：占满宽度，高度仍留出工具条与上下边距。 */
+@media (max-width: 48rem) {
+  .backdrop {
+    padding: 0.75rem 0.6rem 1rem;
+  }
+
+  .stage {
+    width: 100%;
+    height: min(100%, 80vh);
+  }
+}
+
+/* 窄屏时隐藏复制/另存为文字，只留图标与缩放控件。 */
+@media (max-width: 30rem) {
+  .action span {
+    display: none;
+  }
+
+  .action {
+    padding: 0 0.45rem;
+  }
+
+  .name {
+    max-width: 5.5rem;
+  }
+}
+
+@keyframes composerPreviewFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes composerPreviewZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

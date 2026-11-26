@@ -66,7 +66,7 @@ export const GLOBAL_MODULES: readonly string[] = [...CORE_MODULES, ...OPTIONAL_M
 export const PRESETS: readonly Preset[] = [
   {
     id: "standard",
-    name: { zh: "标准模式（默认）", en: "Standard (default)" },
+    name: { zh: "标准模式", en: "Standard" },
     description: { zh: "完整工作模式，支持技能、浏览器、后台任务和子智能体协作。", en: "Full workspace mode with skills, browser, jobs, and subagents." },
     sessionModules: [
       "@lfaa/agent", "@lfaa/tools", "@lfaa/llm", "@lfaa/rules",

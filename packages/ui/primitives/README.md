@@ -86,6 +86,7 @@ Every settings page is a configuration list, not a layout showcase, so the shell
 Headless `@base-ui/react` primitives wrapped with CSS Modules and `@lfaa/ui-theme` semantic tokens (zero Tailwind):
 
 - `DropdownMenu` (`DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuSeparator`): viewport-aware popup menu with keyboard navigation and focus restoration.
+- `ContextMenu` (`ContextMenuItem`, `ContextMenuSeparator`): right-click / long-press menu anchored at the pointer, sharing the dropdown skin and keyboard handling.
 - `UiSwitch`: accessible tactile toggle switch.
 - `UiSelect`: keyboard-navigable dropdown select with collision-aware positioning.
 - `UiTabs`: segmented tab list with smooth indicator and arrow-key navigation.

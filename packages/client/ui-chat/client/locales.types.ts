@@ -7,6 +7,9 @@ export interface ChatLocaleMessages {
   /** 中心区标题、模式分段与提示：聊天与工作两种形态各一套文案。 */
   heroHeadlineChat: string;
   heroHeadlineWork: string;
+  /** 项目内新会话标题：{name} 替换成选中的项目名，在标题里用高亮变量展示。 */
+  heroHeadlineChatProject: string;
+  heroHeadlineWorkProject: string;
   heroModeChat: string;
   heroModeWork: string;
   heroHintChat: string;
@@ -15,10 +18,6 @@ export interface ChatLocaleMessages {
   composerPlaceholderWork: string;
   /** 已绑定项目时的占位文案，{name} 替换为项目名。 */
   composerPlaceholderInProject: string;
-  /** 项目内空会话的范围提示条：标题模板（{name} 项目名、{brief} 简介或未填写提示）、未填写提示与约束说明。 */
-  projectScopeNotice: string;
-  projectScopeCardEmpty: string;
-  projectScopeCardHint: string;
   /** 输入框工作树 chip 的解绑按钮。 */
   unbindWorktree: string;
   composerPlaceholder: string;
@@ -26,6 +25,19 @@ export interface ChatLocaleMessages {
   stop: string;
   newChat: string;
   deleteChat: string;
+  /** 输入区图片附件：点开大图、复制、另存为、移除与结果提示。 */
+  attachmentOpenPreview: string;
+  attachmentCopyImage: string;
+  attachmentSaveImage: string;
+  attachmentRemove: string;
+  attachmentCopyImageDone: string;
+  attachmentCopyImageFailed: string;
+  attachmentClosePreview: string;
+  /** 大图预览的缩放动作：放大、缩小、适应屏幕、实际大小。 */
+  attachmentZoomIn: string;
+  attachmentZoomOut: string;
+  attachmentZoomFit: string;
+  attachmentZoomActual: string;
   sessionTurns: string;
   sessionSteps: string;
   sessionCache: string;

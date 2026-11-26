@@ -1,5 +1,5 @@
 // 渲染聊天输入框上方的工作位置（此计算机/云端）与项目选择挂载条及搜索弹出浮层。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import {
   IconCheck,
@@ -8,29 +8,17 @@ import {
   IconDeviceLaptop,
   IconFolder,
   IconGitBranch,
-  IconPlus,
   IconSearch,
   IconX,
 } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { ChatLocaleMessages } from "../locales";
+import { ComposerProjectMenu } from "./ComposerProjectMenu";
 import styles from "./ComposerScopeBar.module.css";
 
-type OpenMenuKind = "location" | "project" | null;
+export { filterComposerProjects } from "./composer-project-filter";
 
-// 按关键字过滤本地项目名称或目录路径，供项目选择浮层实时检索与单元测试复用。
-export function filterComposerProjects(
-  projects: WorkbenchProjectItem[],
-  query: string,
-): WorkbenchProjectItem[] {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return projects;
-  return projects.filter((project) => {
-    const nameMatch = project.name.toLowerCase().includes(normalized);
-    const pathMatch = Boolean(project.rootPath && project.rootPath.toLowerCase().includes(normalized));
-    return nameMatch || pathMatch;
-  });
-}
+type OpenMenuKind = "location" | "project" | null;
 
 /** 控制新消息的工作位置与项目绑定，选择结果由上层同步到聊天会话。 */
 export function ComposerScopeBar({
@@ -44,6 +32,7 @@ export function ComposerScopeBar({
   showShelf = true,
   projectDisabled = false,
   worktree = null,
+  trailing,
   onSelectProject,
   onCreateProject,
   onClearWorktree,
@@ -60,17 +49,17 @@ export function ComposerScopeBar({
   projectDisabled?: boolean;
   /** 已绑定的工作树摘要；只做展示，解绑由上层提交 worktreeId: null。 */
   worktree?: { branch: string; path: string } | null;
+  /** 紧跟在项目后面的轻量控件（如会话模式），与工作位置/项目共用一条挂载行。 */
+  trailing?: ReactNode;
   onSelectProject: (projectId: string | null) => void;
   onCreateProject: () => void;
   onClearWorktree?: () => void;
 }) {
   const [internalMenu, setInternalMenu] = useState<OpenMenuKind>(null);
-  const [projectQuery, setProjectQuery] = useState("");
   const [locationQuery, setLocationQuery] = useState("");
   const [cloudHintVisible, setCloudHintVisible] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const projectSearchRef = useRef<HTMLInputElement>(null);
   const isControlledProject = typeof projectMenuOpen === "boolean";
   const openMenu: OpenMenuKind = isControlledProject
     ? (projectMenuOpen ? "project" : (internalMenu === "location" ? "location" : null))
@@ -89,11 +78,6 @@ export function ComposerScopeBar({
   const selectedProject = useMemo(
     () => (selectedProjectId ? projects.find((item) => item.id === selectedProjectId) ?? null : null),
     [projects, selectedProjectId],
-  );
-
-  const filteredProjects = useMemo(
-    () => filterComposerProjects(projects, projectQuery),
-    [projects, projectQuery],
   );
 
   useEffect(() => {
@@ -136,10 +120,7 @@ export function ComposerScopeBar({
   }, [isControlledProject, openProjectSignal]);
 
   useEffect(() => {
-    if (openMenu === "project") {
-      setProjectQuery("");
-      window.requestAnimationFrame(() => projectSearchRef.current?.focus());
-    } else if (openMenu === "location") {
+    if (openMenu === "location") {
       setLocationQuery("");
       setCloudHintVisible(false);
     }
@@ -254,84 +235,19 @@ export function ComposerScopeBar({
           </HoverTip>}
 
           {openMenu === "project" && !projectDisabled && (
-            <div className={styles.popover} role="dialog" aria-label={locale.bindProject}>
-              <div className={styles.searchRow}>
-                <IconSearch size={14} aria-hidden="true" />
-                <input
-                  ref={projectSearchRef}
-                  type="text"
-                  className={styles.searchInput}
-                  placeholder={locale.searchProjects}
-                  aria-label={locale.searchProjects}
-                  value={projectQuery}
-                  onChange={(event) => setProjectQuery(event.target.value)}
-                />
-              </div>
-
-              <div className={styles.list}>
-                {filteredProjects.length === 0 ? (
-                  <p className={styles.emptyHint}>
-                    {projects.length === 0 ? locale.noProjectsYet : locale.noMatchingProjects}
-                  </p>
-                ) : (
-                  filteredProjects.map((project) => {
-                    const isSelected = project.id === selectedProject?.id;
-                    return (
-                      <button
-                        key={project.id}
-                        type="button"
-                        className={`${styles.menuItem} ${isSelected ? styles.menuItemActive : ""}`}
-                        title={project.rootPath || project.name}
-                        onClick={() => {
-                          onSelectProject(project.id);
-                          setOpenMenu(null);
-                        }}
-                      >
-                        <span className={styles.menuItemMain}>
-                          <IconFolder size={15} aria-hidden="true" />
-                          <span className={styles.menuItemText}>{project.name}</span>
-                        </span>
-                        {isSelected && <IconCheck size={14} className={styles.menuCheck} aria-hidden="true" />}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-
-              <div className={styles.divider} />
-
-              <button
-                type="button"
-                className={styles.menuItem}
-                disabled={!canCreateProject}
-                onClick={() => {
-                  setOpenMenu(null);
-                  onCreateProject();
-                }}
-              >
-                <span className={styles.menuItemMain}>
-                  <IconPlus size={15} aria-hidden="true" />
-                  <span className={styles.menuItemText}>{locale.createNewProject}</span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={styles.menuItem}
-                disabled={!selectedProject}
-                onClick={() => {
-                  onSelectProject(null);
-                  setOpenMenu(null);
-                }}
-              >
-                <span className={styles.menuItemMain}>
-                  <IconX size={15} aria-hidden="true" />
-                  <span className={styles.menuItemText}>{locale.workOutsideProject}</span>
-                </span>
-              </button>
-            </div>
+            <ComposerProjectMenu
+              locale={locale}
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              canCreateProject={canCreateProject}
+              onSelectProject={onSelectProject}
+              onCreateProject={onCreateProject}
+              onClose={() => setOpenMenu(null)}
+            />
           )}
         </div>
+
+        {trailing}
 
         {worktree && (
           <div className={styles.worktreeChip} title={worktree.path}>

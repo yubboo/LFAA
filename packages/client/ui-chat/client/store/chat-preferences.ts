@@ -5,6 +5,7 @@ import type { AgentPermissionMode } from "./chat-types";
 const ACTIVE_SESSION_KEY = "lfaa:active-chat-session-id";
 const DRAFT_PROJECT_KEY = "lfaa:draft-project-id";
 const DRAFT_SECTION_KEY = "lfaa:draft-section-id";
+const DRAFT_ACTIVE_KEY = "lfaa:draft-session-active";
 const PERMISSION_MODE_KEY = "lfaa:permission-mode";
 const REASONING_LEVEL_KEY = "lfaa:reasoning-level";
 const FOLLOW_AGENT_WORKBENCH_KEY = "lfaa:workbench-follow-agent";
@@ -150,4 +151,25 @@ export function readStoredDraftSectionId(): string | null {
 /** 写入当前新会话草稿绑定的分区 id。 */
 export function writeStoredDraftSectionId(sectionId: string | null): void {
   writeStoredOptionalId(DRAFT_SECTION_KEY, sectionId);
+}
+
+/** 读取是否停在新会话草稿：刷新后据此恢复左二项目下的草稿行。 */
+export function readStoredDraftActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(DRAFT_ACTIVE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+/** 写入新会话草稿状态：打开历史会话或首次发送落库后清除。 */
+export function writeStoredDraftActive(active: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (active) window.localStorage.setItem(DRAFT_ACTIVE_KEY, "true");
+    else window.localStorage.removeItem(DRAFT_ACTIVE_KEY);
+  } catch {
+    // 忽略存储配额限制。
+  }
 }

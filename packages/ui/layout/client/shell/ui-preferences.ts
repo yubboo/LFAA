@@ -27,6 +27,8 @@ export const SETTINGS_VIEW_STORAGE_KEY = "lfaa:settings-view";
 export const LIBRARY_TAB_STORAGE_KEY = "lfaa:library-tab";
 export const WORKSPACE_MODE_STORAGE_KEY = "lfaa:workspace-mode";
 export const NAV_GROUP_EXPANDED_KEY = "lfaa:nav-group-expanded";
+/** 聊天模式三个时间分组（今天 / 昨天 / 最近 7 天内）的折叠状态。 */
+export const CHAT_GROUP_EXPANDED_KEY = "lfaa:chat-group-expanded";
 export const SECTION_EXPANDED_KEY = "lfaa:section-expanded";
 export const PROJECT_EXPANDED_KEY = "lfaa:project-expanded";
 export const ACTIVE_GROUP_STORAGE_KEY = "lfaa:active-group-key";
@@ -165,6 +167,25 @@ export function readNavGroupExpandedPref(): NavGroupExpandedPrefs {
 /** 保存内建导航组的展开状态。 */
 export function writeNavGroupExpandedPref(prefs: NavGroupExpandedPrefs): void {
   writeStoredJson(NAV_GROUP_EXPANDED_KEY, prefs);
+}
+
+/** 聊天模式时间分组的展开偏好；缺省时按展开处理。 */
+export type ChatGroupExpandedPrefs = Partial<Record<"today" | "yesterday" | "last7", boolean>>;
+
+/** 恢复聊天模式「今天 / 昨天 / 最近 7 天内」的展开状态。 */
+export function readChatGroupExpandedPref(): ChatGroupExpandedPrefs {
+  const raw = readStoredJson<unknown>(CHAT_GROUP_EXPANDED_KEY, null);
+  if (!isPlainRecord(raw)) return {};
+  const next: ChatGroupExpandedPrefs = {};
+  for (const key of ["today", "yesterday", "last7"] as const) {
+    if (typeof raw[key] === "boolean") next[key] = raw[key];
+  }
+  return next;
+}
+
+/** 保存聊天模式时间分组的展开状态，刷新后保持用户收起过的分组。 */
+export function writeChatGroupExpandedPref(prefs: ChatGroupExpandedPrefs): void {
+  writeStoredJson(CHAT_GROUP_EXPANDED_KEY, prefs);
 }
 
 /** 恢复每个自定义分区的展开偏好。 */

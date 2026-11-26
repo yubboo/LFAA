@@ -29,6 +29,8 @@ export interface ComposerKeydownContext {
   sendShortcut: "enter" | "ctrl_enter";
   /** 发送当前草稿；invertFollowUp 对应 Ctrl/Cmd+Enter 的「插话」语义。 */
   submit: (invertFollowUp: boolean) => void;
+  /** 撤回最近一次附件插入；返回 false 表示文字已改动或没有可撤回批次，交给浏览器原生撤销。 */
+  undoAttachment: () => boolean;
 }
 
 /** 在候选列表内循环移动高亮下标。 */
@@ -43,7 +45,7 @@ function cycle(count: number, index: number, delta: number): number {
  */
 export function handleComposerKeydown(
   event: KeyboardEvent<HTMLTextAreaElement>,
-  { mention, slash, skill, queuedCount, flushQueue, sendShortcut, submit }: ComposerKeydownContext,
+  { mention, slash, skill, queuedCount, flushQueue, sendShortcut, submit, undoAttachment }: ComposerKeydownContext,
 ): void {
   const composing = event.nativeEvent.isComposing;
   const pickFrom = <TEntry>(state: TriggerKeys<TEntry>): TEntry | undefined =>
@@ -125,6 +127,13 @@ export function handleComposerKeydown(
       if (picked) skill.pick(picked);
       return;
     }
+  }
+
+  // 撤回：最后一次操作是插入附件时先撤附件；文字改过或没有附件则退回浏览器原生撤销。
+  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && !composing
+    && event.key.toLowerCase() === "z" && undoAttachment()) {
+    event.preventDefault();
+    return;
   }
 
   // 有排队消息时，Ctrl/Cmd+Enter 直接把全部排队消息作为插话发出。

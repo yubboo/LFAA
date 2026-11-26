@@ -29,6 +29,7 @@ export function RightWorkbenchActions({
   onOpenExtensions,
   onToggleMaximize,
   onCollapsePanel,
+  hideSessionControls = false,
 }: {
   variant?: "full" | "sessionOnly" | "workbenchOnly";
   isZh: boolean;
@@ -47,8 +48,10 @@ export function RightWorkbenchActions({
   onOpenExtensions?: (() => void) | undefined;
   onToggleMaximize?: (() => void) | undefined;
   onCollapsePanel?: (() => void) | undefined;
+  /** 新会话还没有对话：隐藏「更多操作 / 概览」这组会话控制。 */
+  hideSessionControls?: boolean | undefined;
 }) {
-  const showSessionControls = variant !== "workbenchOnly";
+  const showSessionControls = variant !== "workbenchOnly" && !hideSessionControls;
   const showPanelControls = variant !== "sessionOnly";
   const [menuOpen, setMenuOpen] = useState<"more" | "overview" | null>(null);
   const [renaming, setRenaming] = useState(false);

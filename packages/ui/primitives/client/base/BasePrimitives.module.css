@@ -23,6 +23,11 @@
   transform: scale(0.96);
 }
 
+/* 右键菜单跟着指针展开，宽度按条目内容收紧，不与下拉菜单的固定最小宽度共用。 */
+.contextMenuPopup {
+  min-width: 9.5rem;
+}
+
 .menuItem {
   display: flex;
   align-items: center;

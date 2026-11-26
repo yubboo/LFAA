@@ -1,4 +1,4 @@
-// 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、本地模式状态、插件工作区快捷入口与右侧栏展开/收起按钮。
+// 渲染工作区顶部栏：左侧栏展开/收起按钮、当前标题、插件工作区快捷入口与右侧栏展开/收起按钮。
 import { CapsuleBar, PanelToggleButton } from "@lfaa/ui-primitives/client";
 import { formatShortcutKeys, readShortcutKeysFor } from "../shortcuts";
 import { defaultShortcutKeys } from "../shortcut-defaults";
@@ -25,7 +25,8 @@ export function WorkspaceBar({
   onToggleRight,
 }: {
   locale: LocaleMessages;
-  title: string;
+  /** 空会话不显示标题；其余视图按当前名称展示。 */
+  title?: string | null;
   leftOpen: boolean;
   leftDragCollapsed: boolean;
   hasRightColumn: boolean;
@@ -54,7 +55,7 @@ export function WorkspaceBar({
             shortcut={leftHint}
             onClick={onToggleLeft}
           />
-          <span className={styles.barTitle}>{title}</span>
+          {title ? <span className={styles.barTitle}>{title}</span> : null}
           {titleActions.length > 0 && (
             <span className={styles.barTitleActions}>
               {titleActions.map((action) => (
@@ -64,10 +65,6 @@ export function WorkspaceBar({
           )}
         </div>
         <div className={styles.barGroup}>
-          <span className={styles.status} title={locale.ready}>
-            <span className={styles.statusDot} aria-hidden="true" />
-            <span className={styles.statusText}>{locale.ready}</span>
-          </span>
           {workspaceActions.map((action) => (
             <span key={action.id} className={styles.barActionSlot}>
               {action.render({ compact, rightPanelOpen: rightOpen && !rightDragCollapsed, rightPanelMaximized })}

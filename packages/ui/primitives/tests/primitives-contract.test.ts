@@ -26,6 +26,7 @@ test("ui-primitives client 入口完整导出 ModalDialog / PopoverCard / StepSl
 
   const clientEntry = await readFile(resolve(pkgRoot, "client/index.tsx"), "utf8");
   assert.match(clientEntry, /CollapsePane/);
+  assert.match(clientEntry, /ContextMenu/);
   assert.match(clientEntry, /ModalDialog/);
   assert.match(clientEntry, /PanelToggleButton/);
   assert.match(clientEntry, /PopoverCard/);

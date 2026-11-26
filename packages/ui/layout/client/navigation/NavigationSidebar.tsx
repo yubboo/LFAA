@@ -1,5 +1,5 @@
 // 复用同一套左二菜单栏骨架，根据 WorkbenchDomainConfig 切换头部形态与业务菜单内容。
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type {
   WorkbenchChatProvider,
   WorkbenchChatSessionSummary,
@@ -13,6 +13,7 @@ import type { LocalProject, NavigationView, RecentItem, WorkspaceMode } from "./
 import type { WorkbenchDomainConfig } from "./workbench-domains";
 import type { LibraryTabKey } from "../workbench-service";
 import { DomainSidebarMenu } from "./DomainSidebarMenu";
+import { ModeMenu } from "./ModeMenu";
 import { NavigationIcon } from "./NavigationIcon";
 import { NavigationGroups } from "./NavigationGroups";
 import { SettingsMenu } from "../panels/SettingsMenu";
@@ -121,14 +122,8 @@ export function NavigationSidebar({
   const wasSearchOpen = useRef(false);
   const wasActivityOpen = useRef(false);
 
-  useEffect(() => {
-    if (!modeMenuOpen) return;
-    const closeOnOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setModeMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutside);
-    return () => document.removeEventListener("pointerdown", closeOnOutside);
-  }, [modeMenuOpen]);
+  // 关闭函数保持稳定：模式卡片在打开期间重渲染时不会反复重挂监听。
+  const closeModeMenu = useCallback(() => setModeMenuOpen(false), []);
 
   useEffect(() => {
     if (!activityOpen) return;
@@ -165,11 +160,7 @@ export function NavigationSidebar({
       aria-label={domain.sidebarAriaLabel}
       data-region="section-navigation"
       onKeyDown={(event) => {
-        if (event.key === "Escape" && modeMenuOpen) {
-          event.stopPropagation();
-          setModeMenuOpen(false);
-          modeTriggerRef.current?.focus();
-        } else if (event.key === "Escape" && activityOpen) {
+        if (event.key === "Escape" && activityOpen) {
           event.stopPropagation();
           onCloseActivity();
         }
@@ -205,30 +196,35 @@ export function NavigationSidebar({
                     type="button"
                     aria-haspopup="menu"
                     aria-expanded={modeMenuOpen}
+                    aria-controls="lfaa-mode-menu"
                     aria-label={locale.workspaceMode}
                     onClick={() => setModeMenuOpen((open) => !open)}
                   >
                     <NavigationIcon name="menu" />
                   </button>
                 </ToolbarTip>
-                {modeMenuOpen && (
-                  <div className={styles.modeMenu} role="menu" aria-label={locale.workspaceMode}>
-                    <ModeOption selected={mode === "chatgpt"} title={locale.chatModeTitle} description={locale.chatModeDescription} onClick={() => { onModeChange("chatgpt"); setModeMenuOpen(false); }} />
-                    <ModeOption selected={mode === "codex"} title={locale.codexModeTitle} description={locale.codexModeDescription} onClick={() => { onModeChange("codex"); setModeMenuOpen(false); }} />
-                  </div>
-                )}
+                <ModeMenu
+                  open={modeMenuOpen}
+                  anchorRef={modeTriggerRef}
+                  locale={locale}
+                  mode={mode}
+                  onClose={closeModeMenu}
+                  onModeChange={onModeChange}
+                />
               </div>
-              <ToolbarTip label={locale.projectWorkspace}>
-                <button
-                  className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "project" ? styles.headerButtonActive : ""}`}
-                  type="button"
-                  aria-label={locale.projectWorkspace}
-                  aria-pressed={sidebarMode === "project"}
-                  onClick={() => onChangeSidebarMode("project")}
-                >
-                  <NavigationIcon name="project" />
-                </button>
-              </ToolbarTip>
+              {mode !== "chatgpt" && (
+                <ToolbarTip label={locale.projectWorkspace}>
+                  <button
+                    className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "project" ? styles.headerButtonActive : ""}`}
+                    type="button"
+                    aria-label={locale.projectWorkspace}
+                    aria-pressed={sidebarMode === "project"}
+                    onClick={() => onChangeSidebarMode("project")}
+                  >
+                    <NavigationIcon name="project" />
+                  </button>
+                </ToolbarTip>
+              )}
               <ToolbarTip label={locale.chatList}>
                 <button
                   className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "chats" ? styles.headerButtonActive : ""}`}
@@ -302,8 +298,8 @@ export function NavigationSidebar({
             onSelectDomainItem={onSelectDomainItem}
             onNavigate={onNavigate}
           />
-        ) : sidebarMode === "project" ? (
-          // 项目工作区：文件树由聊天插件经契约注入，左二只负责切换与容器。
+        ) : sidebarMode === "project" && mode !== "chatgpt" ? (
+          // 项目工作区：文件树由聊天插件经契约注入，左二只负责切换与容器；聊天模式不展示项目树。
           <div className={styles.projectWorkspace}>
             {chatProvider?.renderProjectWorkspace
               ? chatProvider.renderProjectWorkspace({ projectId: workspaceProjectId, compact })
@@ -323,6 +319,7 @@ export function NavigationSidebar({
             chatProvider={chatProvider}
             projectProvider={projectProvider}
             sectionProvider={sectionProvider}
+            workspaceMode={mode}
             onNewChat={onNewChat}
             onNewRecentChat={onNewRecentChat}
             onNewChatInProject={onNewChatInProject}
@@ -338,15 +335,6 @@ export function NavigationSidebar({
         )}
       </div>
     </aside>
-  );
-}
-
-function ModeOption({ selected, title, description, onClick }: { selected: boolean; title: string; description: string; onClick: () => void }) {
-  return (
-    <button className={styles.modeOption} type="button" role="menuitemradio" aria-checked={selected} onClick={onClick}>
-      <span><strong>{title}</strong><small>{description}</small></span>
-      {selected && <NavigationIcon name="check" className={styles.check} />}
-    </button>
   );
 }
 

@@ -1,0 +1,91 @@
+/* 模式卡片：与账号卡片同一套几何与密度（docs/standards/floating-cards.md），
+   位置和宽度由 JS 按左二栏量取；卡片自身按内容盒宽度切换窄版排版。 */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-popover) - 1);
+  background: transparent;
+}
+
+.menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: grid;
+  gap: 0.04rem;
+  padding: var(--popover-padding);
+  border: 1px solid var(--glass-border, var(--color-line));
+  border-radius: var(--popover-radius);
+  /* 实底 + 半透明玻璃色叠加：保留质感，又绝不透出下层的会话与标签内容。 */
+  background-color: var(--color-shell);
+  background-image: linear-gradient(var(--color-popover), var(--color-popover)), var(--glass-sheen, none);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
+  color: var(--color-ink);
+  container-type: inline-size;
+}
+
+.option {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--popover-row-height);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.24rem 0.36rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--popover-row-font);
+  text-align: left;
+  cursor: pointer;
+}
+
+.option:hover,
+.option:focus-visible {
+  background: var(--color-menu-hover);
+}
+
+.optionText {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+/* 标题与说明一律单行省略：窄栏里宁可截断，也不折行把卡片撑高。 */
+.option strong,
+.option small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option strong {
+  font-size: var(--popover-title-font);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.option small {
+  color: var(--color-muted);
+  font-size: var(--popover-subtitle-font);
+  line-height: 1.25;
+}
+
+.check {
+  width: var(--popover-icon);
+  height: var(--popover-icon);
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+/* 1024 的窄栏只剩一百来像素内容宽：先撤说明，只留模式名与选中勾。 */
+@container (max-width: 150px) {
+  .option small {
+    display: none;
+  }
+}

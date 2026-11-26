@@ -237,20 +237,6 @@
   gap: 0.65rem;
   min-width: 0;
 }
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.92em;
-  white-space: nowrap;
-}
-.statusDot {
-  width: 0.4rem;
-  height: 0.4rem;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--color-success);
-}
 .welcome,
 .page {
   align-self: center;
@@ -391,9 +377,3 @@
     padding: 1.5rem 0;
   }
 }
-
-@media (max-width: 420px) { .statusText { display: none; } }
-
-
-
-

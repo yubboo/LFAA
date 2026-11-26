@@ -68,6 +68,10 @@ export interface ChatSessionItem {
   unread?: boolean;
   /** 静音该会话的通知与侧栏待处理徽标。 */
   muted?: boolean;
+  /** 客户端临时草稿：没有 Host 会话记录，只用于左二项目下的可返回行。 */
+  draft?: boolean;
+  /** 草稿正在收起：侧栏保留一个动画时长后由 store 移除。 */
+  draftExiting?: boolean;
   messageCount: number;
   summary?: string;
   sessionPreset?: string;
@@ -311,6 +315,10 @@ export interface ChatStoreSnapshot {
   sessions: ChatSessionItem[];
   activeSessionId: string | null;
   activeSession: ChatSessionDetail | null;
+  /** 当前新会话草稿的虚拟行；只有用户主动开新会话后存在，切到历史会话即清空。 */
+  draftSession?: ChatSessionItem | null;
+  /** 正在收起的上一行草稿：只用于左二退场动画，超时后清空。 */
+  exitingDraftSession?: ChatSessionItem | null;
   /** 当前会话最近一个未完成目标；undefined 表示尚未读取，null 表示没有目标。 */
   activeGoal?: ChatGoalItem | null | undefined;
   draftProjectId: string | null;

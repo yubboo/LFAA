@@ -34,7 +34,6 @@ function renderList(options: { restoring?: boolean; messages?: ChatMessageItem[]
     lastMessage: undefined,
     clarification: undefined,
     starterSuggestions: null,
-    projectScope: null,
     workspaceMode: "chatgpt",
     restoring: options.restoring ?? false,
     heroComposer: createElement("div", null, "composer"),
@@ -58,6 +57,7 @@ function renderList(options: { restoring?: boolean; messages?: ChatMessageItem[]
     onResolveApproval: noop,
     mediaActions: { busy: false, onQuote: noop, onRegenerate: noop },
     threadRef: { current: null },
+    scrollElementRef: { current: null },
   }));
 }
 
@@ -71,7 +71,7 @@ test("恢复已记住的会话时渲染骨架而不是空态引导", () => {
 
 test("没有待恢复会话时仍立即显示空态引导", () => {
   const html = renderList({ restoring: false });
-  assert.match(html, /我们从哪里开始/u);
+  assert.match(html, /我们要聊些什么/u);
   assert.doesNotMatch(html, /restoreSkeleton/u);
 });
 

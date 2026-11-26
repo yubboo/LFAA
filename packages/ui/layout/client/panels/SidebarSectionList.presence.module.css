@@ -1,0 +1,58 @@
+/* 新会话草稿行的进出场：只让草稿行收起/展开高度，历史会话行保持即时切换。 */
+.draftRow {
+  max-height: 3rem;
+  overflow: hidden;
+  transition:
+    max-height 200ms ease,
+    min-height 200ms ease,
+    padding-top 200ms ease,
+    padding-bottom 200ms ease,
+    opacity 160ms ease,
+    transform 200ms ease;
+}
+
+.draftRowEnter {
+  animation: draftRowIn 220ms ease-out;
+}
+
+.draftRowExit {
+  max-height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  animation: none;
+  pointer-events: none;
+}
+
+@keyframes draftRowIn {
+  from {
+    max-height: 0;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    max-height: 3rem;
+    min-height: 2.2rem;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 系统要求减少动态效果时只保留最终状态，不做高度与位移动画。 */
+@media (prefers-reduced-motion: reduce) {
+  .draftRow {
+    transition: none;
+  }
+
+  .draftRowEnter {
+    animation: none;
+  }
+}

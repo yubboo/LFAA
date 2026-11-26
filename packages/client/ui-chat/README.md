@@ -44,3 +44,5 @@ Rendering and client-side state live under `client/`; the capability package `@l
 The workbench opens explicit browser previews and displays live browser activity, scoped verification results, and available screenshots.
 
 The memory settings tab filters by kind and keyword, edits content and kind in place, and reports active / superseded / archived counts; deletion lives in its own danger group at the end of the page.
+
+Composer image attachments open a preview sized to about 70% of the screen (fit with margins, plus 1:1 and zoom controls that stay sharp when scaled up), expose copy / save / remove in their right-click menu, and the last insertion can be undone with Ctrl+Z before the draft text changes.

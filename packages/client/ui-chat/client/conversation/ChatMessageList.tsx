@@ -1,4 +1,4 @@
-// 聊天消息区：空会话引导（鱼形图标 / 标题 / 聊天·工作分段 / 工作模式的项目范围提示条 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
+// 聊天消息区：空会话引导（鱼形图标 / 可点项目变量的标题 / 聊天·工作分段 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
 import type { ReactNode, RefObject } from "react";
 import { useMemo, useRef, useState, useLayoutEffect } from "react";
 import { IconFish } from "@tabler/icons-react";
@@ -9,6 +9,9 @@ import type { MediaResultContextValue } from "@lfaa/client-ui-tool-media/client"
 import { formatDayDivider } from "./MessageActionBars";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { ChatSuggestions } from "./ChatSuggestions";
+import { HeroProjectTitle, type HeroProjectPicker } from "./HeroProjectTitle";
+
+export { buildHeroProject } from "./HeroProjectTitle";
 import { collectPriorSuggestions, EMPTY_PRIOR_SUGGESTIONS, stabilizePriorSuggestions } from "./prior-suggestions";
 import { readStoredThreadVirtualization } from "../store/chat-preferences";
 import { shouldVirtualizeThread } from "./thread-window";
@@ -60,7 +63,7 @@ export function ChatMessageList({
   lastMessage,
   clarification,
   starterSuggestions,
-  projectScope,
+  heroProject,
   workspaceMode,
   restoring,
   heroComposer,
@@ -94,8 +97,8 @@ export function ChatMessageList({
   lastMessage: ChatMessageItem | undefined;
   clarification: ChatMessageItem["clarification"];
   starterSuggestions: string[] | null;
-  /** 项目内空会话展示的范围摘要；未绑定项目时为 null。 */
-  projectScope: { name: string; description: string } | null;
+  /** 项目内新会话的标题变量与项目选择器；未绑定项目时为 null。 */
+  heroProject?: HeroProjectPicker | null | undefined;
   /** 中心区的「聊天 / 工作」形态：标题、提示与输入栏密度都按它切换。 */
   workspaceMode: WorkspaceMode;
   /** 刷新后正在恢复已记住的会话：先渲染消息骨架，不能先把空态引导闪出来。 */
@@ -160,7 +163,9 @@ export function ChatMessageList({
   if (messages.length === 0) {
     // 刷新恢复会话时先给会话骨架：空态引导在详情回来前闪一下再跳走，是最刺眼的那一下。
     if (restoring) return <ConversationSkeleton isZh={locale.isZh} />;
-    const isWorkMode = workspaceMode === "codex";
+    // 已进入项目就是工作形态：标题、提示与输入栏按工作渲染，并隐藏「聊天 / 工作」切换。
+    const projectBound = Boolean(heroProject);
+    const isWorkMode = workspaceMode === "codex" || projectBound;
     const fallbackSuggestions = [locale.heroSuggestionPlan, locale.heroSuggestionCheck, locale.heroSuggestionWrite];
     // 项目起步建议与通用引导统一为同一种轻量无边框图标行，保持界面视觉语言一致。
     const activeSuggestions = starterSuggestions && starterSuggestions.length > 0
@@ -171,37 +176,30 @@ export function ChatMessageList({
         <span className={heroStyles.heroIcon} aria-hidden="true">
           <IconFish size={30} stroke={1.3} />
         </span>
-        <h1 className={heroStyles.heroTitle}>{isWorkMode ? locale.heroHeadlineWork : locale.heroHeadlineChat}</h1>
-        {/* 聊天 / 工作分段：决定中心区形态与输入栏信息密度，和左二头部菜单共用同一份状态。 */}
-        <div className={heroStyles.heroModes} role="group" aria-label={locale.isZh ? "模式" : "Mode"}>
-          <button
-            type="button"
-            className={heroStyles.heroModeBtn}
-            aria-pressed={!isWorkMode}
-            onClick={() => onWorkspaceModeChange("chatgpt")}
-          >
-            {locale.heroModeChat}
-          </button>
-          <button
-            type="button"
-            className={heroStyles.heroModeBtn}
-            aria-pressed={isWorkMode}
-            onClick={() => onWorkspaceModeChange("codex")}
-          >
-            {locale.heroModeWork}
-          </button>
-        </div>
+        <HeroProjectTitle locale={locale} isWorkMode={isWorkMode} project={heroProject} />
+        {/* 项目内已经是工作形态：不再提供「聊天 / 工作」切换；只有非项目的中心引导区才显示。 */}
+        {!projectBound && (
+          <div className={heroStyles.heroModes} role="group" aria-label={locale.isZh ? "模式" : "Mode"}>
+            <button
+              type="button"
+              className={heroStyles.heroModeBtn}
+              aria-pressed={!isWorkMode}
+              onClick={() => onWorkspaceModeChange("chatgpt")}
+            >
+              {locale.heroModeChat}
+            </button>
+            <button
+              type="button"
+              className={heroStyles.heroModeBtn}
+              aria-pressed={isWorkMode}
+              onClick={() => onWorkspaceModeChange("codex")}
+            >
+              {locale.heroModeWork}
+            </button>
+          </div>
+        )}
         {heroComposer && (
           <div className={heroStyles.heroComposer}>
-            {/* 项目范围只在「工作」模式提示：聊天模式是普通对话，不弹这条约束；
-                提示条贴在输入栏正上方，只占一行，完整规则收进悬停提示。 */}
-            {isWorkMode && projectScope && (
-              <p className={heroStyles.projectScopeNotice} role="note" title={locale.projectScopeCardHint}>
-                {locale.projectScopeNotice
-                  .replace("{name}", projectScope.name)
-                  .replace("{brief}", projectScope.description || locale.projectScopeCardEmpty)}
-              </p>
-            )}
             {heroComposer}
           </div>
         )}

@@ -172,6 +172,11 @@ test("会话动作：新建草稿清空活动会话并持久化空 id", async ()
     assert.equal(fake.state.activeSessionId, null);
     assert.equal(fake.state.draftProjectId, "p1");
     assert.equal(readStoredSessionId(), null);
+    // 草稿行是 Project 下立即可见的新会话，切到历史会话时必须撤下。
+    assert.equal(fake.state.draftSession?.id, "draft:p1");
+    assert.equal(fake.state.draftSession?.projectId, "p1");
+    assert.equal(fake.state.draftSession?.draft, true);
+    assert.equal(fake.state.draftSession?.messageCount, 0);
   });
 });
 
@@ -179,6 +184,8 @@ test("会话动作：打开会话写入状态并触发运行恢复", async () =>
   await withWindowStorage(async () => {
     const fake = createFakeStore();
     const sessions = new ChatSessionActions(fake.port);
+    sessions.startNewChatDraft({ projectId: "p1" });
+    assert.equal(fake.state.draftSession?.draft, true);
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => new Response(JSON.stringify({
       session: {
@@ -192,6 +199,10 @@ test("会话动作：打开会话写入状态并触发运行恢复", async () =>
       globalThis.fetch = originalFetch;
     }
     assert.equal(fake.state.activeSessionId, "s1");
+    assert.equal(fake.state.draftSession, null);
+    // 先保留一行退场草稿给侧栏收起高度，由计时器稍后移除。
+    assert.equal(fake.state.exitingDraftSession?.id, "draft:p1");
+    assert.equal(fake.state.exitingDraftSession?.draftExiting, true);
     assert.deepEqual(fake.calls.resumeRun, ["s1"]);
   });
 });

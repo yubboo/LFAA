@@ -119,19 +119,27 @@ function renderComposerHtml(options: {
   }));
 }
 
-test("工作模式绑定项目空会话：仅在上方挂载条显示唯一 app1，左下角恢复纯 + 按钮", () => {
+test("工作模式绑定项目空会话：项目与模式在头行，+ 回到工具行并排在素材库前", () => {
   const html = renderComposerHtml({ mode: "codex", activeProjectId: "p-app1" });
   const app1Triggers = html.match(/<button[^>]*>[^<]*<svg[\s\S]*?<\/svg>[^<]*<span[^>]*>app1<\/span><\/button>/gu) ?? [];
   assert.equal(app1Triggers.length, 1);
   assert.doesNotMatch(html, /data-project-picker-trigger="true"/u);
   assert.match(html, /aria-label="添加文件等内容"/u);
   assert.match(html, /在“app1”中新建聊天/u);
+  // 模式胶囊进卡片头行（textarea 之前）；+ 回到工具行，且排在素材库图标左边。
+  assert.ok(html.indexOf('aria-label="会话模式') > -1);
+  assert.ok(html.indexOf('aria-label="会话模式') < html.indexOf("<textarea"));
+  assert.ok(html.indexOf('aria-label="添加文件等内容"') > html.indexOf("<textarea"));
+  assert.ok(html.indexOf('aria-label="添加文件等内容"') < html.indexOf('aria-label="生成素材库"'));
 });
 
-test("聊天模式绑定项目空会话：+ 旁显示独立项目胶囊且占位文案带项目名", () => {
+test("项目内会话固定工作形态：聊天模式也按工作布局渲染项目入口", () => {
   const html = renderComposerHtml({ mode: "chatgpt", activeProjectId: "p-app1" });
-  assert.match(html, /data-project-picker-trigger="true"/u);
-  assert.match(html, /aria-label="绑定项目 · app1"/u);
+  // 项目内不再出现聊天模式独有的独立项目胶囊，项目入口进卡片头行。
+  assert.doesNotMatch(html, /data-project-picker-trigger="true"/u);
+  assert.doesNotMatch(html, /aria-label="绑定项目 · app1"/u);
+  assert.match(html, /aria-label="绑定项目"/u);
+  assert.ok(html.indexOf('aria-label="绑定项目"') < html.indexOf("<textarea"));
   assert.match(html, /aria-label="添加文件等内容"/u);
   assert.match(html, /在“app1”中新建聊天/u);
 });
@@ -154,6 +162,9 @@ test("ChatClientStore 持久化新会话草稿的项目与分区绑定，刷新�
     const store2 = new ChatClientStore();
     assert.equal(store2.getSnapshot().draftProjectId, "p-app1");
     assert.equal(store2.getSnapshot().draftSectionId, "sec-1");
+    // 刷新后仍停在草稿：左二项目下要继续看到可返回的新会话行。
+    assert.equal(store2.getSnapshot().draftSession?.id, "draft:p-app1");
+    assert.equal(store2.getSnapshot().draftSession?.draft, true);
 
     await store2.setActiveProjectBinding(null);
     assert.equal(readStoredDraftProjectId(), null);

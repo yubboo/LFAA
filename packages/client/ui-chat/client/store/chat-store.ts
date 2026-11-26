@@ -2,6 +2,7 @@
 import { DEFAULT_GENERAL_SETTINGS } from "../shared/general-settings";
 import { patchWorkbenchSessionState, readWorkbenchSessionState } from "./workbench-persist";
 import {
+  readStoredDraftActive,
   readStoredDraftProjectId,
   readStoredDraftSectionId,
   readStoredFollowAgentWorkbench,
@@ -18,7 +19,7 @@ import { ChatDataFacade } from "./chat-store-data-facade";
 import { ChatFileActions } from "./chat-file-actions";
 import { hydrateChatStore, refreshChatMeta } from "./chat-store-bootstrap";
 import { ChatRunActions } from "./chat-run-actions";
-import { ChatSessionActions } from "./chat-session-actions";
+import { ChatSessionActions, createDraftSession } from "./chat-session-actions";
 import type { ChatSessionMetaPatch, ChatStorePort } from "./chat-store-port";
 import type {
   AgentPermissionMode,
@@ -41,6 +42,10 @@ export class ChatClientStore extends ChatDataFacade {
     sessions: [],
     activeSessionId: this.initialSessionId,
     activeSession: null,
+    // 刷新前停在新会话草稿时恢复左二项目下的草稿行；直接打开历史会话则不恢复。
+    draftSession: !this.initialSessionId && readStoredDraftActive()
+      ? createDraftSession(readStoredDraftProjectId(), readStoredDraftSectionId())
+      : null,
     activeGoal: undefined,
     draftProjectId: readStoredDraftProjectId(),
     draftSectionId: readStoredDraftSectionId(),

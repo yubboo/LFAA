@@ -5,7 +5,7 @@ import "@lfaa/ui-layout/client";
 import { ChatClientStore } from "./store/chat-store";
 import { RightWorkbenchActions } from "./workbench/RightWorkbenchActions";
 import { RightWorkbenchPane } from "./workbench/RightWorkbenchPane";
-import { ProjectWorkspacePane } from "./workbench/ProjectWorkspacePane";
+import { createChatProvider } from "./workbench-provider";
 import { AgentSettingsView } from "./settings/AgentSettingsView";
 import { ChatWorkspace } from "./conversation/ChatWorkspace";
 import { registerTerminalDock } from "./workbench/terminal-dock";
@@ -14,9 +14,7 @@ import { GeneralSettingsView } from "./settings/GeneralSettingsView";
 import { NotificationSettingsView } from "./settings/NotificationSettingsView";
 import { ShortcutsSettingsView } from "./settings/ShortcutsSettingsView";
 import { TerminalSettingsView } from "./settings/TerminalSettingsView";
-import { SessionOverlays } from "./session/SessionOverlays";
 import { SessionModeTitleAction } from "./composer/SessionModeBar";
-import { SessionRowActions } from "./session/SessionRowActions";
 import { getChatLocale } from "./locales";
 import { registerChatShortcuts } from "./shortcut-actions";
 import { SessionMenuStore } from "./session/session-menu-store";
@@ -79,96 +77,9 @@ export const chatClientPlugin: Plugin.Object<void> = {
       context.workbench.setRightPanelOpen(true, false);
     });
 
-    const unregisterProvider = context.workbench.registerChatProvider({
-      getSessions: () => store.getSnapshot().sessions,
-      getActiveSessionId: () => store.getSnapshot().activeSessionId,
-      getDraftProjectId: () => store.getSnapshot().draftProjectId,
-      // 左二栏据此在后台仍在工作的会话上显示转圈；与当前打开了哪条会话无关。
-      isSessionRunning: (sessionId: string) => store.isSessionRunning(sessionId),
-      // 会话需要确认/回答时，左二栏显示对应徽标；由通知设置控制是否展示。
-      getSessionAttention: (sessionId: string) => store.getSessionAttention(sessionId),
-      searchChat: (query: string) => store.searchChat(query),
-      // 左二单击项目行时把未发送的草稿改绑到该项目，避免输入区绑定与高亮项目不一致。
-      setActiveProjectBinding: (projectId: string | null) => store.setActiveProjectBinding(projectId),
-      openSessionMessage: async (sessionId: string, messageId?: string) => {
-        menuStore.closeAll();
-        await store.openSession(sessionId);
-        context.workbench.setActiveProject(store.getSnapshot().activeSession?.projectId ?? null);
-        if (messageId) store.requestMessageJump(sessionId, messageId);
-      },
-      subscribe: (listener) => {
-        // 只在侧栏/工作台摘要相关字段真正变化时通知 workbench，杜绝流式正文/思考增量触发整页四栏重渲染。
-        let prev = store.getSnapshot();
-        const u1 = store.subscribe(() => {
-          const next = store.getSnapshot();
-          const sidebarChanged =
-            prev.sessions !== next.sessions
-            || prev.activeSessionId !== next.activeSessionId
-            || prev.draftProjectId !== next.draftProjectId
-            || prev.runningSessionIds !== next.runningSessionIds
-            || prev.attention !== next.attention
-            || prev.generalSettings.enableDotNotification !== next.generalSettings.enableDotNotification;
-          prev = next;
-          if (sidebarChanged) listener();
-        });
-        const u2 = menuStore.subscribe(listener);
-        return () => {
-          u1();
-          u2();
-        };
-      },
-      startNewChat: (options) => {
-        menuStore.closeAll();
-        store.startNewChatDraft(options);
-      },
-      openSession: (sessionId) => {
-        menuStore.closeAll();
-        const target = store.getSnapshot().sessions.find((s) => s.id === sessionId);
-        if (target?.unread) {
-          void store.updateSessionMeta(sessionId, { unread: false });
-        }
-        return store.openSession(sessionId);
-      },
-      onSessionRowEnter: (session, rowEl) => menuStore.onRowEnter(session.id, rowEl),
-      onSessionRowLeave: (session) => menuStore.onRowLeave(session.id),
-      onSessionRowDoubleClick: (session) => menuStore.openRename(session.id),
-      closeSessionMenus: () => menuStore.closeAll(),
-      isSessionRowHighlighted: (sessionId, rowKey) => menuStore.isHighlighted(sessionId, rowKey),
-      renderSessionRowActions: (session) => (
-        <SessionRowActions
-          isZh={locale.isZh}
-          session={session}
-          chatStore={store}
-          menuStore={menuStore}
-        />
-      ),
-      renderSessionOverlays: ({ projects, sections }) => (
-        <SessionOverlays
-          isZh={locale.isZh}
-          chatStore={store}
-          menuStore={menuStore}
-          projects={projects}
-          sections={sections}
-        />
-      ),
-      // 左二「项目工作区」：把同一棵工作区文件树注入左栏，避免布局包直接依赖聊天 store。
-      renderProjectWorkspace: ({ projectId }) => {
-        const chatSnap = store.getSnapshot();
-        const wbSnap = context.workbench.getSnapshot();
-        const boundId = projectId ?? chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? null;
-        const boundName = boundId ? (wbSnap.projects.find((item) => item.id === boundId)?.name ?? null) : null;
-        return (
-          <ProjectWorkspacePane
-            store={store}
-            projectId={boundId}
-            projectName={boundName}
-            worktreeId={chatSnap.activeSession?.worktree?.id ?? chatSnap.draftWorktree?.id}
-            isZh={locale.isZh}
-            ensurePanelOpen={() => context.workbench.setRightPanelOpen(true, false)}
-          />
-        );
-      },
-    });
+    const unregisterProvider = context.workbench.registerChatProvider(
+      createChatProvider({ store, workbench, menuStore, locale }),
+    );
 
     // 会话与右栏动作注册：只登记真实可执行的功能，键位由设置中心统一改写。
     const unregisterShortcuts = registerChatShortcuts({
@@ -258,8 +169,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
       render: () => <NotificationSettingsView locale={getChatLocale()} store={store} />,
     });
 
-
-    const unregisterTerminalView = context.workbench.registerView({ id: "settings:terminal", title: locale.isZh ? "终端" : "Terminal", render: () => <TerminalSettingsView isZh={locale.isZh} workbench={workbench} /> });
+    const unregisterTerminalView = context.workbench.registerView({ id: "settings:terminal", title: locale.isZh ? "终端" : "Terminal", render: () => <TerminalSettingsView isZh={locale.isZh} /> });
 
     const unregisterShortcutsView = context.workbench.registerView({
       id: "settings:shortcuts",
@@ -341,6 +251,8 @@ export const chatClientPlugin: Plugin.Object<void> = {
         if (!showHere || actionCtx.compact || actionCtx.rightPanelMaximized) return null;
         const chatSnap = store.getSnapshot();
         const boundId = chatSnap.activeSession?.projectId ?? chatSnap.draftProjectId ?? wbSnap.activeProjectId;
+        // 没有已开始的对话时不挂「更多操作 / 概览」；首条消息落库并回读后才出现。
+        const hasConversation = Boolean(chatSnap.activeSessionId && (chatSnap.activeSession?.messages.length ?? 0) > 0);
         // 预览区在左时顶栏只留一枚侧面板开关（由 WorkspaceBar 的最右端那颗承担），这里不再重复。
         const previewCenter = wbSnap.layoutMode === "preview-center";
         return (
@@ -353,6 +265,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
             onEnsureRightPanelOpen={() => context.workbench.setRightPanelOpen(true)}
             onOpenExtensions={() => context.workbench.navigate("plugins")}
             onToggleMaximize={() => context.workbench.toggleRightPanelMaximized()}
+            hideSessionControls={!hasConversation}
           />
         );
       },

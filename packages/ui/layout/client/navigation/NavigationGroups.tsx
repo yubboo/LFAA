@@ -8,10 +8,12 @@ import type {
   WorkbenchSectionProvider,
 } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
-import type { LocalProject, NavigationView, RecentItem } from "./navigation";
+import type { LocalProject, NavigationView, RecentItem, WorkspaceMode } from "./navigation";
 import type { ProjectSortMode } from "../shell/ui-preferences";
+import { readChatGroupExpandedPref, writeChatGroupExpandedPref } from "../shell/ui-preferences";
 import { GroupHeaderTools } from "./GroupHeaderTools";
 import { buildProjectGroups, buildRecentGroup } from "./navigation-groups-config";
+import { buildChatTimeGroups } from "./chat-time-groups";
 import {
   createRecentSidebarItems,
   groupNavigationProjects,
@@ -39,6 +41,7 @@ export function NavigationGroups({
   chatProvider,
   projectProvider,
   sectionProvider,
+  workspaceMode,
   onNewChat,
   onNewRecentChat,
   onNewChatInProject,
@@ -63,6 +66,8 @@ export function NavigationGroups({
   chatProvider?: WorkbenchChatProvider<ReactNode> | null | undefined;
   projectProvider?: WorkbenchProjectProvider<ReactNode> | null | undefined;
   sectionProvider?: WorkbenchSectionProvider<ReactNode> | null | undefined;
+  /** 聊天模式只列时间分组；工作模式保持置顶 / 项目 / 最近。 */
+  workspaceMode: WorkspaceMode;
   onNewChat: () => void;
   /** 从「最近」标题右侧发起的独立新会话（强制不绑定任何项目）。 */
   onNewRecentChat?: (() => void) | undefined;
@@ -84,6 +89,24 @@ export function NavigationGroups({
   });
   const [openToolMenu, setOpenToolMenu] = useState<"projects" | "recent" | null>(null);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  // 聊天模式的分组折叠状态与工作模式互不影响，默认全部展开；收起/展开会持久化，刷新后保持。
+  const [chatGroupExpanded, setChatGroupExpanded] = useState<Record<string, boolean>>(() => {
+    const saved = readChatGroupExpandedPref();
+    return {
+      "chat-today": saved.today ?? true,
+      "chat-yesterday": saved.yesterday ?? true,
+      "chat-last7": saved.last7 ?? true,
+    };
+  });
+  const toggleChatGroup = (groupId: string) => {
+    const next = { ...chatGroupExpanded, [groupId]: !(chatGroupExpanded[groupId] ?? true) };
+    setChatGroupExpanded(next);
+    writeChatGroupExpandedPref({
+      today: next["chat-today"] ?? true,
+      yesterday: next["chat-yesterday"] ?? true,
+      last7: next["chat-last7"] ?? true,
+    });
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
   const recentFilterTriggerRef = useRef<HTMLButtonElement>(null);
@@ -272,23 +295,47 @@ export function NavigationGroups({
     chatSessions,
     activeView,
     activeProjectId,
+    activeChatSessionId,
     chatProvider,
     attentionLabels: { approval: locale.awaitingApproval, question: locale.awaitingAnswer },
     onOpenProject,
     onNavigate,
   });
-  const groups: SidebarGroupConfig[] = [
-    ...projectGroupsConfig,
-    buildRecentGroup({
+  // 聊天模式：置顶 / 项目 / 最近 换成按时间分组的纯会话列表；工作模式保持原有分组。
+  const chatGroups = workspaceMode === "chatgpt"
+    ? buildChatTimeGroups({
+      sessions: chatSessions,
       locale,
-      items: recentItems,
-      expanded: expanded.recent,
-      onToggle: () => toggleBuiltin("recent"),
-      tools: recentTools,
-      visibleCount: sessionWindow.recentVisibleCount(recentItems.length),
-      control: sessionWindow.recentControl(recentItems.length),
-    }),
-  ];
+      ...(onSelectChatSession ? { onSelectSession: onSelectChatSession } : {}),
+      expanded: (groupId) => chatGroupExpanded[groupId] ?? true,
+      onToggle: toggleChatGroup,
+      deps: {
+        projects,
+        chatSessions,
+        activeView,
+        activeProjectId,
+        activeChatSessionId,
+        chatProvider,
+        attentionLabels: { approval: locale.awaitingApproval, question: locale.awaitingAnswer },
+        onOpenProject,
+        onNavigate,
+      },
+    })
+    : [];
+  const groups: SidebarGroupConfig[] = workspaceMode === "chatgpt"
+    ? chatGroups
+    : [
+      ...projectGroupsConfig,
+      buildRecentGroup({
+        locale,
+        items: recentItems,
+        expanded: expanded.recent,
+        onToggle: () => toggleBuiltin("recent"),
+        tools: recentTools,
+        visibleCount: sessionWindow.recentVisibleCount(recentItems.length),
+        control: sessionWindow.recentControl(recentItems.length),
+      }),
+    ];
 
   return (
     <div

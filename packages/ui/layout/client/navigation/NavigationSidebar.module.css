@@ -73,11 +73,7 @@
   white-space: nowrap;
 }
 
-/* 工作位置切换器和其他头部动作共享左栏空间。 */
-.modeRoot {
-  position: relative;
-  min-width: 0;
-}
+/* 工作位置切换器与其他头部动作共享左栏空间；模式卡片样式已随 ModeMenu 拆到 ModeMenu.module.css。 */
 
 .headerButton,
 .activityHeading button {
@@ -213,62 +209,6 @@
   .tip {
     animation: none;
   }
-}
-
-.modeMenu {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 0.45rem);
-  left: 0;
-  width: min(22.5rem, calc(100vw - var(--rail-width) - 2rem));
-  min-width: min(20rem, calc(100vw - var(--rail-width) - 2rem));
-  padding: 0.5rem;
-  border: 1px solid var(--color-line);
-  border-radius: 1rem;
-  background: var(--color-popover);
-  box-shadow: var(--color-menu-shadow);
-}
-
-.modeOption {
-  display: flex;
-  width: 100%;
-  min-height: 4rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.55rem 0.65rem;
-  border: 0;
-  border-radius: 0.65rem;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.modeOption:hover {
-  background: var(--color-menu-hover);
-}
-
-.modeOption strong,
-.modeOption small {
-  display: block;
-}
-
-.modeOption strong {
-  font-size: 1.05rem;
-  font-weight: 560;
-}
-
-.modeOption small {
-  margin-top: 0.18rem;
-  color: var(--color-muted);
-  font-size: 0.9rem;
-}
-
-.check {
-  width: 1.1rem;
-  height: 1.1rem;
-  color: var(--color-muted);
 }
 
 /* 活动清单在左栏以独立面板展示，头部保留返回动作。 */

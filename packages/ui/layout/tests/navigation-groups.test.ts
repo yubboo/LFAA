@@ -204,6 +204,18 @@ test("resolveNewChatProject 按当前项目上下文、活动会话与草稿绑�
     }),
     null,
   );
+  // 聊天模式的新会话固定不绑项目，即使当前有选中的项目或草稿绑定
+  assert.equal(
+    resolveNewChatProject({
+      mode: "chatgpt",
+      activeProjectId: "app-1",
+      activeChatSessionId: null,
+      chatSessions: sessions,
+      draftProjectId: "app-2",
+      projects: [app1, app2],
+    }),
+    null,
+  );
 });
 
 test("只有默认工作区时，项目列表末尾显示弱化的「创建新项目」而不是空态按钮", () => {

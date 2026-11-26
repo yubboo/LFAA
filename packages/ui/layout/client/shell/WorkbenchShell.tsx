@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import type { WorkbenchSectionItem } from "../../contract/index";
 import { locales } from "../locales";
-import { isSettingsView, type LocalProject, type NavigationView, type WorkspaceMode } from "../navigation/navigation";
+import { isSettingsView, type LocalProject, type NavigationView } from "../navigation/navigation";
 import { usePinnedApps } from "../navigation/usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "./useSidebarResize";
 import { useSidebarMode } from "./use-sidebar-mode";
@@ -11,6 +11,8 @@ import { usePaneAnimHost } from "./use-pane-anim";
 import { useShellShortcuts } from "./useShellShortcuts";
 import { buildSidebarWidthVars } from "./sidebar-resize";
 import { useViewportMode } from "./useViewportMode";
+import { useWorkspaceModeSync } from "./use-workspace-mode-sync";
+import { usePointerIdleGuard } from "./use-pointer-idle-guard";
 import { resolveNewChatProject } from "../navigation/navigation-items";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
@@ -107,9 +109,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     }
   }, [isCompact, service]);
 
-  const handleModeChange = useCallback((nextMode: WorkspaceMode) => {
-    service.setWorkspaceMode(nextMode);
-  }, [service]);
+  usePointerIdleGuard();
+
+  const handleModeChange = useWorkspaceModeSync(service, mode, activeProjectId);
 
   const closeCompactDrawers = useCallback(() => {
     if (!isCompact) return;
@@ -194,7 +196,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       activeChatSessionId: snap.activeChatSessionId,
       chatSessions: snap.chatSessions,
       draftProjectId: snap.chatProvider?.getDraftProjectId?.() ?? null,
-      projects: snap.projects,
+      projects: snap.projects, mode: snap.workspaceMode,
     });
     startChatSession({
       projectId: target?.id ?? null,
@@ -273,8 +275,10 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
       else service.setActiveProject(null);
     }
   }, [activeProjectId, backgroundView, currentProject, projectProvider, service]);
+  const draftVisible = snapshot.chatSessions.some((session) => session.draft);
+  // 草稿行本身就是当前新会话：即使没有项目上下文（从「最近」新开），顶部标题仍显示「新聊天」。
   const effectiveNewChatSelected = newChatSelected
-    || (backgroundView === "workspace" && !snapshot.activeChatSessionId && Boolean(currentProject));
+    || (backgroundView === "workspace" && !snapshot.activeChatSessionId && (Boolean(currentProject) || draftVisible));
   // 右侧面板与项目上下文按「背景视图」匹配：设置弹窗打开时 activeView 指向设置页，照用会让右栏面板全部失配成空占位。
   const matchingPanels = contextPanels.filter((panel) => !panel.match || panel.match(backgroundView, activeProjectId));
   const hasWorkbenchHost = matchingPanels.some((panel) => panel.chrome === "workbench");
@@ -350,7 +354,6 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         locale={locale}
         view={backgroundView}
         mode={mode}
-        newChatSelected={effectiveNewChatSelected}
         workspaceNotice={workspaceNotice}
         isCompact={isCompact}
         isRightMaximized={isRightMaximized}

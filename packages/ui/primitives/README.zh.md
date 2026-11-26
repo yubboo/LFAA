@@ -86,6 +86,7 @@ LFAA 共享交互基础 UI 原语包：统一封装居中弹窗（ModalDialog）
 基于无头组件库 `@base-ui/react` 与 CSS Modules + `@lfaa/ui-theme` 双主题语义变量封装（零 Tailwind）：
 
 - `DropdownMenu`（`DropdownMenuItem`、`DropdownMenuCheckboxItem`、`DropdownMenuSeparator`）：自动视口防溢出定位、键盘导航与焦点恢复的下拉菜单。
+- `ContextMenu`（`ContextMenuItem`、`ContextMenuSeparator`）：右键 / 长按在指针处展开的菜单，复用下拉菜单的外观与键盘处理。
 - `UiSwitch`：双主题触感开关。
 - `UiSelect`：支持键盘导航与防溢出定位的下拉选择器。
 - `UiTabs`：带平滑指示条与方向键切换的分段标签。

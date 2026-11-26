@@ -14,7 +14,11 @@ export type ShotStep =
   /** 让匹配的滚动容器滚一段（默认 160px），用于滚动条高亮与滚到长页面下方。 */
   | { scroll: string; by?: number }
   /** 把匹配元素的水平中线拖到视口 x 坐标，用于复现中间栏收窄后的布局。 */
-  | { drag: string; toX: number };
+  | { drag: string; toX: number }
+  /** 向匹配元素派发一次带图片的粘贴事件，用于输入区附件相关状态。 */
+  | { pasteImage: string }
+  /** 右键点击匹配元素，用于右键菜单状态。 */
+  | { rightClick: string };
 
 /** 一条截图任务。 */
 export interface ShotTask {
@@ -80,6 +84,30 @@ export const TASKS: ShotTask[] = [
     width: 1024,
     height: 800,
     steps: [{ click: 'button[aria-label="用户菜单"]' }, { wait: 600 }],
+  },
+  // 模式卡片：与账号卡片同一套宽度/密度，展开后不越出左二栏。
+  {
+    name: "app-mode-menu-dark",
+    group: "app",
+    description: "深色下展开模式卡片（卡片落在左二栏内）",
+    theme: "dark",
+    steps: [{ click: 'button[aria-label="工作区模式"]' }, { wait: 500 }],
+  },
+  {
+    name: "app-mode-menu-light",
+    group: "app",
+    description: "浅色下展开模式卡片（卡片落在左二栏内）",
+    theme: "light",
+    steps: [{ click: 'button[aria-label="工作区模式"]' }, { wait: 500 }],
+  },
+  {
+    name: "app-mode-menu-narrow",
+    group: "app",
+    description: "1024 窄窗展开模式卡片（窄栏下只留模式名与选中勾）",
+    theme: "dark",
+    width: 1024,
+    height: 800,
+    steps: [{ click: 'button[aria-label="工作区模式"]' }, { wait: 500 }],
   },
   // 中心区「工作」形态：分段切到工作后，输入栏应带项目、权限与会话模式全套入口。
   {
@@ -312,6 +340,9 @@ export const TASKS: ShotTask[] = [
   settingsTask("settings-connectors-cli-import", "设置中心 · 导入连接器弹窗", [{ clickText: "连接器" }, { clickText: "命令行工具" }, { clickText: "导入" }, { wait: 500 }], { theme: "light" }),
   settingsTask("settings-connectors-cli-dialog", "设置中心 · 新建命令行工具弹窗", [{ clickText: "连接器" }, { clickText: "命令行工具" }, { clickText: "添加工具" }, { wait: 600 }], { theme: "dark" }),
   settingsTask("settings-git", "设置中心 · Git", [{ clickText: "Git" }, { wait: 800 }], { theme: "dark" }),
+  settingsTask("settings-terminal-dark", "设置中心 · 终端（深色）", [{ click: '[role="dialog"] aside button:has-text("终端")' }, { wait: 700 }], { theme: "dark" }),
+  settingsTask("settings-terminal-light", "设置中心 · 终端（浅色）", [{ click: '[role="dialog"] aside button:has-text("终端")' }, { wait: 700 }], { theme: "light" }),
+  settingsTask("settings-terminal-narrow", "设置中心 · 终端（760 窄屏）", [{ click: '[role="dialog"] aside button:has-text("终端")' }, { wait: 700 }], { theme: "dark", width: 760, height: 900 }),
   settingsTask("settings-review", "设置中心 · 代码审查", [{ clickText: "代码审查" }, { wait: 900 }], { theme: "dark" }),
   settingsTask("settings-mobile", "设置中心 · 手机布局", [], { theme: "dark", width: 390, height: 844 }),
   // 滚动条外观：Playwright 默认隐藏滚动条，这两条任务单独去掉该参数，才能看到强调色滑块。
@@ -326,6 +357,53 @@ export const TASKS: ShotTask[] = [
     { wait: 800 },
     { scroll: 'section [data-axis="y"]' },
   ], { theme: "dark", scrollbars: true }),
+
+  // 输入区图片：粘贴后的缩略图、点击放大层与缩略图右键菜单（深/浅 + 窄屏）。
+  {
+    name: "app-composer-image-chip",
+    group: "app",
+    description: "输入区粘贴图片后的缩略图",
+    theme: "dark",
+    steps: [{ pasteImage: "main textarea" }, { wait: 900 }],
+  },
+  {
+    name: "app-composer-image-preview",
+    group: "app",
+    description: "点击缩略图后的大图预览层（深色）",
+    theme: "dark",
+    steps: [
+      { pasteImage: "main textarea" },
+      { wait: 900 },
+      { click: 'span[data-kind="image"] button[class*="attachmentThumb"]' },
+      { wait: 700 },
+    ],
+  },
+  {
+    name: "app-composer-image-menu-light",
+    group: "app",
+    description: "浅色下缩略图的右键菜单",
+    theme: "light",
+    steps: [
+      { pasteImage: "main textarea" },
+      { wait: 900 },
+      { rightClick: 'span[data-kind="image"] button[class*="attachmentThumb"]' },
+      { wait: 700 },
+    ],
+  },
+  {
+    name: "app-composer-image-preview-narrow",
+    group: "app",
+    description: "390 手机宽度下的大图预览层",
+    theme: "dark",
+    width: 390,
+    height: 844,
+    steps: [
+      { pasteImage: "main textarea" },
+      { wait: 900 },
+      { click: 'span[data-kind="image"] button[class*="attachmentThumb"]' },
+      { wait: 700 },
+    ],
+  },
 
   // 其它主页面：资料库、代码审查、Agents、群聊。
   { name: "library", group: "pages", description: "资料库", theme: "dark", steps: [{ click: 'button[aria-label="资料库"]' }, { wait: 1500 }] },
@@ -358,6 +436,40 @@ async function applyStep(page: Page, step: ShotStep): Promise<void> {
   if ("hover" in step) {
     // force：行内操作按钮浮出后可能盖住行标题，强制按位置移动鼠标即可触发行悬停。
     await page.locator(step.hover).first().hover({ timeout: 15000, force: true });
+    return;
+  }
+  if ("pasteImage" in step) {
+    await page.locator(step.pasteImage).first().click({ timeout: 15000 });
+    // 运行时画一张 1200×800 的示意图当粘贴内容：不往仓库放素材，也能看清放大层与缩略图。
+    await page.evaluate(async (selector) => {
+      const target = document.querySelector(selector);
+      if (!target) throw new Error(`找不到粘贴目标：${selector}`);
+      const canvas = document.createElement("canvas");
+      canvas.width = 1200;
+      canvas.height = 800;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("canvas 2d context unavailable");
+      const gradient = context.createLinearGradient(0, 0, 1200, 800);
+      gradient.addColorStop(0, "#1f6feb");
+      gradient.addColorStop(0.55, "#2f8f4e");
+      gradient.addColorStop(1, "#d24bd8");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 1200, 800);
+      context.fillStyle = "rgba(255, 255, 255, 0.92)";
+      context.font = "600 92px system-ui, sans-serif";
+      context.fillText("图片预览", 96, 420);
+      context.font = "400 38px system-ui, sans-serif";
+      context.fillText("缩放 · 复制 · 另存为", 100, 500);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("canvas toBlob failed");
+      const data = new DataTransfer();
+      data.items.add(new File([blob], "preview-sample.png", { type: "image/png" }));
+      target.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    }, step.pasteImage);
+    return;
+  }
+  if ("rightClick" in step) {
+    await page.locator(step.rightClick).first().click({ timeout: 15000, button: "right" });
     return;
   }
   if ("press" in step) {

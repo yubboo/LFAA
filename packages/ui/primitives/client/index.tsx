@@ -11,7 +11,13 @@ export { ScrollArea, type ScrollAreaProps, type ScrollAxis } from "./ScrollArea"
 export { StatusBanner, type StatusBannerProps } from "./StatusBanner";
 export { PanelToggleButton, type PanelToggleSide } from "./PanelToggleButton";
 export { StepSliderPopover, type StepSliderPopoverProps } from "./StepSliderPopover";
-// Base UI 无头底座封装：下拉菜单、触感开关、下拉选择器、分段标签与悬浮提示。
+// Base UI 无头底座封装：下拉菜单、右键菜单、触感开关、下拉选择器、分段标签与悬浮提示。
+export {
+  ContextMenu,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  type ContextMenuProps,
+} from "./base/ContextMenu";
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
