@@ -11,6 +11,7 @@ import { readWorkbenchSessionState } from "../store/workbench-persist";
 import { RightUtilityRail, type RightAuxTab } from "./RightUtilityRail";
 import { renderPaneAuxBody, type PaneAuxBodyProps } from "./pane/PaneAuxBody";
 import { buildPaneTabProps } from "./pane/PaneTabProps";
+import { buildPaneActionProps } from "./pane/PaneActionProps";
 import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
 import { WorkbenchStageContent } from "./WorkbenchStageContent";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
@@ -270,30 +271,12 @@ export function RightWorkbenchPane({
           closeFileTab, closeBrowserTab, handleActivateBrowserTab, closeReviewTab,
           setReviewTabOpen, selectSubagentTab, closeSubagentTab, openNewBrowserTab, closeBrowserTabsExcept,
         })}
-        actionProps={{
-          variant: compact || rightPanelMaximized ? "full" : "workbenchOnly",
-          isZh: locale.isZh,
-          store,
-          projectId: boundProjectId,
-          projectName: boundProjectName ?? undefined,
-          jobs,
-          subagents,
-          compact,
-          rightPanelMaximized,
-          onOpenReviewTab: openReview,
-          onOpenTerminal: (jobId) => { setSelectedJobId(jobId); openAux("terminal"); },
-          onOpenSubagents: (subId?: string) => {
-            if (subId) { hideAuxTab(); openSubagentTab(subId); }
-            else { openAux("subagents"); }
-          },
-          onNewBrowserTab: openNewBrowserTab,
-          onOpenExtensions,
-          onToggleMaximize: onToggleMaximizeRightPanel,
-          onCollapsePanel: hideCollapse ? undefined : () => {
-            if (compact && onCloseDrawer) { onCloseDrawer(); return; }
-            onCollapseRightPanel?.();
-          },
-        }}
+        actionProps={buildPaneActionProps({
+          isZh: locale.isZh, store, projectId: boundProjectId, projectName: boundProjectName ?? undefined,
+          jobs, subagents, compact, rightPanelMaximized, openReview, setSelectedJobId, openAux,
+          hideAuxTab, openSubagentTab, openNewBrowserTab, onOpenExtensions,
+          onToggleMaximizeRightPanel, hideCollapse, onCloseDrawer, onCollapseRightPanel,
+        })}
       />
 
       <div ref={splitAreaRef} className={styles.bodySplit}>
