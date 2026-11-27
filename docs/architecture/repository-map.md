@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**69 个包、3168 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**69 个包、3193 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -67,15 +67,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (587 个文件)
+├── docs/  (594 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (5 个文件)
 │   ├── features/  (34 个文件)
 │   ├── plans/  (30 个文件)
 │   ├── standards/  (4 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (499 个文件)
-├── packages/  (2331 个文件)
+│   └── updata-log/  (506 个文件)
+├── packages/  (2348 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -100,7 +100,7 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (655 个文件)
+│   ├── client/  (672 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -120,14 +120,14 @@ lfaa/
 │   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (49 个文件)
-│   │   │   ├── client/  (42 个文件)
+│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (66 个文件)
+│   │   │   ├── client/  (57 个文件)
 │   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── canvas/  (22 个文件)
+│   │   │   │   ├── canvas/  (37 个文件)
 │   │   │   │   ├── previs/  (6 个文件)
 │   │   │   │   └── projects/  (10 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (1 个文件)
+│   │   │   └── tests/  (3 个文件)
 │   │   ├── ui-chat/  # @lfaa/client-ui-chat  (349 个文件)
 │   │   │   ├── client/  (280 个文件)
 │   │   │   │   ├── composer/  (44 个文件)
@@ -606,7 +606,7 @@ lfaa/
 │           ├── src/  (5 个文件)
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
-├── scripts/  (37 个文件)
+├── scripts/  (38 个文件)
 └── vendor/  (14 个文件)
     └── loader/  (13 个文件)
         └── src/  (9 个文件)
@@ -1078,14 +1078,25 @@ lfaa/
 ### packages/client/ui-canvas/client/canvas
 
 - `Canvas-Bottom-Bar.tsx` — 画布底部居中悬浮控制胶囊：选择/抓手模式、缩放百分比、适应画布、小地图/网格开关与撤销重做。
-- `Canvas-Drawers.module.css` — 左侧悬浮胶囊工具条、统一资料库资产抽屉、右键菜单与全屏 Agent 对话抽屉样式。
-- `Canvas-Drawers.tsx` — 浏览器画布侧边工具条、资料库、运行历史与全屏 Agent 对话抽屉。
+- `Canvas-Contact-Sheet.tsx` — 九宫格排版：从当前画布选图，按勾选顺序生成一张新的九宫格图片。
+- `Canvas-Drawers.module.css` — 资料库、运行历史与全屏 Agent 对话抽屉样式。
+- `Canvas-Drawers.tsx` — 浏览器画布资料库、运行历史与全屏 Agent 对话抽屉。
 - `Canvas-Edge.tsx` — 自定义画布贝塞尔连线：默认精致细线/虚线，选中或运行态叠加流光脉冲，严格消费主题色变量。
 - `Canvas-Editor.tsx` — 沉浸式无限画布编辑器：无顶条浮层布局、5 大模板多卡片弹窗、流光连线、底部控制胶囊与全屏 Agent 对话抽屉。
+- `Canvas-Media-Controls.tsx` — 画布媒体编辑参数控件，按功能显示必要的裁剪框、输出规格、区间或文字。
+- `Canvas-Media-Editor.module.css` — 基础媒体编辑面板：预览、参数和输出操作分区，沿用工作台主题。
+- `Canvas-Media-Editor.tsx` — 画布媒体编辑器：选择画布素材、预览范围和输出结果，跨来源切换时终止当前处理。
 - `Canvas-Menu.module.css` — 浏览器画布菜单沿用通用浮层的双色主题与紧凑行高。
 - `Canvas-Menu.tsx` — 浏览器画布的指针菜单：共享节点目录，并把菜单限制在画布可见范围内。
-- `Canvas-Templates.module.css` — 空画布中央引导区与上下弹出的多张子模板卡片：全部消费 @lfaa/ui-theme 语义色变量。
+- `Canvas-Template-Options.module.css` — 模板分类展开区域：子模板定位、选取动作与说明气泡。
+- `Canvas-Template-Options.tsx` — 空画布分类展开后的模板项，分离应用模板和阅读说明的键盘入口。
+- `Canvas-Templates.module.css` — 空画布手势提示、模板叠层及展开菜单，复用工作台双主题令牌。
 - `Canvas-Templates.tsx` — 空画布中央引导与 5 大模板分类：点击主卡片后在其上下平滑弹出多张子模板卡片，点击即生成节点流。
+- `Canvas-Tool-Catalog.tsx` — 无限画布功能目录，按操作类型搜索并跳转到真实素材处理或画布工具。
+- `Canvas-Tool-Panels.tsx` — 画布侧栏的节点索引、模板目录与添加入口，共用现有节点和模板定义。
+- `Canvas-Tools-Dialog.tsx` — 画布工具面板：用浏览器原生模态管理焦点、遮罩和 Esc 关闭。
+- `Canvas-Tools.module.css` — 左侧工具栏、节点与模板目录、全部功能弹窗，颜色消费 LFAA 双主题令牌。
+- `Canvas-Tools.tsx` — 无限画布左侧主工具栏及面板装配，复用资料库、节点、模板与运行命令。
 - `Canvas-Top-Bar.module.css` — 画布顶部多画布标签栏样式：对齐参考图「项目名 | 画布 1 | [画布 2 ···] +」布局，全量消费主题语义变量。
 - `Canvas-Top-Bar.tsx` — 画布顶部多画布标签栏：支持「< | 项目名 | 画布 1 | [画布 2 ···] + 列表」，··· 菜单含新窗口打开、重命名、复制与删除。
 - `Canvas-Viewport.tsx` — React Flow 交互视图：拖动期间只更新渲染位置，落点才交给画布文档。
@@ -1097,6 +1108,10 @@ lfaa/
 - `Node-Dock.tsx` — 选中节点的底部悬浮生成控制台：严格还原参考图 8/9 的深色玻璃输入卡片，不挤占画布两侧空间。
 - `canvas-clipboard.ts` — 浏览器画布剪贴板读取，只接受画布现有的素材格式与纯文本。
 - `canvas-graph-helpers.ts` — 画布连线合法性校验与节点端口辅助函数：供 Canvas-Editor 消费，避免编辑器组件过长。
+- `canvas-library-drag.ts` — 画布资料库拖放标记：仅在浏览器识别内部素材拖拽，文件路径留在编辑器内存中。
+- `canvas-media-actions.ts` — 画布媒体编辑动作：在浏览器将编辑参数转换为独立的图片、视频或音轨。
+- `canvas-media-image.ts` — 画布图像几何与输出：裁剪、转向、缩放、文字和九宫格均从原始像素渲染。
+- `canvas-media-video.ts` — 浏览器视频处理：定位采样、画面变换与按音视频轨道导出，退出时释放媒体流。
 - `template-catalog.ts` — 无限画布 5 大创作分类及多张子模板卡片预设，点击任一子模板一键生成多节点与连线图。
 - `useCanvasDocument.ts` — 保持工作台编辑、宿主持久化和运行轮询各自的状态归属。
 
@@ -1128,6 +1143,8 @@ lfaa/
 
 ### packages/client/ui-canvas/tests
 
+- `canvas-media-image.test.ts` — 浏览器媒体变换的几何测试：在 Node.js 验证裁剪与宫格输出的源像素范围。
+- `canvas-node-move.test.ts` — 无限画布节点移动回归测试：在 Node.js 校验多选落点和无变化的拖动事件。
 - `project-hub-helpers.test.ts` — 画布项目大厅纯逻辑回归测试：覆盖画布项目过滤、关键字搜索、排序与相对时间格式化。
 
 ### packages/client/ui-chat
@@ -3558,6 +3575,7 @@ lfaa/
 
 - `README.md` — 仓库脚本
 - `build.mjs` — 构建入口：清空 lib → tsc -b 产出 lib/types → tsdown 打包出 lib 入口 → 构建 Web 产物。
+- `canvas-shot-fixture.ts` — 画布截图夹具：使用编辑器现有直达参数与内存接口，避免改动本机项目数据。
 - `check-allowlist.json`
 - `check-architecture.mjs` — 依赖方向护栏：扫全仓 packages/ 的跨包导入，按 docs/architecture/dependency-rules.json 判定是否越界。
 - `check-architecture.test.mjs` — 验证依赖护栏规则本身：跨功能 UI 复用、客户端越界、.tsx 落位、内核反向依赖、装配边、BOM 与未声明依赖。
@@ -3599,6 +3617,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 5 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 499 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 506 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 639 | 153 |  |

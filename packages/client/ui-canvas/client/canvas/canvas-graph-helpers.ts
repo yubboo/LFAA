@@ -27,6 +27,18 @@ export function parseNodeChanges(changes: NodeChange<FlowNode>[]) {
   return { selectChanges, removals, positions };
 }
 
+/** 合并一次拖动的最终位置，没有坐标变化时保持原快照以跳过保存与历史。 */
+export function moveCanvasNodes(graph: CanvasGraph, positions: ReadonlyMap<string, CanvasNode["position"]>): CanvasGraph {
+  let changed = false;
+  const nodes = graph.nodes.map((node) => {
+    const position = positions.get(node.id);
+    if (!position || (position.x === node.position.x && position.y === node.position.y)) return node;
+    changed = true;
+    return { ...node, position };
+  });
+  return changed ? { ...graph, nodes } : graph;
+}
+
 /** 拆解 ReactFlow 连线变更事件中的选中与删除。 */
 export function parseEdgeChanges(changes: EdgeChange[]) {
   const selectChanges: Array<{ id: string; selected: boolean }> = [];

@@ -8,6 +8,31 @@ import { join } from "node:path";
 import { TRASH_RETENTION_MS, TrashStore, resolveConflictPath } from "../src/trash/trash-store";
 
 describe("TrashStore", () => {
+  it("preserves payloads whose metadata is pending, corrupt, or incomplete during cleanup", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "lfaa-trash-pending-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const store = new TrashStore(join(root, "trash"));
+    const now = 1_700_000_000_000;
+    const item = await store.trashProject({
+      project: { id: "expired", name: "Expired project", rootPath: join(root, "workspace") },
+      now: now - TRASH_RETENTION_MS,
+    });
+
+    for (const id of ["pending", "corrupt", "incomplete"]) {
+      await mkdir(store.payloadDir(id), { recursive: true });
+      await writeFile(join(store.payloadDir(id), "content.txt"), id, "utf8");
+    }
+    await writeFile(join(store.itemDir("corrupt"), "meta.json"), "{", "utf8");
+    await writeFile(join(store.itemDir("incomplete"), "meta.json"), '{"id":"incomplete","expiresAt":null}', "utf8");
+
+    assert.equal(await store.purgeExpired(now), 1);
+    assert.equal(await store.getMeta(item.id), null);
+    assert.deepEqual(await store.list("all", now), []);
+    for (const id of ["pending", "corrupt", "incomplete"]) {
+      assert.equal(await readFile(join(store.payloadDir(id), "content.txt"), "utf8"), id);
+    }
+  });
+
   it("soft-deletes canvas board, media file, project, and asset, then purges expired items", async () => {
     const root = await mkdtemp(join(tmpdir(), "lfaa-trash-test-"));
     try {

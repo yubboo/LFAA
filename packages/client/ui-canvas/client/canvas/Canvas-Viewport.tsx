@@ -1,12 +1,18 @@
 // React Flow 交互视图：拖动期间只更新渲染位置，落点才交给画布文档。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Background, BackgroundVariant, MiniMap, ReactFlow, type ColorMode, type Edge, type NodeChange, type ReactFlowProps } from "@xyflow/react";
 import { CanvasEdge } from "./Canvas-Edge";
+import { isLibraryDrag } from "./canvas-library-drag";
 import { GraphNode, type FlowNode } from "./Graph-Node";
 import styles from "./Canvas.module.css";
 
 const nodeTypes = { canvas: GraphNode };
 const edgeTypes = { canvasEdge: CanvasEdge };
+const emptyGridLayers = [
+  { key: "blue", color: "var(--color-link)", className: styles.emptyGridBlue ?? "" },
+  { key: "cyan", color: "var(--color-info)", className: styles.emptyGridCyan ?? "" },
+  { key: "warm", color: "var(--color-warning)", className: styles.emptyGridWarm ?? "" },
+];
 
 type ViewportProps = Pick<ReactFlowProps<FlowNode, Edge>,
   "edges" | "defaultViewport" | "panOnDrag" | "selectionOnDrag" | "onNodesChange" | "onEdgesChange" |
@@ -17,6 +23,7 @@ type ViewportProps = Pick<ReactFlowProps<FlowNode, Edge>,
   showMinimap: boolean;
   label: string;
   onOpenMenu: (mode: "create" | "context", point: { x: number; y: number }, canvas: HTMLElement) => void;
+  onDropLibraryItem: (point: { x: number; y: number }) => void;
 };
 
 function readDocumentColorMode(): ColorMode {
@@ -25,8 +32,9 @@ function readDocumentColorMode(): ColorMode {
   return resolved === "dark" ? "dark" : "light";
 }
 
-export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesChange, onMoveEnd, onOpenMenu, ...props }: ViewportProps) {
+export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesChange, onMoveEnd, onOpenMenu, onDropLibraryItem, ...props }: ViewportProps) {
   const diagram = useRef<HTMLDivElement>(null);
+  const emptyGridId = useId();
   const rightPress = useRef<{ x: number; y: number } | null>(null);
   const [colorMode, setColorMode] = useState<ColorMode>(readDocumentColorMode);
   const [dimensions, setDimensions] = useState<ReadonlyMap<string, NonNullable<FlowNode["measured"]>>>(() => new Map());
@@ -94,6 +102,16 @@ export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesCha
       tabIndex={0}
       className={styles.diagram}
       data-node-drag={movingNodes.size ? "true" : undefined}
+      onDragOver={(event) => {
+        if (!isLibraryDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDrop={(event) => {
+        if (!isLibraryDrag(event.dataTransfer)) return;
+        event.preventDefault();
+        onDropLibraryItem({ x: event.clientX, y: event.clientY });
+      }}
       onDoubleClick={(event) => {
         if (event.button === 0 && isPane(event.target)) onOpenMenu("create", { x: event.clientX, y: event.clientY }, event.currentTarget);
       }}
@@ -142,6 +160,9 @@ export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesCha
         proOptions={{ hideAttribution: true }}
       >
         {showGrid && <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="var(--color-muted)" />}
+        {showGrid && nodes.length === 0 && emptyGridLayers.map(({ key, color, className }) => (
+          <Background key={key} id={`${emptyGridId}-${key}`} className={className} variant={BackgroundVariant.Dots} gap={24} size={1.85} color={color} bgColor="transparent" />
+        ))}
         {showMinimap && <MiniMap position="bottom-left" className={styles.minimap} pannable zoomable />}
       </ReactFlow>
     </div>

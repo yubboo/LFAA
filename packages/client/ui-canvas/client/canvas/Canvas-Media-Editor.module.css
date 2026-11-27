@@ -1,0 +1,61 @@
+/* 基础媒体编辑面板：预览、参数和输出操作分区，沿用工作台主题。 */
+.layout { display: grid; gap: 0.7rem; }
+.source, .control { display: grid; gap: 0.28rem; color: var(--color-ink-soft); font-size: 0.78rem; }
+.layout > .button { justify-self: start; }
+.source select, .control :is(input, select) {
+  min-inline-size: 0;
+  inline-size: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.preview {
+  display: grid;
+  place-items: center;
+  min-block-size: 8rem;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 0.8rem;
+  background: var(--color-shell);
+}
+
+.preview video, .imageFrame img { display: block; max-inline-size: 100%; max-block-size: 43vh; object-fit: contain; }
+.imageFrame { position: relative; max-inline-size: 100%; overflow: hidden; }
+.imageFrame img { margin: auto; }
+.cropRegion { position: absolute; border: 2px solid var(--color-accent); pointer-events: none; }
+.annotation { position: absolute; transform: translateY(-50%); max-inline-size: 88%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--color-on-accent); text-shadow: 0 1px 3px var(--color-shell); font-weight: 650; pointer-events: none; }
+.controls { display: flex; align-items: end; flex-wrap: wrap; gap: 0.5rem; }
+.control { flex: 1 1 6rem; }
+.actions { display: flex; justify-content: flex-end; gap: 0.45rem; }
+
+.button, .primary {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  min-block-size: 2rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.62rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.button:hover { background: var(--color-active); }
+.primary { background: var(--color-accent); color: var(--color-on-accent); }
+:is(.button, .primary):disabled { opacity: 0.55; cursor: default; }
+.status { margin: 0; color: var(--color-ink-soft); font-size: 0.8rem; }
+.status[role="alert"] { color: var(--color-danger); }
+
+.sheetGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(6.5rem, 100%), 1fr)); gap: 0.45rem; }
+.sheetCell { position: relative; display: grid; gap: 0.25rem; min-inline-size: 0; padding: 0.25rem; border: 1px solid var(--color-line); border-radius: 0.6rem; background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
+.sheetCell[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-active); }
+.sheetCell:disabled { opacity: 0.55; cursor: default; }
+.sheetCell img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 0.4rem; }
+.sheetCell > span { padding-inline: 0.15rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 0.72rem; text-align: start; }
+.sheetCell > small { position: absolute; inset-inline-end: 0.48rem; inset-block-start: 0.48rem; display: grid; place-items: center; inline-size: 1.25rem; block-size: 1.25rem; border-radius: 0.35rem; background: var(--color-accent); color: var(--color-on-accent); }

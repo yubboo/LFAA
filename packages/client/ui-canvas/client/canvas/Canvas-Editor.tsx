@@ -1,5 +1,5 @@
 // 沉浸式无限画布编辑器：无顶条浮层布局、5 大模板多卡片弹窗、流光连线、底部控制胶囊与全屏 Agent 对话抽屉。
-import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ReactFlowProvider, useReactFlow,
   type Connection, type Edge, type EdgeChange, type NodeChange,
@@ -10,12 +10,14 @@ import { assetUrl, linkLibraryAsset, renameBoard, uploadAsset, type CanvasListIt
 import { labels } from "../locales";
 import { CanvasBottomBar } from "./Canvas-Bottom-Bar";
 import { readCanvasClipboard } from "./canvas-clipboard";
-import { CanvasFullscreenChat, CanvasLeftDock, CanvasSideDrawer, type SideDrawerKind } from "./Canvas-Drawers";
-import { buildFlowEdges, buildFlowNodes, createCanvasNode, parseEdgeChanges, parseNodeChanges, resolveConnectionAsset } from "./canvas-graph-helpers";
+import { CanvasFullscreenChat } from "./Canvas-Drawers";
+import { buildFlowEdges, buildFlowNodes, createCanvasNode, moveCanvasNodes, parseEdgeChanges, parseNodeChanges, resolveConnectionAsset } from "./canvas-graph-helpers";
+import type { CanvasMediaOutput } from "./canvas-media-image";
 import { CanvasMenu, type CanvasMenuAnchor } from "./Canvas-Menu";
 import { CanvasTemplates } from "./Canvas-Templates";
 import type { CanvasSubTemplate } from "./template-catalog";
 import { CanvasTopBar } from "./Canvas-Top-Bar";
+import { CanvasTools, type CanvasToolPanel } from "./Canvas-Tools";
 import { CanvasViewport } from "./Canvas-Viewport";
 import type { FlowNode } from "./Graph-Node";
 import { NodeDock } from "./Node-Dock";
@@ -48,9 +50,10 @@ function Editor({
   const [tool, setTool] = useState<"select" | "hand">("select");
   const [showMinimap, setShowMinimap] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
-  const [activeDrawer, setActiveDrawer] = useState<SideDrawerKind>(null);
+  const [activeDrawer, setActiveDrawer] = useState<CanvasToolPanel>(null);
   const [menu, setMenu] = useState<CanvasMenuAnchor | null>(null);
   const [libraryPosition, setLibraryPosition] = useState<Position>();
+  const draggedLibraryItem = useRef<LibraryMediaEntry | null>(null);
 
   const doc = useCanvasDocument(path, initial);
   const { graph, assets, runs } = doc;
@@ -63,6 +66,7 @@ function Editor({
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return;
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest("dialog[open]"))) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (event.shiftKey) doc.redo();
@@ -128,20 +132,21 @@ function Editor({
     const originX = (180 - viewport.x) / viewport.zoom;
     const originY = (180 - viewport.y) / viewport.zoom;
     const built = template.build(originX, originY);
-    doc.change({ ...graph, nodes: [...graph.nodes, ...built.nodes], edges: [...graph.edges, ...built.edges] });
+    doc.change((latest) => ({ ...latest, nodes: [...latest.nodes, ...built.nodes], edges: [...latest.edges, ...built.edges] }));
     setSelected(built.nodes[0] ? [built.nodes[0].id] : []);
     setShowMinimap(true);
     requestAnimationFrame(() => { void flow.fitView({ maxZoom: 1, padding: 0.22, duration: 220 }); });
-  }, [doc, flow, graph]);
+  }, [doc, flow]);
 
   function insertAsset(asset: CanvasAsset, position: Position) {
     doc.addAsset(asset);
     appendNode({ ...createCanvasNode("asset", position), settings: { assetId: asset.id } });
   }
 
-  async function insertLibraryItem(item: LibraryMediaEntry) {
+  async function insertLibraryItem(item: LibraryMediaEntry, dropPoint?: Position) {
     const viewport = flow.getViewport();
-    const position = libraryPosition ?? { x: (220 - viewport.x) / viewport.zoom, y: (160 - viewport.y) / viewport.zoom };
+    const position = dropPoint ? flow.screenToFlowPosition(dropPoint)
+      : libraryPosition ?? { x: (220 - viewport.x) / viewport.zoom, y: (160 - viewport.y) / viewport.zoom };
     try {
       const asset = await linkLibraryAsset(path, item.path, item.name);
       insertAsset(asset, position);
@@ -157,6 +162,26 @@ function Editor({
     } catch (error) {
       doc.report(error);
     }
+  }
+
+  async function insertMediaOutputs(outputs: CanvasMediaOutput[], signal: AbortSignal) {
+    const viewport = flow.getViewport();
+    const start = { x: (190 - viewport.x) / viewport.zoom, y: (140 - viewport.y) / viewport.zoom };
+    const imported: CanvasAsset[] = [];
+    for (const { blob, name } of outputs) imported.push(await uploadAsset(path, blob, name, signal));
+    signal.throwIfAborted();
+    const nodes = imported.map((asset, index) => {
+      doc.addAsset(asset);
+      const position = { x: start.x + (index % 3) * 280, y: start.y + Math.floor(index / 3) * 240 };
+      return { ...createCanvasNode("asset", position), settings: { assetId: asset.id } };
+    });
+    doc.change((latest) => ({ ...latest, nodes: [...latest.nodes, ...nodes] }));
+    setSelected(nodes.map((node) => node.id));
+  }
+
+  function focusNode(node: CanvasNode) {
+    setSelected([node.id]);
+    void flow.setCenter(node.position.x + 120, node.position.y + 80, { zoom: 1, duration: 220 });
   }
 
   // 只在点击菜单的粘贴项时读取剪贴板，优先使用可导入的媒体。
@@ -201,12 +226,7 @@ function Editor({
       setSelected((ids) => item.selected ? [...ids.filter((id) => id !== item.id), item.id] : ids.filter((id) => id !== item.id));
     }
     if (removals.length) remove(removals, []);
-    if (positions.size) {
-      doc.change((latest) => ({
-        ...latest,
-        nodes: latest.nodes.map((node) => (positions.has(node.id) ? { ...node, position: positions.get(node.id)! } : node)),
-      }), false);
-    }
+    if (positions.size) doc.change((latest) => moveCanvasNodes(latest, positions));
   }
 
   function updateEdges(changes: EdgeChange[]) {
@@ -272,10 +292,7 @@ function Editor({
             doc.report(error);
           }
         }}
-        onFocusNode={(node) => {
-          setSelected([node.id]);
-          void flow.setCenter(node.position.x + 120, node.position.y + 80, { zoom: 1, duration: 220 });
-        }}
+        onFocusNode={focusNode}
       />
 
       {(doc.error || message) && (
@@ -289,34 +306,14 @@ function Editor({
         </div>
       )}
 
-      <CanvasLeftDock
-        t={t}
-        activeDrawer={activeDrawer}
-        onToggleDrawer={(drawer) => { setLibraryPosition(undefined); setActiveDrawer(drawer); }}
-        onQuickRun={() => {
-          const target = current && (current.kind === "image" || current.kind === "video")
-            ? current
-            : graph.nodes.find((n) => n.kind === "image" || n.kind === "video");
-          if (target) void doc.run(target.id);
-        }}
-        onQuickPrevis={() => {
-          const existing = current?.kind === "previs" ? current : graph.nodes.find((n) => n.kind === "previs");
-          if (existing) setPrevisId(existing.id);
-          else add("previs");
-        }}
-        onAddNode={(kind) => add(kind)}
+      <CanvasTools t={t} isZh={isZh} active={activeDrawer} path={path} nodes={graph.nodes} current={current} assets={assets} runs={runs}
+        onPanel={(drawer) => { setLibraryPosition(undefined); setActiveDrawer(drawer); }}
+        onFocusNode={focusNode} onAddNode={add} onTemplate={applyTemplate}
+        onInsertLibraryItem={(item) => void insertLibraryItem(item)}
+        onDragLibraryItem={(item) => { draggedLibraryItem.current = item; }}
+        onSaveMedia={insertMediaOutputs}
+        onRun={(nodeId) => void doc.run(nodeId)} onPrevis={setPrevisId}
       />
-
-      {(activeDrawer === "assets" || activeDrawer === "history") && (
-        <CanvasSideDrawer
-          drawer={activeDrawer}
-          path={path}
-          runs={runs}
-          t={t}
-          onClose={() => setActiveDrawer(null)}
-          onInsertLibraryItem={(item) => void insertLibraryItem(item)}
-        />
-      )}
 
       {graph.nodes.length === 0 && (
         <CanvasTemplates isZh={isZh} t={t} onSelectTemplate={applyTemplate} />
@@ -385,6 +382,11 @@ function Editor({
           doc.change((latest) => ({ ...latest, viewport }), false);
         }}
         onOpenMenu={(mode, point, canvas) => setMenu({ mode, point, canvas, position: flow.screenToFlowPosition(point) })}
+        onDropLibraryItem={(point) => {
+          const item = draggedLibraryItem.current;
+          draggedLibraryItem.current = null;
+          if (item) void insertLibraryItem(item, point);
+        }}
         onPaneClick={() => setSelected([])}
         onNodeDoubleClick={(_, node) => { if (node.data.node.kind === "previs") setPrevisId(node.id); }}
       />

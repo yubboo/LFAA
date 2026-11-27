@@ -106,7 +106,11 @@ export class TrashStore {
 
   private async writeMeta(meta: TrashItemMeta): Promise<void> {
     await mkdir(this.itemDir(meta.id), { recursive: true });
-    await writeFile(this.metaFile(meta.id), JSON.stringify(meta, null, 2), "utf8");
+    // 在同一目录写完临时文件后再发布，避免列表读取到半截 JSON。
+    const metaFile = this.metaFile(meta.id);
+    const pendingFile = `${metaFile}.pending`;
+    await writeFile(pendingFile, JSON.stringify(meta, null, 2), "utf8");
+    await rename(pendingFile, metaFile);
   }
 
   async getMeta(id: string): Promise<TrashItemMeta | null> {
@@ -114,7 +118,7 @@ export class TrashStore {
     try {
       const raw = await readFile(this.metaFile(id), "utf8");
       const parsed = JSON.parse(raw) as TrashItemMeta;
-      return parsed && typeof parsed.id === "string" ? parsed : null;
+      return parsed?.id === id && Number.isFinite(parsed.expiresAt) ? parsed : null;
     } catch {
       return null;
     }
@@ -127,10 +131,10 @@ export class TrashStore {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const meta = await this.getMeta(entry.name);
-      if (!meta || meta.expiresAt <= now) {
-        await rm(this.itemDir(entry.name), { recursive: true, force: true }).catch(() => {});
-        purged += 1;
-      }
+      // 仅清理确认已过期的条目，保留未发布元数据和元数据损坏的载荷。
+      if (!meta || meta.expiresAt > now) continue;
+      await rm(this.itemDir(entry.name), { recursive: true, force: true });
+      purged += 1;
     }
     return purged;
   }
@@ -143,7 +147,7 @@ export class TrashStore {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const meta = await this.getMeta(entry.name);
-      if (!meta) continue;
+      if (!meta || meta.expiresAt <= now) continue;
       if (kind !== "all" && meta.kind !== kind) continue;
       const remainingMs = Math.max(0, meta.expiresAt - now);
       const remainingDays = Math.max(1, Math.min(30, Math.ceil(remainingMs / (24 * 60 * 60 * 1000))));

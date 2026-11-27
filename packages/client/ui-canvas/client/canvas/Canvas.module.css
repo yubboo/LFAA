@@ -34,6 +34,24 @@
   opacity: 0.35;
 }
 
+/* 叠加三组同坐标的点阵，让色彩从左上暖区过渡到青蓝区。 */
+.diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm) {
+  opacity: 0.87;
+  pointer-events: none;
+}
+
+.emptyGridBlue {
+  mask-image: radial-gradient(ellipse 58% 60% at 56% 47%, var(--color-ink) 12%, color-mix(in srgb, var(--color-ink) 64%, transparent) 46%, transparent 98%);
+}
+
+.emptyGridCyan {
+  mask-image: radial-gradient(ellipse 44% 46% at 42% 41%, var(--color-ink) 13%, color-mix(in srgb, var(--color-ink) 52%, transparent) 48%, transparent 96%);
+}
+
+.emptyGridWarm {
+  mask-image: radial-gradient(ellipse 24% 28% at 34% 25%, var(--color-ink) 5%, color-mix(in srgb, var(--color-ink) 55%, transparent) 40%, transparent 96%);
+}
+
 /* 手势期间只暂停流光，曲线和节点继续跟随 React Flow 的位置。 */
 .diagram:is([data-viewport-moving="true"], [data-node-drag="true"]) [data-canvas-edge-pulse] {
   visibility: hidden;

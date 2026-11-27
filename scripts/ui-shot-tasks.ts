@@ -31,6 +31,7 @@ export interface ShotTask {
   width?: number;
   height?: number;
   theme?: "light" | "dark";
+  fixture?: "canvas" | "canvas-empty";
   steps?: ShotStep[];
   /** 需要看到滚动条的任务：用不带 --hide-scrollbars 的浏览器实例出图。 */
   scrollbars?: boolean;
@@ -62,6 +63,20 @@ function settingsTask(name: string, description: string, steps: ShotStep[] = [],
 }
 
 export const TASKS: ShotTask[] = [
+  { name: "infinite-canvas-empty-dark", group: "app", description: "空画布引导和模板叠层（深色）", theme: "dark", fixture: "canvas-empty",
+    steps: [...OPEN_CANVAS, { hover: 'button[aria-expanded]:has-text("模型提示词")' }] },
+  { name: "infinite-canvas-empty-light", group: "app", description: "空画布引导和模板叠层（浅色）", theme: "light", fixture: "canvas-empty", steps: OPEN_CANVAS },
+  { name: "infinite-canvas-empty-mobile", group: "app", description: "空画布引导与模板换行（手机）", theme: "dark", fixture: "canvas-empty", width: 390, height: 844,
+    steps: [{ click: 'button[aria-label="展开右侧菜单栏"]' }, ...OPEN_CANVAS] },
+  { name: "infinite-canvas-empty-menu", group: "app", description: "双击空态提示区域打开新建节点菜单", theme: "dark", fixture: "canvas-empty",
+    steps: [...OPEN_CANVAS, { doubleClick: ".react-flow__pane" }, { hover: '[role="menu"][aria-label="新建节点"] [role="menuitem"]' }] },
+  { name: "infinite-canvas-tools-dark", group: "app", description: "无限画布六项工具栏（深色）", theme: "dark", fixture: "canvas",
+    steps: [...OPEN_CANVAS, { click: 'nav[aria-label="画布工具"] button:has-text("节点列表")' },
+      { hover: 'nav[aria-label="画布工具"] button:has-text("创作广场")' }] },
+  { name: "infinite-canvas-tools-light", group: "app", description: "无限画布全部功能（浅色）", theme: "light", fixture: "canvas",
+    steps: [...OPEN_CANVAS, { click: 'nav[aria-label="画布工具"] button:has-text("全部功能")' }] },
+  { name: "infinite-canvas-tools-mobile", group: "app", description: "无限画布全部功能（手机）", theme: "dark", fixture: "canvas", width: 390, height: 844,
+    steps: [{ click: 'button[aria-label="展开右侧菜单栏"]' }, ...OPEN_CANVAS, { click: 'nav[aria-label="画布工具"] button:has-text("全部功能")' }] },
   { name: "infinite-canvas-entry-dark", group: "app", description: "右侧无限画布标签（深色）", theme: "dark", steps: OPEN_CANVAS },
   { name: "infinite-canvas-entry-light", group: "app", description: "右侧无限画布标签（浅色）", theme: "light", steps: OPEN_CANVAS },
   { name: "infinite-canvas-entry-mobile", group: "app", description: "窄屏右侧无限画布标签", width: 390, height: 844, theme: "dark",

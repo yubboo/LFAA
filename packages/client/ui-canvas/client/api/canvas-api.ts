@@ -14,8 +14,8 @@ async function json<T>(url: string, options?: RequestInit): Promise<T> {
   return value;
 }
 
-function send<T>(url: string, data: unknown, method = "POST"): Promise<T> {
-  return json<T>(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+function send<T>(url: string, data: unknown, method = "POST", signal?: AbortSignal): Promise<T> {
+  return json<T>(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data), ...(signal ? { signal } : {}) });
 }
 
 export interface CanvasListItem { canvasId: string; title: string }
@@ -105,7 +105,8 @@ export function assetUrl(path: string, assetId: string): string {
 }
 
 /** 图片和录制片段经同一项目画布接口持久化，不保留临时 blob 引用。 */
-export async function uploadAsset(path: string, blob: Blob, name: string): Promise<CanvasAsset> {
+export async function uploadAsset(path: string, blob: Blob, name: string, signal?: AbortSignal): Promise<CanvasAsset> {
+  signal?.throwIfAborted();
   if (blob.size > 24 * 1024 * 1024) throw new Error("素材大小超出限制 / Asset exceeds 24 MiB");
   const data = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -117,5 +118,5 @@ export async function uploadAsset(path: string, blob: Blob, name: string): Promi
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
-  return send(path + "/assets", { name, mime: blob.type.split(";")[0] ?? "", base64: data });
+  return send(path + "/assets", { name, mime: blob.type.split(";")[0] ?? "", base64: data }, "POST", signal);
 }

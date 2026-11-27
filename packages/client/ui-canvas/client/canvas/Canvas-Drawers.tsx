@@ -1,114 +1,16 @@
-// 浏览器画布侧边工具条、资料库、运行历史与全屏 Agent 对话抽屉。
+// 浏览器画布资料库、运行历史与全屏 Agent 对话抽屉。
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  IconFolder,
-  IconHistory,
-  IconPlayerPlay,
-  IconPlus,
-  IconScissors,
   IconSparkles,
   IconX,
 } from "@tabler/icons-react";
-import type { CanvasNodeKind, CanvasRun } from "@lfaa/canvas/contract";
+import type { CanvasRun } from "@lfaa/canvas/contract";
 import { assetUrl, libraryMediaUrl, listLibraryMedia, type LibraryMediaEntry } from "../api/canvas-api";
 import type { CanvasLabels } from "../locales";
-import { canvasNodeOptions } from "./Canvas-Menu";
+import { startLibraryDrag } from "./canvas-library-drag";
 import styles from "./Canvas-Drawers.module.css";
 
-export type SideDrawerKind = "add" | "assets" | "history" | null;
-
-export function CanvasLeftDock({
-  t,
-  activeDrawer,
-  onToggleDrawer,
-  onQuickRun,
-  onQuickPrevis,
-  onAddNode,
-}: {
-  t: CanvasLabels;
-  activeDrawer: SideDrawerKind;
-  onToggleDrawer: (drawer: SideDrawerKind) => void;
-  onQuickRun: () => void;
-  onQuickPrevis: () => void;
-  onAddNode: (kind: CanvasNodeKind) => void;
-}) {
-  return (
-    <div className={styles.leftRailWrap}>
-      <nav className={styles.leftRail} aria-label="Canvas tools">
-        <button
-          type="button"
-          className={styles.railPrimary}
-          data-active={activeDrawer === "add" ? "true" : undefined}
-          title={t.add}
-          aria-label={t.add}
-          onClick={() => onToggleDrawer(activeDrawer === "add" ? null : "add")}
-        >
-          <IconPlus size={18} stroke={2.2} />
-        </button>
-        <button
-          type="button"
-          className={styles.railBtn}
-          data-active={activeDrawer === "assets" ? "true" : undefined}
-          title={t.assetsDrawer}
-          aria-label={t.assetsDrawer}
-          onClick={() => onToggleDrawer(activeDrawer === "assets" ? null : "assets")}
-        >
-          <IconFolder size={17} stroke={1.7} />
-        </button>
-        <button
-          type="button"
-          className={styles.railBtn}
-          title={t.run}
-          aria-label={t.run}
-          onClick={onQuickRun}
-        >
-          <IconPlayerPlay size={17} stroke={1.7} />
-        </button>
-        <button
-          type="button"
-          className={styles.railBtn}
-          data-active={activeDrawer === "history" ? "true" : undefined}
-          title={t.historyDrawer}
-          aria-label={t.historyDrawer}
-          onClick={() => onToggleDrawer(activeDrawer === "history" ? null : "history")}
-        >
-          <IconHistory size={17} stroke={1.7} />
-        </button>
-        <button
-          type="button"
-          className={styles.railBtn}
-          title={t.previs}
-          aria-label={t.previs}
-          onClick={onQuickPrevis}
-        >
-          <IconScissors size={17} stroke={1.7} />
-        </button>
-      </nav>
-
-      {activeDrawer === "add" && (
-        <div className={styles.addPopover} role="menu" aria-label={t.add}>
-          {canvasNodeOptions.map(({ kind, Icon }) => (
-            <button
-              key={kind}
-              type="button"
-              role="menuitem"
-              className={styles.menuItem}
-              onClick={() => {
-                onAddNode(kind);
-                onToggleDrawer(null);
-              }}
-            >
-              <Icon size={15} />
-              <span>{t[kind]}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** 统一资料库资产抽屉（读取 E:\lfaa\data\.lfaa-media\{images,videos}）与运行历史抽屉。 */
+/** 复用应用资料库中的图片和视频，并显示当前画布的运行历史。 */
 export function CanvasSideDrawer({
   drawer,
   path,
@@ -116,6 +18,7 @@ export function CanvasSideDrawer({
   t,
   onClose,
   onInsertLibraryItem,
+  onDragLibraryItem,
 }: {
   drawer: "assets" | "history";
   path: string;
@@ -123,6 +26,7 @@ export function CanvasSideDrawer({
   t: CanvasLabels;
   onClose: () => void;
   onInsertLibraryItem: (item: LibraryMediaEntry) => void;
+  onDragLibraryItem: (item: LibraryMediaEntry | null) => void;
 }) {
   const [items, setItems] = useState<LibraryMediaEntry[]>([]);
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
@@ -145,7 +49,7 @@ export function CanvasSideDrawer({
     <aside className={styles.sideDrawer} aria-label={drawer === "assets" ? t.assetsDrawer : t.historyDrawer}>
       <header className={styles.drawerHeader}>
         <strong>{drawer === "assets" ? t.assetsDrawer : t.historyDrawer}</strong>
-        <button type="button" className={styles.iconBtn} onClick={onClose} aria-label="Close">
+        <button type="button" className={styles.iconBtn} onClick={onClose} aria-label={t.close}>
           <IconX size={15} />
         </button>
       </header>
@@ -173,11 +77,17 @@ export function CanvasSideDrawer({
                 type="button"
                 className={styles.assetTile}
                 title={`${item.name} · ${t.insertToCanvas}`}
+                draggable
+                onDragStart={(event) => {
+                  startLibraryDrag(event.dataTransfer);
+                  onDragLibraryItem(item);
+                }}
+                onDragEnd={() => onDragLibraryItem(null)}
                 onClick={() => onInsertLibraryItem(item)}
               >
                 {item.kind === "video"
-                  ? <video muted preload="metadata" src={libraryMediaUrl(item.path)} />
-                  : <img alt={item.name} loading="lazy" src={libraryMediaUrl(item.path)} />}
+                  ? <video draggable={false} muted preload="metadata" src={libraryMediaUrl(item.path)} />
+                  : <img draggable={false} alt="" loading="lazy" src={libraryMediaUrl(item.path)} />}
                 <span className={styles.assetName}>{item.name}</span>
               </button>
             ))}

@@ -58,7 +58,7 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
 
   function change(update: CanvasGraph | ((previous: CanvasGraph) => CanvasGraph), recordHistory = true) {
     const next = typeof update === "function" ? update(current.current) : update;
-    commit(next, recordHistory);
+    if (next !== current.current) commit(next, recordHistory);
   }
 
   function undo() {
@@ -66,7 +66,8 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
     if (!prev) return;
     redoStack.current.push(current.current);
     setHistoryState({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
-    commit(prev, false);
+    // 撤销内容编辑时保持当前视口，避免下次打开画布跳回旧缩放位置。
+    commit({ ...prev, viewport: current.current.viewport }, false);
   }
 
   function redo() {
@@ -74,7 +75,7 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
     if (!next) return;
     undoStack.current.push(current.current);
     setHistoryState({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
-    commit(next, false);
+    commit({ ...next, viewport: current.current.viewport }, false);
   }
 
   function sync(detail: BoardDetail) {

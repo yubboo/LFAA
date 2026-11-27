@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { chromium, type Browser } from "playwright-core";
 import { startHostServer } from "@lfaa/web-server";
 import { TASKS, applySteps, type ShotTask } from "./ui-shot-tasks.ts";
+import { installCanvasShotFixture } from "./canvas-shot-fixture.ts";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const WEB_DIST = join(REPO_ROOT, "apps", "web", "dist");
@@ -152,7 +153,8 @@ try {
     let ok = true;
     let failure = "";
     try {
-      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      const url = task.fixture ? await installCanvasShotFixture(page, baseUrl, task.fixture === "canvas-empty") : baseUrl;
+      await page.goto(url, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(bootMs);
       await applySteps(page, task.steps);
       await page.waitForTimeout(250);

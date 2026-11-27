@@ -59,3 +59,24 @@
 - `Canvas-Viewport` 区分空白双击和节点事件，关闭默认双击缩放，保留滚轮缩放及右键拖动画布。`Canvas-Editor` 复用现有节点、上传、资产库和适应画布动作。`Canvas-Drawers` 与指针菜单共用节点选项，菜单用项目浮层令牌、遮罩、回焦与键盘导航。`Canvas-Templates` 和双语文案更新空画布提示。
 - 2026-11-27 调研了当前右键菜单、`@xyflow/react@12.12.1` 的 Pane/ZoomPane 事件、[React Flow 视口 API](https://reactflow.dev/api-reference/types/react-flow-instance)、[W3C APG 菜单模式](https://www.w3.org/WAI/ARIA/apg/patterns/menubar/)和 [Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard_API)。采用现有画布转换与导入能力，并按 W3C 处理键盘。共享 ContextMenu 依赖单个右键触发元素，复用其交互规范与主题令牌；现有两种鼠标入口需要共享同一个指针坐标菜单，因此沿用画布自身的菜单状态。无外部代码复制或新增依赖。
 - 局部交互迭代，沿用现有画布方案和负责人本轮明确指定的双击、右键入口。现有节点契约和存储兼容。验收覆盖深浅主题、边缘防裁切、鼠标和键盘关闭、缩放坐标、节点双击与拖动、上传及剪贴板。回退时撤回指针菜单及两种触发的源码和文案，既有画布数据仍可读取。
+
+### 3.6 左侧工具栏与基础媒体操作
+
+- 2026-11-27 负责人指定现有左侧悬浮工具栏的位置，依次接入「节点列表、创作广场、资料库、添加节点、全部功能、剪辑器」。资料库复用当前应用的图片与视频数据。节点列表可搜索、定位节点，创作广场在空画布或已有画布都可应用现有工作流模板，添加节点复用现有五类节点。
+- 「全部功能」按视频编辑、图片编辑和画布工具分组，可搜索已接入的动作。视频首批提供截帧和片段截取，图片首批提供裁剪、旋转和宫格切分，画布工具保留运行历史和白模预演入口。剪辑器聚焦单个视频，提供预览、设定起止点、截帧和导出片段。处理结果作为新素材加入当前画布，使用现有素材接口。
+- 文件范围限 `packages/client/ui-canvas`（`canvas/Canvas-Tool*`、`canvas/Canvas-Drawers*`、`canvas/Canvas-Editor.tsx`、`canvas/Canvas-Media*`、双语文案与说明），用原生模态管理焦点，按已有弹窗规范使用双主题样式。前端使用既有画布契约和 Host API。高阶生成、重绘、智能分离等动作依赖单独可用的模型或者媒体能力，按实际接入进度进入目录。
+- 2026-11-27 查阅 LFAA `123766a8` 的模板、视口定位、资料库与素材上传能力、`previs/stage-export.ts` 的浏览器录制和现有 FFmpeg 连接器。对照 [React Flow 12 视口 API](https://reactflow.dev/api-reference/types/react-flow-instance)、[MDN Canvas drawImage](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage)、[MDN 录制 API](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder) 与 [FFmpeg 文档](https://ffmpeg.org/ffmpeg-all.html)。候选一是采用宿主 FFmpeg 精确处理，当前系统找不到 FFmpeg，可执行文件管理与剪辑契约另需分阶段接入。候选二是适配现有浏览器导出方式，采用 Canvas 做静态变换、媒体流录制做基础视频片段。浏览器不支持录制时提供截帧功能并明确反馈。无外部源码复制或额外运行时依赖，素材继续按既有 MIME 和尺寸门禁处理。
+- 验收覆盖六个入口、深浅主题及窄栏、资料库导入、模板添加、模态关闭回焦、图像坐标及视频起止点。回滚时撤回工具栏与媒体操作界面，原画布与导出文件继续由现有存储读取。
+
+### 3.7 瘦身工具栏与扩充全部功能
+
+- 负责人指出工具条过宽且悬停生硬，目录条目太少。收窄现有六项工具条和抽屉锚点，保留可读文字和触控尺寸。悬停仅提升图标与底板，点击有轻量按压反馈，减少动态效果模式保留静态反馈。功能目录按媒体类型排成三列，随视口收为两列或一列，搜索继续匹配操作名和类别。
+- 扩充可直接处理当前画布素材的操作。视频新增画面裁切、长边缩放、按时间采样取帧、分离音视频。图片新增同比缩放、文字标注、九宫格排版。处理结果继续通过现有素材接口写入当前画布，音频用浏览器下载，因为现有画布素材契约只接收图片和视频。去字幕、片段重拍、语义抠像等仍需对应模型或专用处理链路。
+- 2026-11-27 核对当前 `Canvas-Media-Editor`、画布上传限制、已装依赖和项目 FFmpeg 连接器。查阅 [MDN Canvas drawImage](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage)、[Canvas 录制流](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/captureStream)、[MediaStream 轨道组合](https://developer.mozilla.org/en-US/docs/Web/API/MediaStream/MediaStream) 和 [减少动效](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion)。比较直接适配浏览器 Canvas 与接入宿主 FFmpeg。当前采用浏览器原生能力和既有媒体录制，避免引入系统安装、许可与原生分发工作。截取按浏览器播放状态处理，不作为帧精确转码。无新增依赖或外部源码复制。
+- 变更位于 `packages/client/ui-canvas/client/canvas/` 的工具目录、样式、媒体编辑与处理函数和双语文案。验收检查输入范围、采样边界、结果宽高比、双主题及窄屏悬停状态。回滚通过撤回新增目录项和对应处理文件，已生成的素材仍由现有画布接口读取。
+
+### 3.8 空画布模板与双击提示
+
+- 按负责人圈出的空画布区域调整。五类模板在宽画布呈单行薄叠层卡片，窄画布自动换行。沿用 LFAA 的类别、图标、主题色和展开交互。用「双击画布」「创建节点」两段文字夹住指针图标，周围由现有 React Flow 网格提供局部点阵高亮。
+- 2026-11-27 查阅 `123766a8` 的 `Canvas-Templates`、`Canvas-Viewport`、`@xyflow/react@12.12.1` 的 Background 和 `@tabler/icons-react@3.52.0` 图标。直接适配现有模板与网格，使用负责人截图确认层次与入口位置，未复制参考图素材或引入依赖。提示和卡片间隙透传画布事件，双击继续使用既有节点菜单。
+- 改动集中在空画布组件、双语文案、网格表现和截图夹具。验证深浅主题、窄屏、展开模板及双击菜单。回滚时可撤回呈现与截图变更，已有项目和画布文件继续使用原契约。
