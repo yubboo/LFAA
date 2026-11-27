@@ -70,17 +70,16 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const domain = resolveWorkbenchDomain(backgroundView, locale);
   const hasRightColumn = domain.columns === 4;
   const showRightPanel = hasRightColumn && rightPanelOpen;
-  // 窗口缩放与拖拽吸附期间暂停轨道过渡，宽度始终跟手。
-  const suspendPaneMotion = usePaneMotionSuspend(shellRef);
+  // 窗口缩放期间暂停轨道过渡，宽度始终跟手。
+  usePaneMotionSuspend(shellRef);
   const handleDragCollapse = useCallback((side: ResizeSide) => {
-    // 吸附收起时宽度已跟随指针到 0，不再补播轨道过渡。
-    suspendPaneMotion();
+    // 方案 A 拖拽期只移动预览线，松手后保留轨道过渡，让侧栏从当前宽度平滑滑收到 0。
     if (side === "left") {
       service.setLeftSidebarOpen(false, true);
     } else {
       service.setRightPanelOpen(false, true);
     }
-  }, [service, suspendPaneMotion]);
+  }, [service]);
   const { leftWidth, rightWidth, dragState, startResize, handleKeyResize } = useSidebarResize({
     shellRef,
     isCompact,

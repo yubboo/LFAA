@@ -1,0 +1,238 @@
+/* 空画布中央引导区与上下弹出的多张子模板卡片：全部消费 @lfaa/ui-theme 语义色变量。 */
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.15rem;
+  pointer-events: none;
+  padding: 2rem;
+}
+
+.hintRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.88rem;
+  color: var(--color-ink-soft);
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
+.hintIcon {
+  color: var(--color-ink);
+  opacity: 0.88;
+}
+
+.hintText {
+  color: var(--color-ink-soft);
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  pointer-events: auto;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.slot[data-expanded="true"] {
+  z-index: 20;
+}
+
+.categoryCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 11.2rem;
+  height: 3.35rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, var(--color-surface), var(--color-panel));
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: var(--color-menu-shadow);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms ease, background-color 150ms ease;
+}
+
+.categoryCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-accent);
+}
+
+.categoryCard[data-active="true"] {
+  border-color: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-active), var(--color-surface));
+}
+
+.catIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  color: var(--color-ink-soft);
+  flex: 0 0 auto;
+}
+
+.catTitle {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catDeco {
+  position: absolute;
+  right: -0.6rem;
+  bottom: -0.6rem;
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  opacity: 0.35;
+  transform: rotate(22deg);
+  pointer-events: none;
+}
+
+.stack {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 13.6rem;
+  transform: translateX(-50%);
+  animation: subStackIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stackAbove {
+  bottom: calc(100% + 0.65rem);
+}
+
+.stackBelow {
+  top: calc(100% + 0.65rem);
+}
+
+.subWrap {
+  position: relative;
+}
+
+.subCard {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.subCard:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent);
+  background: var(--color-active);
+}
+
+.subThumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  flex: 0 0 auto;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border: 1px solid var(--color-line);
+}
+
+.subThumb[data-tone="violet"] { color: var(--color-violet); }
+.subThumb[data-tone="teal"] { color: var(--color-teal); }
+.subThumb[data-tone="orange"] { color: var(--color-orange); }
+.subThumb[data-tone="info"] { color: var(--color-info); }
+
+.subTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.infoBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.infoBtn:hover {
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.infoBubble {
+  margin-top: 0.3rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-panel);
+  color: var(--color-ink-soft);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  box-shadow: var(--color-menu-shadow);
+}
+
+@keyframes subStackIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .categoryCard,
+  .subCard,
+  .stack {
+    animation: none;
+    transition: none;
+  }
+}

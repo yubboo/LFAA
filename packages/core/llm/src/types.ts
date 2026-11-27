@@ -141,6 +141,8 @@ export interface LlmGenerateInput {
   reasoningEffort?: ReasoningEffortLevel;
   temperature?: number;
   maxTokens?: number;
+  /** 会话级稳定提示缓存路由键（如 sessionId）；供支持 prompt_cache_key 的官方端点提升高并发缓存命中率。 */
+  cacheKey?: string;
   signal?: AbortSignal;
   onDelta?: (delta: LlmStreamDelta) => void;
   /** 参数流的已接收长度和有限前缀仅供 Host 识别目标，不随 SSE 发布原文。 */

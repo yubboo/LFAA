@@ -1,6 +1,5 @@
 // 验证套餐配置表单也提供「获取官方模型」，并把拉取到的全部模型列出可选（普通接口保留首屏截断）。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,19 +7,6 @@ import type { ModelCapabilityItem } from "../client/store/chat-types";
 import type { ModelProviderPreset } from "../client/models/provider-catalog";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ModelProviderForm } = await import("../client/models/ModelProviderForm");
 

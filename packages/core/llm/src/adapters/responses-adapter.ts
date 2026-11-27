@@ -149,6 +149,9 @@ export async function callOpenAiResponsesApi(
     stream: true,
     store: false,
   };
+  if (input.cacheKey && new URL(baseUrl).hostname === "api.openai.com") {
+    bodyPayload.prompt_cache_key = input.cacheKey;
+  }
   if (instructions) bodyPayload.instructions = instructions;
   if (input.tools && input.tools.length > 0) {
     bodyPayload.tools = input.tools.map((tool) => ({

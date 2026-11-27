@@ -28,7 +28,34 @@ export const listBoards = (projectId: string, signal: AbortSignal) => json<Canva
 export const createBoard = (projectId: string, title: string) => send<CanvasBoard>(boardsPath(projectId), { title });
 export const getBoard = (path: string, signal?: AbortSignal) => json<BoardDetail>(path, signal ? { signal } : undefined);
 export const saveBoard = (path: string, revision: number, graph: CanvasGraph) => send<CanvasBoard>(path, { revision, graph }, "PUT");
+export const renameBoard = (path: string, title: string) => send<CanvasBoard>(path, { title }, "PATCH");
 export const submitNode = (path: string, id: string, nodeId: string, revision: number) => send<CanvasRun>(path + "/runs", { id, nodeId, revision });
+
+/** 将统一资料库（E:\lfaa\data\.lfaa-media）已有图片/视频直接链接为当前画布资产。 */
+export const linkLibraryAsset = (path: string, libraryPath: string, name?: string) =>
+  send<CanvasAsset>(path + "/assets", { libraryPath, ...(name ? { name } : {}) });
+
+export interface LibraryMediaEntry {
+  path: string;
+  name: string;
+  kind: "image" | "video" | "audio";
+  bytes: number;
+  createdAt: number;
+  prompt?: string;
+  model?: string;
+}
+
+/** 读取统一资料库中的图片与视频列表，供画布左侧资产库抽屉展示。 */
+export async function listLibraryMedia(limit = 80, signal?: AbortSignal): Promise<LibraryMediaEntry[]> {
+  const data = await json<{ items: LibraryMediaEntry[] }>(`/api/media/library?limit=${limit}`, signal ? { signal } : undefined);
+  return (data.items ?? []).filter((item) => item.kind === "image" || item.kind === "video");
+}
+
+/** 生成统一资料库媒体预览 URL（携带本机令牌参数）。 */
+export function libraryMediaUrl(filePath: string): string {
+  const token = document.querySelector<HTMLMetaElement>('meta[name="lfaa-api-token"]')?.content;
+  return `/api/media/file?path=${encodeURIComponent(filePath)}` + (token ? `&token=${encodeURIComponent(token)}` : "");
+}
 
 export interface CanvasModel {
   profileId: string;

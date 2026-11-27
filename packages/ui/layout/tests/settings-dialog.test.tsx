@@ -1,22 +1,12 @@
 // 验证设置中心改为弹窗呈现：目录/关闭入口可访问，未接入设置项退化为占位说明，
 // 且弹窗打开时中央工作区仍停在背景视图而不是换成整页设置页。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { WorkbenchSnapshot } from "../client/workbench-service";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { SettingsDialog } = await import("../client/panels/SettingsDialog");
 const { ShellWorkspace } = await import("../client/shell/ShellWorkspace");

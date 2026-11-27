@@ -1,24 +1,10 @@
 // 验证模型选择行：方舟「控制台路由」已在副标题里时不再单独占一行，额外状态仍保留。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ModelOptionRow } = await import("../client/models/ModelReasoningList");
 const { arkModelMessages } = await import("../client/locales");

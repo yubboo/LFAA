@@ -1,24 +1,10 @@
 // 验证排队面板摘要与提示：收起/展开文案、全部发送提示，以及箭头位于操作之后。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ComposerFollowUpHint, ComposerQueuePanel } = await import("../client/composer/ComposerQueuePanel");
 

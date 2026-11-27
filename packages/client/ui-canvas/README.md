@@ -11,6 +11,8 @@ English | [中文](README.zh.md)
 
 The browser plugin adds Infinite canvas to the right workbench's new tab. It hosts the project graph editor and the 3D previs editor.
 
+Double-click blank space to create a node or import an asset. Right-click blank space to add a node, fit the canvas, paste, or upload. New nodes and imported assets are placed at the pointer.
+
 ## Exports
 
 - `./client` provides the browser Cordis plugin.

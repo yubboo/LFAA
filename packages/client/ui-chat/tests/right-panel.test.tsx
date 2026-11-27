@@ -1,6 +1,5 @@
 // 验证重构后的右侧工作台面板渲染搜索/URL 栏、6 项工具入口及子智能体/后台任务区块。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,19 +7,6 @@ import { ChatClientStore } from "../client/store/chat-store";
 import { getChatLocale } from "../client/locales";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { AgentContextPanel } = await import("../client/workbench/AgentContextPanel");
 const { RightWorkbenchPane } = await import("../client/workbench/RightWorkbenchPane");

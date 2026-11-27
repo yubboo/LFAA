@@ -1,25 +1,11 @@
 // 验证行内批注框的结构：行号提示、输入框、取消/添加按钮，以及空草稿时禁用提交。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ChatClientStore } from "../client/store/chat-store";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { InlineComment } = await import("../client/workbench/InlineComment");
 

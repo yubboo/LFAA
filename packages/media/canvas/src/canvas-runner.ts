@@ -77,7 +77,10 @@ export class CanvasRunner {
     }
     const data = await downloadImage(result.videoUrl);
     if (!data) throw new Error("暂未能下载视频，稍后继续查询。");
-    const asset = await this.store.addAsset(dir, "Video " + run.id.slice(0, 8), "", data.bytes, run.id);
+    const asset = await this.store.addAsset(dir, "Video " + run.id.slice(0, 8), "", data.bytes, run.id, {
+      prompt: run.prompt,
+      ...(run.model ? { model: run.model } : {}),
+    });
     const { error: _error, ...clean } = run;
     await this.store.saveRun(dir, { ...clean, status: "succeeded", assetId: asset.id });
   }
@@ -101,7 +104,10 @@ export class CanvasRunner {
     const image = result.images[0];
     const bytes = image?.b64 ? Buffer.from(image.b64, "base64") : image?.url ? (await downloadImage(image.url))?.bytes : undefined;
     if (!bytes) throw new Error("模型未返回可保存的图片。");
-    const asset = await this.store.addAsset(dir, "Image " + run.id.slice(0, 8), "", bytes, run.id);
+    const asset = await this.store.addAsset(dir, "Image " + run.id.slice(0, 8), "", bytes, run.id, {
+      prompt: run.prompt,
+      ...(result.model ? { model: result.model } : {}),
+    });
     await this.store.saveRun(dir, { ...run, model: result.model, ...(result.profileId ? { profileId: result.profileId } : {}), status: "succeeded", assetId: asset.id });
   }
 

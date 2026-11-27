@@ -39,7 +39,7 @@ test("HoverTip 悬停显示不改变纵向位置", async () => {
   const pkgRoot = fileURLToPath(new URL("..", import.meta.url));
   const css = await readFile(resolve(pkgRoot, "client/HoverTip.module.css"), "utf8");
   const baseRule = css.match(/\.tip\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body ?? "";
-  const visibleRule = css.match(/\.wrap:hover[\s\S]*?\.tip\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body ?? "";
+  const visibleRule = css.match(/\.tipOpen\s*\{(?<body>[\s\S]*?)\}/u)?.groups?.body ?? "";
 
   assert.ok(baseRule, "应能找到 HoverTip 默认样式");
   assert.ok(visibleRule, "应能找到 HoverTip 悬停可见样式");

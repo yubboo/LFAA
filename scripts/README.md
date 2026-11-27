@@ -24,7 +24,9 @@
 - `probe-loader.mjs`：Loader 按包名装载探针。以 `packages/bundle/web/package.json` 为解析基准（该包声明了全部可安装插件包；`apps/web` 只有前端入口依赖，作基准会导致 `@lfaa/tools` 解析失败）。覆盖装载/卸载/重装/并存/二创全链路，需先 `pnpm build`。对应 `pnpm probe:loader`。
 - `verify-web.mts`：生产构建产物的浏览器验收。用单进程启动 `@lfaa/web-server` 静态宿主（随机端口），再以本机 Edge/Chrome 无头打开页面，依次检查壳层、资料库（含「图像」分类的媒体网格）、代码审查、设置中心（常规/Git/代码审查）、浅色主题与 390px 窄屏；出现控制台错误或步骤失败即退出码 1，截图与报告写到系统临时目录 `lfaa-verify/`。Web 产物缺失时自动执行 `pnpm build:web`，也可加 `--build` 强制重建；未检测到浏览器时跳过并以 0 退出（CI 可安全调用）。对应 `pnpm verify:web`。
 - `install-hooks.mjs`：把当前克隆的 `core.hooksPath` 指向 `.githooks`，启用提交前门禁（空白检查 + `node scripts/check-workspace.mjs` + `node scripts/check-logs.mjs`，约 1-2 秒）。只改本地配置，不影响全局；撤销用 `git config --local --unset core.hooksPath`。对应 `pnpm hooks:install`。
-- `test.mjs`：统一测试入口。枚举 `packages/**/tests/*.test.ts(x)` 与 `scripts/**/*.test.mjs` 后交给 Node 测试运行器（`node:test` + `tsx`）；`tsx` 读取 tsconfig 的 `paths` 门面，因此包测试直接跑源码而不是 `lib`。支持 `--filter <子串>` 与 `--reporter <名称>`。
+- `verify-canvas-motion.mts`：无限画布的拖拽与缩放手感校验。用路由拦截把 32 节点 / 16 连线的隔离夹具塞进本地 `http://127.0.0.1:5173/` 的画布页，检查拖拽中途不落盘、松手感落盘一次、拖拽与缩放期间连线流光隐藏、缩放后节点数不变、控制台无报错，并把截图写到 `shots/`；加 `--fixed` 才打开数值断言（默认只打印观察值，便于修复前后对比），`--light` 跑浅色主题。对应 `pnpm verify:canvas-motion`（需先起本地服务）。
+- `test.mjs`：统一测试入口。枚举 `packages/**/tests/*.test.ts(x)` 与 `scripts/**/*.test.mjs` 后交给 Node 测试运行器（`node:test` + `tsx`）；`tsx` 读取 tsconfig 的 `paths` 门面，因此包测试直接跑源码而不是 `lib`。支持 `--filter <子串>` 与 `--reporter <名称>`。样式模块由下一条的共享加载器注入，用例文件不必各自注册 `registerHooks`。
+- `test-css-loader.mjs`：测试期样式桩。Node 无法加载 `*.module.css`，这里用 `module.registerHooks` 把样式模块统一替换成类名代理，并由 `test.mjs` 以 `--import` 注入，全部用例共享；新增 client 组件测试时无需再在文件里塞 8 行 CSS 桩。
 
 ## 目录职责
 

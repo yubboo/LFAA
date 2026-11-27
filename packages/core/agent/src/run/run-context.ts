@@ -1,7 +1,7 @@
 // 运行上下文装配：召回规则/记忆/资料库，拼装工作区与技能提示，创建用量跟踪、系统消息与初始对话。
 // 从 executeAgentTaskLoop 拆出：循环体只保留编排，系统消息重渲染与截断提示也统一收在这里。
 import { DEFAULT_CONTEXT_BUDGET_CHARS } from "@lfaa/context";
-import type { LlmMessage } from "@lfaa/llm";
+import type { LlmMessage, LlmToolDefinition } from "@lfaa/llm";
 import {
   buildProgressHint,
   buildProjectScopeHint,
@@ -15,14 +15,18 @@ import {
   resolveModelContext,
 } from "../context/agent-context";
 import { buildMediaHint } from "../context/agent-media";
+import { clarificationTool } from "../context/clarification";
 import { RunUsageTracker } from "./agent-usage";
 import { recordStep, type LoopState } from "./loop-state";
 import { renderSystemContent } from "./run-system";
+import { preferTodoFirst } from "./todo-plan";
 import type { RunExecutionParams, RunLoopDeps } from "./run-types";
 
-/** 一次运行共享的上下文：系统消息可重渲染，对话数组会被压缩与插话原地修改。 */
+/** 一次运行共享的上下文：系统消息与工具定义在运行开始时冻结，对话数组会被压缩与插话原地修改。 */
 export interface RunContext {
   readonly systemMessage: LlmMessage;
+  /** 本次运行冻结的确定性工具定义列表：全程字节级不变以最大化跨模型 KV Cache 命中率。 */
+  readonly frozenTools: LlmToolDefinition[];
   readonly conversation: LlmMessage[];
   readonly contextBudgetChars: number;
   readonly tracker: RunUsageTracker;
@@ -56,7 +60,7 @@ export async function createRunContext(input: {
   state: LoopState;
 }): Promise<RunContext> {
   const { deps, params, state } = input;
-  const { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint, backgroundHint } = await recallAgentContext(deps, params);
+  const { systemPrompt, projectRuleNames, contextWindow, turnDynamicContext, libraryHint, backgroundHint } = await recallAgentContext(deps, params);
   const workspaceHint = [
     buildWorkspaceHint(params.projectId, params.workspaceRoots, projectRuleNames, params.worktree),
     params.projectScope ? buildProjectScopeHint(params.projectScope) : "",
@@ -141,15 +145,25 @@ export async function createRunContext(input: {
   const updateSystemMessage = () => {};
 
   const conversation = buildRecentConversation(systemMessage, contextWindow, params.userMessage);
-  if (historyDigest) {
-    conversation.splice(1, 0, {
+  // 本轮动态召回的记忆、资料库资产与历史轨迹摘要追加到最新 user 消息之前（末尾），绝不插在 messages[1] 破坏历史前缀 KV Cache。
+  if (turnDynamicContext) {
+    const insertAt = Math.max(1, conversation.length - 1);
+    conversation.splice(insertAt, 0, {
       role: "user",
-      content: `【前序工具轨迹摘要（仅供参考，可直接复用避免重复探查）】\n${historyDigest}`,
+      content: turnDynamicContext,
     });
   }
 
+  // 运行开始时一次性冻结并按确定性顺序排列工具定义，避免中途工具列表抖动砸穿所有模型的 KV Cache。
+  let frozenTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
+  if (deps.tools.getTool("invoke_subagent") && deps.tools.getTool("browser_navigate")) {
+    frozenTools = frozenTools.filter((tool) => tool.name === "browser_present" || !tool.name.startsWith("browser_"));
+  }
+  if (params.enableClarification) frozenTools = preferTodoFirst([...frozenTools, clarificationTool]);
+
   return {
     systemMessage,
+    frozenTools,
     conversation,
     contextBudgetChars: Math.max(8_000, Math.floor(params.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS)),
     tracker,

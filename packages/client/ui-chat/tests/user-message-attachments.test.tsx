@@ -1,20 +1,10 @@
 // 验证用户消息附件能进入对话气泡并提供可理解的图片加载状态。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { UserMessageAttachments } = await import("../client/conversation/UserMessageAttachments");
 

@@ -1,6 +1,8 @@
-// 提供可复用的锚点浮层卡片容器：自动处理外部点击关闭与 Escape 退出，供模型选择器和工具浮窗复用。
-import { useEffect, useRef, type ReactNode } from "react";
+// 提供可复用的锚点浮层卡片容器：复用共享外部点击与 Escape 退出逻辑，并支持平滑进出场过渡。
+import { useMemo, useRef, type ReactNode } from "react";
 import type { PopoverPlacement } from "../contract/index";
+import { useDismissibleLayer } from "./useDismissibleLayer";
+import { usePanePresence } from "./usePanePresence";
 import styles from "./PopoverCard.module.css";
 
 const PLACEMENT_CLASS: Record<PopoverPlacement, string | undefined> = {
@@ -22,7 +24,7 @@ export interface PopoverCardProps {
   children: ReactNode;
 }
 
-/** 定位锚点浮层，统一处理页面外部点击与 Escape 关闭。 */
+/** 定位锚点浮层，统一处理页面外部点击、Escape 关闭与进出场平滑过渡。 */
 export function PopoverCard({
   open,
   label,
@@ -33,37 +35,19 @@ export function PopoverCard({
   children,
 }: PopoverCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const mounted = usePanePresence(open, 140);
+  const layerRefs = useMemo(() => [cardRef, anchorRef], [anchorRef]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (cardRef.current?.contains(target)) return;
-      if (anchorRef?.current?.contains(target)) return;
-      onClose();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener("mousedown", handlePointerDown, true);
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => {
-      window.removeEventListener("mousedown", handlePointerDown, true);
-      window.removeEventListener("keydown", handleKeyDown, true);
-    };
-  }, [anchorRef, onClose, open]);
+  useDismissibleLayer({ open, refs: layerRefs, onClose });
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
     <div
       ref={cardRef}
       role="dialog"
       aria-label={label}
+      data-state={open ? "open" : "closed"}
       className={`${styles.popover} ${PLACEMENT_CLASS[placement]}${className ? ` ${className}` : ""}`}
     >
       {children}

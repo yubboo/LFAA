@@ -1,7 +1,6 @@
 // 验证轨迹视图顶部复用任务卡：有清单时渲染，没有清单时不渲染。
 // 断言固定使用中文词典：CI（en-US）与本地（zh-CN）的 navigator.language 不同，不能让用例随宿主语言漂移。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,19 +8,6 @@ import { zhMessages } from "../client/locales.zh";
 import type { ChatMessageItem } from "../client/store/chat-types";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ConversationTrace } = await import("../client/conversation/Conversation-Trace");
 

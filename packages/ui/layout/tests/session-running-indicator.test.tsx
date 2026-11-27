@@ -1,6 +1,5 @@
 // 验证左二会话行的任务状态联动：进行中显示转圈，完成且未读显示小圆点，两者互斥；正在查看的会话不显示完成点。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,15 +7,6 @@ import type { WorkbenchChatProvider, WorkbenchChatSessionSummary } from "../cont
 import type { SessionItemDeps } from "../client/navigation/navigation-items";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { createRecentSidebarItems, createSessionSidebarItem } = await import("../client/navigation/navigation-items");
 const { SidebarSectionList } = await import("../client/panels/SidebarSectionList");

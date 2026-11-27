@@ -1,6 +1,5 @@
 // 验证 AssistantTimeline 在流式轮次切换、工具执行、文本输出及完成态时始终保持连贯的活动反馈。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,19 +7,6 @@ import type { AgentStepItem } from "../client/store/chat-types";
 import { activityVerbs, getChatLocale, timelineMessages } from "../client/locales";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { AssistantTimeline } = await import("../client/conversation/AssistantTimeline");
 const { StepTraceList } = await import("../client/conversation/StepTraceList");
@@ -130,19 +116,27 @@ test("完成态展示本轮 token 用量，没有用量时不显示", () => {
   assert.doesNotMatch(noUsage.html, /tokens/u);
 });
 
-test("完成后过程行收进总行，正文段落仍可见", () => {
-  const { html } = renderTimeline({ isStreaming: false, progressText: "我先检查文件。", content: "检查完成。", steps: [
-    { id: "read-1", iteration: 1, phase: "act", status: "done", title: "读取文件", toolName: "read_file", textOffset: 7, timestamp: Date.now() },
-    { id: "cmd-1", iteration: 1, phase: "act", status: "done", title: "执行命令", toolName: "run_command",
-      commandTrace: { command: "git status" }, textOffset: 7, timestamp: Date.now() },
-  ] });
+test("完成后顶部汇总行只突出用时与用量，工具链自动收进总菜单且正文始终可见", () => {
+  const { html } = renderTimeline({
+    isStreaming: false,
+    progressText: "我先检查文件。",
+    content: "检查完成。",
+    tokenUsage: { totalTokens: 24_500 },
+    steps: [
+      { id: "read-1", iteration: 1, phase: "act", status: "done", title: "读取文件", toolName: "read_file", textOffset: 7, timestamp: Date.now() },
+      { id: "cmd-1", iteration: 1, phase: "act", status: "done", title: "执行命令", toolName: "run_command",
+        commandTrace: { command: "git status" }, textOffset: 7, timestamp: Date.now() },
+    ],
+  });
   // 正文（过程说明与最终答复）不受折叠影响。
   assert.match(html, /我先检查文件。/u);
   assert.match(html, /检查完成。/u);
-  // 轮次标题与工具链折进总行，默认不展开。
-  assert.match(html, /class="roundActivity" hidden=""/u);
-  // 总行标题按动作类别报数量，不把内部工具名当标题。
-  assert.match(html, /1 command, 1 read/u);
+  // 顶部汇总行去掉工具统计串，突出用时与 token 用量。
+  assert.match(html, /class="summaryElapsed"/u);
+  assert.match(html, /class="summaryTokens">24\.5k tokens/u);
+  assert.doesNotMatch(html, /1 command, 1 read/u);
+  // 本阶段工具自动收进独立的工具总菜单（默认收起成一行）。
+  assert.match(html, /class="trigger" aria-expanded="false"/u);
 });
 
 test("流式运行中过程行保持展开", () => {
@@ -151,12 +145,13 @@ test("流式运行中过程行保持展开", () => {
       commandTrace: { command: "git status" }, timestamp: Date.now() },
   ] });
   assert.doesNotMatch(html, /class="roundActivity" hidden=""/u);
+  assert.match(html, /class="trigger" aria-expanded="true"/u);
 });
 
 test("文件活动保留文件入口，命令活动提供轨迹入口", () => {
   const locale = getChatLocale();
   const html = renderToStaticMarkup(createElement(AssistantTimeline, {
-    locale, content: "完成", progressText: "检查", createdAt: 1, isStreaming: false,
+    locale, content: "检查", createdAt: 1, isStreaming: true,
     pendingApproval: null, onResolveApproval: () => {}, onOpenFile: () => {}, onOpenTrace: () => {},
     steps: [
       { id: "file", iteration: 1, phase: "act", status: "done", title: "写入", toolName: "write_file", toolTarget: "src/a.ts", timestamp: 2 },
@@ -221,7 +216,16 @@ test("从 Host 的轮次起点恢复计时，即使流式事件刚更新", () =>
 
 test("正文出现时同轮活动行仍在，并在工具到达时原位更新", () => {
   const now = Date.now();
-  const think: AgentStepItem = { id: "think-1", iteration: 1, phase: "think", status: "running", title: "思考", modelStage: "replying", timestamp: now };
+  const think: AgentStepItem = {
+    id: "think-1",
+    iteration: 1,
+    phase: "think",
+    status: "running",
+    title: "思考",
+    detail: "整理当前输出。",
+    modelStage: "replying",
+    timestamp: now,
+  };
   const reply = renderTimeline({ isStreaming: true, content: "这是正在输出的回答", steps: [think] });
   assert.match(reply.html, /这是正在输出的回答/u);
   assert.ok(reply.html.includes(timelineMessages[reply.lang].replying));
@@ -334,81 +338,4 @@ test("顶部用时行只在运行中标记渐变动效", () => {
   const done = renderToStaticMarkup(createElement(StepTraceList, { ...props, isStreaming: false }));
   assert.match(live, /data-live="true"/u);
   assert.doesNotMatch(done, /data-live/u);
-});
-
-test("多轮思维链与动态工具链全程默认展开，保留每轮思考正文与动态目标参数", () => {
-  const now = Date.now();
-  const { html } = renderTimeline({
-    isStreaming: false,
-    progressText: "先检查首页标题样式：",
-    content: "## 四、实际决策流程\n\n1. 先确认交付载体\n2. 再评估维护成本",
-    steps: [
-      {
-        id: "think-1",
-        iteration: 1,
-        phase: "think",
-        status: "done",
-        title: "第 1 轮思考",
-        detail: "先定位官网区块标题的组件文件。",
-        startedAt: now - 4_000,
-        timestamp: now - 2_000,
-      },
-      {
-        id: "act-1-grep",
-        iteration: 1,
-        phase: "act",
-        status: "done",
-        title: "检索",
-        toolName: "grep",
-        toolTarget: "一个应用，全场景",
-        textOffset: 10,
-        startedAt: now - 2_000,
-        timestamp: now - 1_500,
-      },
-      {
-        id: "act-1-custom",
-        iteration: 1,
-        phase: "act",
-        status: "done",
-        title: "调用扩展工具",
-        toolName: "mcp_custom_lookup",
-        toolTarget: "theme-tokens",
-        textOffset: 10,
-        startedAt: now - 1_500,
-        timestamp: now - 1_200,
-      },
-      {
-        id: "think-2",
-        iteration: 2,
-        phase: "think",
-        status: "done",
-        title: "第 2 轮思考",
-        detail: "已找到目标文件，可以整理最终决策。",
-        startedAt: now - 1_200,
-        timestamp: now,
-      },
-    ],
-  });
-  // 两轮思维正文全部保留且默认展开可见
-  assert.match(html, /先定位官网区块标题的组件文件。/u);
-  assert.match(html, /已找到目标文件，可以整理最终决策。/u);
-  // 内置工具与自定义扩展工具均动态展示真实目标参数
-  assert.match(html, /一个应用，全场景/u);
-  assert.match(html, /mcp_custom_lookup/u);
-  assert.match(html, /theme-tokens/u);
-  // 正文 Markdown 回归标准有序列表，不再出现「推荐」卡片劫持
-  assert.match(html, /<ol class="ol">/u);
-  assert.doesNotMatch(html, /adviceOptions|adviceOptionRecommended/u);
-});
-
-test("旧会话仅有消息级 reasoning 时仍回退渲染可展开思维链块", () => {
-  const { html } = renderTimeline({
-    isStreaming: false,
-    reasoning: "(Thinking) 这是兼容历史会话的思考记录。",
-    content: "最终结论。",
-    steps: [],
-  });
-  assert.match(html, /这是兼容历史会话的思考记录。/u);
-  assert.doesNotMatch(html, /\(Thinking\)/u);
-  assert.match(html, /aria-expanded="true"/u);
 });

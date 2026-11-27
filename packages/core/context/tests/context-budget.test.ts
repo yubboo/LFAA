@@ -87,3 +87,23 @@ test("极低预算裁剪早期工具调用组时整组移除，不留下孤儿 t
     }
   }
 });
+
+test("滞回压缩：触发后压至低水位且压缩标记使用静态 user 消息，后续追加新轮次不再连续改写前缀", () => {
+  const messages = buildConversation(12);
+  const first = compactConversation(messages, { budgetChars: 30_000, toolCapChars: 400, keepRecentRounds: 2 });
+  assert.equal(first.compacted, true);
+  // 只有 messages[0] 是 system，压缩标记使用 user 角色避免污染 Anthropic / Responses / Gemini 顶层 system 缓存。
+  assert.equal(first.messages.filter((m) => m.role === "system").length, 1);
+  const marker = first.messages.find((m) => m.content.startsWith(COMPACTION_MARKER));
+  assert.equal(marker?.role, "user");
+  assert.doesNotMatch(marker?.content ?? "", /\d+/u);
+
+  // 追加一轮新工具交互后，由于已压到低水位，不应再次触发压缩改写前缀。
+  const nextRound: LlmMessage[] = [
+    ...first.messages,
+    { role: "assistant", content: "继续处理", toolCalls: [{ id: "call-next", name: "read_file", argumentsJson: "{}" }] },
+    { role: "tool", toolCallId: "call-next", name: "read_file", content: "Y".repeat(2_000) },
+  ];
+  const second = compactConversation(nextRound, { budgetChars: 30_000, toolCapChars: 400, keepRecentRounds: 2 });
+  assert.equal(second.compacted, false);
+});

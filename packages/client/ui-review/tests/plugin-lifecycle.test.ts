@@ -1,21 +1,6 @@
 // 验证 @lfaa/review/client 注册代码审查工作台，并在卸载时撤销视图贡献。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
-
-// CSS 必须先注册加载钩子，再动态引入客户端插件（静态 import 会先于钩子执行）。
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 test("reviewClientPlugin 注册代码审查工作台并在 dispose 时撤销", async () => {
   const { Context } = await import("@deepseek-ai/cordis");

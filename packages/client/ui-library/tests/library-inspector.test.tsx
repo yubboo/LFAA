@@ -1,21 +1,11 @@
 // 验证右栏检视器：未选中展示存储概览，选中媒体展示提示词与操作，选中资产时先显示读取态。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ChatClientStore } from "@lfaa/client-ui-chat/client";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { LibraryInspector } = await import("../client/views/LibraryInspector");
 const { librarySelectionStore } = await import("@lfaa/client-ui-tool-media/client");

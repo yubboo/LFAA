@@ -26,13 +26,31 @@
   white-space: nowrap;
 }
 
-/* 总行标题：整轮动作摘要，过长时省略，不把用时与用量挤出去。 */
-.summaryLabel {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* 顶部过程汇总行：去掉工具统计串后，突出耗时与 Token 用量作为本行视觉主体。 */
+.summaryBar {
+  gap: 0.55rem;
+}
+
+.summaryElapsed {
+  flex: none;
+  color: var(--color-ink);
+  font-size: 0.93em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.summaryTokens {
+  flex: none;
+  padding: 0.08rem 0.48rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
   color: var(--color-ink-soft);
+  font-size: 0.84em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 过程块容器：收起时整段隐藏，轮次之间的正文段落不在这个容器里，始终可见。 */
@@ -65,14 +83,25 @@
 .timelineDivider {
   border: 0;
   border-top: 1px solid var(--color-line);
-  margin: 0.25rem 0;
+  margin: 0.45rem 0 0.8rem;
 }
 
+/* 阶段间留足呼吸感（1.25rem），阶段内保持紧凑，外边距只加在过程正文块整体上下（隔开思维链与工具菜单），不改动正文本身内部行距。 */
 .flow, .roundBlock, .toolChain { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
-.flow { gap: 0.6rem; }
+.flow { gap: 1.25rem; }
 .roundBlock { gap: 0.35rem; }
 .toolChain { gap: 0.16rem; }
 .flow[hidden] { display: none; }
+
+/* 仅给每阶段过程正文整体加温和的上下外边距，让它与上方思维链和下方工具菜单清晰分开，不动正文内部排版与最终答复。 */
+.stageNarration {
+  margin: 0.35rem 0;
+}
+
+/* 过程区展开时，最终答复与上方过程区留出明显分隔；过程区收起时不额外撑开顶部空隙。 */
+.finalBody {
+  margin-top: 1.1rem;
+}
 
 .disclosure {
   width: fit-content;

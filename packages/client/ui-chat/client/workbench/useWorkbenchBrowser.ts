@@ -50,8 +50,10 @@ export function useWorkbenchBrowser({
     let current = true;
     void fetchBrowserState(sid).then((res) => {
       if (!current || request !== stateRequest.current) return;
-      if (res.state.active && res.state.tabs.length > 0) {
-        setBrowserTabs(res.state.tabs);
+      const hostTabs = res.state.tabs ?? [];
+      const hasRealPage = hostTabs.some((tab) => Boolean(tab.url && tab.url !== "about:blank"));
+      if (res.state.active && hasRealPage) {
+        setBrowserTabs(hostTabs);
         setBrowserExternalState((prev) => ({ snap: res.state, nonce: (prev?.nonce ?? 0) + 1 }));
         setBrowserOpen(true);
       } else if (savedOpen && savedHttp) {
@@ -106,6 +108,8 @@ export function useWorkbenchBrowser({
       void controlBrowserNav(sessionId, "close").catch(() => {});
       return;
     }
+    // 先乐观移除被关闭的标签页：关闭与空白标签原位替换 0ms 响应，不再等待后端往返导致标签闪动跳位。
+    setBrowserTabs((prev) => prev.filter((item) => item.tabId !== tabId));
     void manageBrowserTab(sessionId, { action: "close", tabId })
       .then((r) => {
         setBrowserTabs(r.state.tabs ?? []);

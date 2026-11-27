@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const ROOT = resolve(import.meta.dirname, "..");
 const PACKAGES_DIR = join(ROOT, "packages");
@@ -85,6 +86,8 @@ function main() {
     [
       "--import",
       "tsx",
+      "--import",
+      pathToFileURL(join(SCRIPTS_DIR, "test-css-loader.mjs")).href,
       "--test",
       `--test-reporter=${options.reporter}`,
       ...selected.map((item) => item.file),

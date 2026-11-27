@@ -18,6 +18,10 @@
   /* 流式输出时禁用浏览器原生 scroll-anchoring，避免和贴底跟随互相拉扯。 */
   overflow-anchor: none;
   overscroll-behavior-y: none;
+  /* 独立持有持久合成层并隔离绘制边界：外部 HoverTip / 浮层挂载或卸载时，不再触发整个会话区重栅格化上下抖屏。 */
+  contain: layout paint;
+  isolation: isolate;
+  will-change: scroll-position;
   /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px。 */
   scrollbar-gutter: stable both-edges;
   margin-inline-end: var(--chat-scrollbar-gap, 2px);

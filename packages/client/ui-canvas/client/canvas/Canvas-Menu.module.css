@@ -1,0 +1,80 @@
+/* 浏览器画布菜单沿用通用浮层的双色主题与紧凑行高。 */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-popover);
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: min(12.75rem, var(--popover-max-width));
+  padding: var(--popover-padding);
+  overflow: auto;
+  container-type: inline-size;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--popover-radius);
+  background: var(--glass-sheen), linear-gradient(var(--color-popover), var(--color-popover)), var(--color-shell);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+}
+
+.heading {
+  padding: 0.25rem 0.55rem;
+  color: var(--color-ink-soft);
+  font-size: var(--popover-title-font);
+  font-weight: 600;
+}
+
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--popover-row-height);
+  padding: 0 0.55rem;
+  border: 0;
+  border-radius: calc(var(--popover-radius) - var(--popover-padding));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--popover-row-font);
+  text-align: start;
+  cursor: pointer;
+}
+
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--color-active);
+}
+
+.menu button:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.menu button svg {
+  flex: none;
+  width: var(--popover-icon);
+  height: var(--popover-icon);
+}
+
+.heading,
+.menu button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.separator {
+  height: 1px;
+  margin: 0.3rem 0.55rem;
+  background: var(--color-line);
+}

@@ -6,7 +6,13 @@ import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
 const emptySnapshot = () => null;
 const emptySubscribe = () => () => {};
 
-export function useWorkbenchTabs(workbench: WorkbenchClientService | undefined, projectId: string | null, isZh: boolean, request: unknown) {
+export function useWorkbenchTabs(
+  workbench: WorkbenchClientService | undefined,
+  projectId: string | null,
+  isZh: boolean,
+  request: unknown,
+  onOpenFromStartPage?: () => void,
+) {
   const snapshot = useSyncExternalStore(workbench?.subscribe ?? emptySubscribe, workbench?.getSnapshot ?? emptySnapshot, emptySnapshot);
   const [opened, setOpened] = useState<string[]>([]);
   const [selection, setSelection] = useState<{ id: string; request: unknown } | null>(null);
@@ -24,7 +30,14 @@ export function useWorkbenchTabs(workbench: WorkbenchClientService | undefined, 
     active: Boolean(active),
     leave,
     shortcuts: contributions.map((entry) => (
-      <button key={entry.id} type="button" onClick={() => show(entry.id)}>
+      <button
+        key={entry.id}
+        type="button"
+        onClick={() => {
+          onOpenFromStartPage?.();
+          show(entry.id);
+        }}
+      >
         <IconLayoutGrid size={19} stroke={1.7} aria-hidden="true" />
         <span>{isZh ? entry.title.zh : entry.title.en}</span>
       </button>

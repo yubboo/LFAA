@@ -1,24 +1,10 @@
 // 验证输入区项目入口融合（工作模式不重复显示项目、聊天模式紧跟 + 展示独立胶囊）及草稿项目记忆持久化。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ChatComposer } = await import("../client/composer/ChatComposer");
 const { ChatClientStore } = await import("../client/store/chat-store");

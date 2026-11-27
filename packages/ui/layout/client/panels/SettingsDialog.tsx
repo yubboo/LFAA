@@ -20,12 +20,14 @@ const FOCUSABLE_SELECTOR = [
 
 /** 渲染居中设置弹窗：目录导航、当前设置页与关闭入口。 */
 export function SettingsDialog({
+  open = true,
   locale,
   activeView,
   renderContent,
   onNavigate,
   onClose,
 }: {
+  open?: boolean;
   locale: LocaleMessages;
   activeView: string;
   renderContent: () => ReactNode;
@@ -43,6 +45,7 @@ export function SettingsDialog({
   // 打开时把焦点移入弹窗，并锁住背景滚动；关闭后恢复原来的焦点与滚动。
   // 同时在根元素标记设置中心已打开，让壳层切到「设置中心」自己的背景图（由主题插件按选择输出）。
   useEffect(() => {
+    if (!open) return;
     const previousActive = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -53,7 +56,7 @@ export function SettingsDialog({
       delete document.documentElement.dataset.settingsOpen;
       previousActive?.focus({ preventScroll: true });
     };
-  }, []);
+  }, [open]);
 
   // 每次切换设置页都把内容区滚回顶部，避免沿用上一页的滚动位置。
   useEffect(() => {
@@ -81,17 +84,21 @@ export function SettingsDialog({
     }
   }, [onClose]);
 
+  const state = open ? "open" : "closed";
+
   return (
     <div
       className={styles.backdrop}
+      data-state={state}
       // 只响应遮罩自身的点击，避免在弹窗内部拖动到遮罩时误关闭。
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (open && event.target === event.currentTarget) onClose();
       }}
     >
       <div
         ref={dialogRef}
         className={styles.dialog}
+        data-state={state}
         role="dialog"
         aria-modal="true"
         aria-label={locale.settingsCenter}

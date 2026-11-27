@@ -90,6 +90,30 @@ function buildAnthropicPayloadMessages(messages: LlmMessage[]): {
   };
 }
 
+/** 为 Anthropic 消息列表的倒数最新 user/tool_result 断点挂载 ephemeral 缓存标记，提升多轮工具循环的缓存命中率。 */
+function attachAnthropicCacheBreakpoint(
+  messages: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  if (messages.length < 2) return messages;
+  const targetIndex = messages.length - 1;
+  return messages.map((msg, index) => {
+    if (index !== targetIndex) return msg;
+    const content = msg.content;
+    if (typeof content === "string") {
+      return { ...msg, content: [{ type: "text", text: content, cache_control: { type: "ephemeral" } }] };
+    }
+    if (Array.isArray(content) && content.length > 0) {
+      const nextContent = content.map((block, blockIndex) =>
+        blockIndex === content.length - 1 && block && typeof block === "object"
+          ? { ...(block as Record<string, unknown>), cache_control: { type: "ephemeral" } }
+          : block,
+      );
+      return { ...msg, content: nextContent };
+    }
+    return msg;
+  });
+}
+
 function parseAnthropicJsonResponse(payload: Record<string, unknown>, profile: LlmProfile): LlmGenerateOutput {
   const blocks = Array.isArray(payload.content) ? (payload.content as Array<Record<string, unknown>>) : [];
   let content = "";
@@ -151,15 +175,19 @@ export async function callAnthropicMessagesApi(
   const bodyPayload: Record<string, unknown> = {
     model: profile.model,
     max_tokens: maxTokens,
-    messages,
+    messages: attachAnthropicCacheBreakpoint(messages),
     stream: true,
   };
-  if (system) bodyPayload.system = system;
+  if (system) {
+    // 使用带 cache_control 的内容块，使 Claude 官方与 DeepSeek Anthropic 端点都能稳定命中系统提示 KV Cache。
+    bodyPayload.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+  }
   if (input.tools && input.tools.length > 0) {
-    bodyPayload.tools = input.tools.map((tool) => ({
+    bodyPayload.tools = input.tools.map((tool, index, list) => ({
       name: tool.name,
       description: tool.description,
       input_schema: tool.parameters,
+      ...(index === list.length - 1 ? { cache_control: { type: "ephemeral" } } : {}),
     }));
   }
 

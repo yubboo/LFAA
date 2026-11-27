@@ -37,7 +37,13 @@ export function useChatComposerHeight(
     const root = rootRef.current;
     const dock = dockRef.current;
     if (!root || !dock) return;
-    const apply = () => root.style.setProperty("--chat-composer-height", `${dock.offsetHeight}px`);
+    let lastHeight = -1;
+    const apply = () => {
+      const nextHeight = dock.offsetHeight;
+      if (nextHeight === lastHeight) return;
+      lastHeight = nextHeight;
+      root.style.setProperty("--chat-composer-height", `${nextHeight}px`);
+    };
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(dock);

@@ -1,24 +1,10 @@
 // 验证刷新恢复会话时不再闪现空态引导：恢复中只渲染会话骨架，详情回来后直接进入消息线程。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ChatMessageList } = await import("../client/conversation/ChatMessageList");
 const { zhMessages } = await import("../client/locales.zh");

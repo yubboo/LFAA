@@ -7,12 +7,13 @@
   place-items: center;
   padding: 1.5rem;
   background: var(--color-scrim);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(5px);
   animation: lfaaBackdropIn 160ms ease-out;
 }
 
-:global(html[data-resolved-theme="dark"]) .backdrop {
-  background: var(--color-scrim);
+.backdrop[data-state="closed"] {
+  pointer-events: none;
+  animation: lfaaBackdropOut 150ms ease-in forwards;
 }
 
 .dialog {
@@ -51,6 +52,10 @@
 
 .animSlideUp {
   animation: lfaaModalSlideUp 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dialog[data-state="closed"] {
+  animation: lfaaModalOut 150ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .header {
@@ -195,5 +200,32 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes lfaaBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes lfaaModalOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog {
+    animation: none !important;
   }
 }

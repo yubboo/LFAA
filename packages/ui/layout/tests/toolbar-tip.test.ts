@@ -2,17 +2,7 @@
 // 背景：旧实现读「已经位移过的矩形」再补一次，贴边时会在 0 与补偿值之间无限来回，
 // React 触发 Maximum update depth exceeded，整棵树被卸载成白屏（平板宽度展开左二栏即可复现）。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { resolveTipShift } = await import("../client/navigation/Toolbar-Tip");
 

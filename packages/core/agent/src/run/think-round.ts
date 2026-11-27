@@ -1,14 +1,12 @@
 // Agent 单轮「思考」：渲染系统提示 → 预算内压缩 → 注入 steering → 记录 token 快照 → 调模型（含超限重试）。
 // 从 executeAgentTaskLoop 拆出：一轮思考所需的上下文与回调以显式参数传入，循环体只负责编排。
 import { isContextOverflowError } from "@lfaa/context";
-import type { LlmGenerateOutput, LlmMessage } from "@lfaa/llm";
+import type { LlmGenerateOutput, LlmMessage, LlmToolDefinition } from "@lfaa/llm";
 import type { AgentStepTrace } from "@lfaa/memory";
 import { estimateMessageTokens, estimateSystemPromptTokens, estimateToolsTokens } from "@lfaa/metrics";
 import { completeAgentRound, type resolveModelRoundLimits } from "./model-round";
 import { compactForRun } from "./run-compaction";
 import { injectSteeringMessages } from "./steering";
-import { preferTodoFirst } from "./todo-plan";
-import { clarificationTool } from "../context/clarification";
 import { readStreamingPath } from "../tools/tool-call-args";
 import type { RunUsageTracker } from "./agent-usage";
 import type { LoopState } from "./loop-state";
@@ -25,6 +23,8 @@ export interface ThinkRoundInput {
   /** 当前轮次编号（与本轮 think 步骤、delta 偏移一致）。 */
   iteration: number;
   systemMessage: LlmMessage;
+  /** 本次运行冻结的确定性工具定义列表。 */
+  frozenTools: LlmToolDefinition[];
   conversation: LlmMessage[];
   contextBudgetChars: number;
   roundLimits: RoundLimits;
@@ -53,6 +53,7 @@ export async function runThinkRound({
   tracker,
   iteration,
   systemMessage,
+  frozenTools,
   conversation,
   contextBudgetChars,
   roundLimits,
@@ -90,13 +91,7 @@ export async function runThinkRound({
       timestamp: now,
     });
   };
-  let llmTools = preferTodoFirst(deps.tools.getLlmToolSchemas());
-  // 当主循环同时存在 invoke_subagent 与内置浏览器工具时，将 browser_* 专职收口给浏览器子智能体（mode="browser"），
-  // 确保每次浏览与页面验收都经由独立浏览器子智能体并在思维链呈现实时状态卡，不污染主上下文。
-  if (deps.tools.getTool("invoke_subagent") && deps.tools.getTool("browser_navigate")) {
-    llmTools = llmTools.filter((tool) => tool.name === "browser_present" || !tool.name.startsWith("browser_"));
-  }
-  if (params.enableClarification) llmTools = [...llmTools, clarificationTool];
+  const llmTools = frozenTools;
   let firstTokenAt: number | undefined;
   const tailHint = consumeTailHint(Math.max(0, state.budget.limit - iteration + 1));
   if (tailHint) {
@@ -132,6 +127,7 @@ export async function runThinkRound({
   const callModel = () => completeAgentRound(deps.llm, {
     ...(params.profileId !== undefined ? { profileId: params.profileId } : {}),
     ...(params.reasoningEffort !== undefined ? { reasoningEffort: params.reasoningEffort } : {}),
+    cacheKey: params.sessionId,
     messages: conversation,
     tools: llmTools,
     signal: params.signal,

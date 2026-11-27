@@ -158,7 +158,15 @@ export function RightWorkbenchPane({
   const activeBrowserTab = browserTabs.find((tab) => tab.active);
   const browserIsBlank = activeBrowserTab ? !activeBrowserTab.url || activeBrowserTab.url === "about:blank" : !browserInitialUrl;
   const showStartPage = stageKind === "welcome" || (stageKind === "browser" && browserIsBlank);
-  const extension = useWorkbenchTabs(workbench, boundProjectId, locale.isZh, state.rightPanelRequest);
+  const [manualBlankTab, setManualBlankTab] = useState(false);
+  const blankTabActive = stageKind === "browser" && browserIsBlank;
+  // 在当前空白「新标签页」起始页里点击无限画布/终端/变更/侧边提问时，直接关闭当前这个空白标签让其就地变身。
+  const dismissBlankTab = () => {
+    if (!blankTabActive) return;
+    setManualBlankTab(false);
+    handleCloseBrowserTab(activeBrowserTab?.tabId, null);
+  };
+  const extension = useWorkbenchTabs(workbench, boundProjectId, locale.isZh, state.rightPanelRequest, dismissBlankTab);
 
   // 辅助面板只在与主舞台并列时出现；文件树已移到左二「项目工作区」，右栏不再承载它。
   const effectiveAuxTab = stageKind === "utility" ? activeAuxTab : null;
@@ -197,21 +205,44 @@ export function RightWorkbenchPane({
     setSelectedJobId,
     setSelectedSubagentId,
     openSubagentTab,
+    dismissBlankTab,
+    onLeaveExtension: extension.leave,
   });
 
-  const blankTabActive = stageKind === "browser" && browserIsBlank;
-  const openNewBrowserTab = () => { hideAuxTab(); handleOpenNewBrowserTab(); };
+  const openNewBrowserTab = () => {
+    extension.leave();
+    hideAuxTab();
+    setManualBlankTab(true);
+    handleOpenNewBrowserTab();
+  };
 
-  // 当前是空白标签时，点击终端/变更/文件等直接把它变成对应标签，而不是再开一个。
-  const dismissBlankTab = () => { if (blankTabActive) handleCloseBrowserTab(); };
-
-  // 面板空着才补「新标签页」；切到文件/辅助/子智能体/审查标签时让位，避免用户没点「+」却多出一个标签。
+  // 面板空着且没有待执行的打开请求时才补「新标签页」；切到文件/辅助/子智能体/审查/插件标签时让位。
   useWorkbenchBlankTab({
-    shouldBootstrap: hydratedSessionId === sessionId && shouldBootstrapBlankTab({ browserOpen, fileTabs: fileTabs.length, auxTabs: auxTabs.length, subagentTabs: subagentTabs.length, reviewTabOpen }),
-    shouldDrop: shouldDropBlankTabForContent({ stageKind, browserOpen, browserTabs: browserTabs.length, browserBlank: browserIsBlank }),
-    bootstrap: handleOpenNewBrowserTab,
+    shouldBootstrap: hydratedSessionId === sessionId && !state.rightPanelRequest && shouldBootstrapBlankTab({
+      browserOpen,
+      fileTabs: fileTabs.length,
+      auxTabs: auxTabs.length,
+      subagentTabs: subagentTabs.length,
+      reviewTabOpen,
+      extensionTabs: extension.tabs.length,
+    }),
+    shouldDrop: shouldDropBlankTabForContent({
+      stageKind,
+      browserOpen,
+      browserTabs: browserTabs.length,
+      browserBlank: browserIsBlank,
+      extensionActive: extension.active,
+      manualBlankTab,
+    }),
+    bootstrap: () => {
+      setManualBlankTab(false);
+      handleOpenNewBrowserTab();
+    },
     // 让位后舞台落到用户真正打开的内容上，而不是被浏览器关闭强行拉回文件标签。
-    dismiss: () => handleCloseBrowserTab(undefined, stageKind === "file" || stageKind === "review" || stageKind === "subagent" ? stageKind : null),
+    dismiss: () => {
+      setManualBlankTab(false);
+      handleCloseBrowserTab(undefined, stageKind === "file" || stageKind === "review" || stageKind === "subagent" ? stageKind : null);
+    },
   });
 
   const { handleToggleAux, openAux, openReview } = useWorkbenchOpeners({
@@ -252,10 +283,16 @@ export function RightWorkbenchPane({
     />
   ) : null;
 
-  const { closeBrowserTab, closeFileTab, closeReviewTab, closeAuxTab: closeAuxTabAndMaybeCollapse } = useWorkbenchTabClose({
+  const { closeBrowserTab, closeFileTab, closeReviewTab, closeAuxTab: closeAuxTabAndMaybeCollapse, closeExtensionTab } = useWorkbenchTabClose({
     browserTabs: browserTabs.length, fileTabs: fileTabs.length, browserOpen, activeFileTab: Boolean(activeFileTab),
-    reviewTabOpen, subagentTabs: subagentTabs.length, auxTabs: auxTabs.length,
-    closeBrowserTab: (tabId) => handleCloseBrowserTab(tabId),
+    reviewTabOpen, subagentTabs: subagentTabs.length, auxTabs: auxTabs.length, extensionTabs: extension.tabs.length,
+    closeBrowserTab: (tabId) => {
+      setManualBlankTab(false);
+      handleCloseBrowserTab(tabId);
+      if (browserTabs.length <= 1 && !activeFileTab && !reviewTabOpen && subagentTabs.length === 0 && auxTabs.length === 0) {
+        extension.tabs[0]?.select();
+      }
+    },
     closeFileTab: (tabId) => store.closeFilePreview(tabId),
     closeReviewTab: () => { setReviewTabOpen(false); if (state.rightStageKind === "review") store.setRightStageKind(activeFileTab ? "file" : browserOpen ? "browser" : null); },
     closeAuxTab,
@@ -311,7 +348,7 @@ export function RightWorkbenchPane({
           store, workbench, hideAuxTab, openAuxTab, closeAuxTab, closeAuxTabAndMaybeCollapse,
           closeFileTab, closeBrowserTab, handleActivateBrowserTab, closeReviewTab,
           setReviewTabOpen, selectSubagentTab, closeSubagentTab, openNewBrowserTab, closeBrowserTabsExcept,
-        }), extensionTabs: extension.tabs, onLeaveExtension: extension.leave }}
+        }), extensionTabs: extension.tabs.map((tab) => ({ ...tab, close: () => closeExtensionTab(tab.close) })), onLeaveExtension: extension.leave }}
         actionProps={buildPaneActionProps({
           isZh: locale.isZh, store, projectId: boundProjectId, projectName: boundProjectName ?? undefined,
           jobs, subagents, compact, rightPanelMaximized, openReview, setSelectedJobId, openAux,

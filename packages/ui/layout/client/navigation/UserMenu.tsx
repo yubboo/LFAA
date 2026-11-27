@@ -1,6 +1,7 @@
 // 展示本地用户菜单，并复用现有外观设置入口与主题插件提供的头部快捷操作。
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useDismissibleLayer, usePanePresence } from "@lfaa/ui-primitives/client";
 import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import { NavigationIcon } from "./NavigationIcon";
@@ -34,6 +35,9 @@ export function UserMenu({
   const panelRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [panelPos, setPanelPos] = useState<UserMenuGeometry | null>(null);
+  const mounted = usePanePresence(open, 140);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const layerRefs = useMemo(() => [rootRef, panelRef], []);
 
   /**
    * 量取菜单卡片位置：卡片跟着左二会话栏走，宽度取该栏内宽，
@@ -56,29 +60,18 @@ export function UserMenu({
     }));
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     measurePanel();
-    window.addEventListener("resize", measurePanel);
-    const closeOnOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("resize", measurePanel);
-      document.removeEventListener("pointerdown", closeOnOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
   }, [measurePanel, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("resize", measurePanel);
+    return () => window.removeEventListener("resize", measurePanel);
+  }, [measurePanel, open]);
+
+  useDismissibleLayer({ open, refs: layerRefs, onClose: closeMenu, returnFocusRef: triggerRef });
 
   const showNotice = (action: UserAction) => {
     const messages: Record<UserAction, string> = {
@@ -98,13 +91,14 @@ export function UserMenu({
       setOpen(false);
       triggerRef.current?.focus();
     }}>
-      {open && createPortal(
+      {mounted && createPortal(
         <>
-          <div className={styles.scrim} aria-hidden="true" onClick={() => setOpen(false)} />
+          {open && <div className={styles.scrim} aria-hidden="true" onClick={() => setOpen(false)} />}
           <section
             className={styles.panel}
             id="lfaa-user-menu"
             aria-label={locale.accountMenu}
+            data-state={open ? "open" : "closed"}
             ref={panelRef}
             style={panelPos ? { left: `${panelPos.left}px`, bottom: `${panelPos.bottom}px`, width: `${panelPos.width}px` } : undefined}
           >

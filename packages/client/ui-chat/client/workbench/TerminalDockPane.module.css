@@ -1,32 +1,69 @@
-/* 工作台列内的底部终端：上沿 8px 热区，与左右栏分割线同一套视觉（1px 线 + 悬停强调）。 */
+/* 工作台列内的底部终端：与左右栏统一采用 GPU 预览线拖拽、阻尼渐隐与松手平滑高度落位。 */
 .dock {
   position: relative;
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
+  overflow: visible;
   border-top: 1px solid var(--color-line);
   background: var(--color-panel);
+  transition:
+    height var(--motion-duration-slow, 260ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--motion-duration-fast, 120ms) ease;
+}
+
+.dock[data-resizing="true"] {
+  transition: none;
+  contain: layout style;
+}
+
+.dock[data-resizing="true"][data-resize-snap-anim="true"] {
+  transition: height var(--motion-duration-normal, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.dock[data-collapsed="true"] {
+  overflow: hidden;
+  border-top-color: transparent;
+  pointer-events: none;
 }
 
 .handle {
   position: absolute;
-  inset: -3px 0 auto;
-  height: 8px;
+  z-index: 20;
+  inset: -4px 0 auto;
+  height: 9px;
   cursor: row-resize;
+  touch-action: none;
+  outline: none;
 }
 
 .handle::after {
   content: "";
   position: absolute;
-  inset: 3px 0 auto;
-  height: 1px;
+  inset: 4px 0 auto;
+  height: 2px;
   background: transparent;
-  transition: background var(--motion-duration-fast, 120ms) ease;
+  transition: background-color 150ms ease, height 150ms ease, box-shadow 150ms ease;
 }
 
 .handle:hover::after {
+  background: var(--color-line);
+}
+
+.handle:focus-visible::after {
   background: var(--color-accent);
+}
+
+.handle[data-dragging="true"]::after {
+  height: 2.5px;
+  background: var(--color-accent);
+}
+
+.handle[data-snapped="true"]::after {
+  height: 3px;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px rgb(var(--color-accent-rgb) / 0.45);
 }
 
 .body {
@@ -34,4 +71,23 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  overflow: hidden;
+  transition: opacity 140ms ease;
+}
+
+.dock[data-resizing="true"] .body {
+  pointer-events: none;
+  opacity: calc(1 - var(--resize-tension, 0) * 0.55);
+}
+
+.dock[data-snapped="true"] .body {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dock,
+  .handle::after,
+  .body {
+    transition: none;
+  }
 }

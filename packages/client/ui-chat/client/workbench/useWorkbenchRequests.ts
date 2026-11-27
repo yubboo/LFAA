@@ -21,6 +21,8 @@ export function useWorkbenchRequests({
   setSelectedJobId,
   setSelectedSubagentId,
   openSubagentTab,
+  dismissBlankTab,
+  onLeaveExtension,
 }: {
   request: ChatStoreSnapshot["rightPanelRequest"];
   sessionId: string;
@@ -37,13 +39,18 @@ export function useWorkbenchRequests({
   setSelectedJobId: (id: string | undefined) => void;
   setSelectedSubagentId: (id: string | undefined) => void;
   openSubagentTab: (subagentId: string, role?: string) => void;
+  dismissBlankTab?: () => void;
+  onLeaveExtension?: () => void;
 }) {
   const stageKindRef = useRef(stageKind);
   stageKindRef.current = stageKind;
+  const actionsRef = useRef({ dismissBlankTab, onLeaveExtension });
+  actionsRef.current = { dismissBlankTab, onLeaveExtension };
 
   useEffect(() => {
     if (!request) return;
     if (request.tab === "browser") {
+      actionsRef.current.onLeaveExtension?.();
       setAuxOpen(false);
       setBrowserOpen(true);
       store.setRightStageKind("browser");
@@ -51,34 +58,48 @@ export function useWorkbenchRequests({
       if (request.refreshBrowser) syncHostBrowser(sessionId);
       if (request.devtoolsTab) setDevtoolsRequest({ tab: request.devtoolsTab, nonce: request.nonce });
     } else if (request.tab === "review") {
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setAuxOpen(false);
       setReviewMessageId(request.url);
       setReviewTabOpen(true);
       store.setRightStageKind("review");
     } else if (request.tab === "file-preview") {
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setAuxOpen(false);
     } else if (request.tab === "files") {
       // 文件树已移到左二「项目工作区」，这里不再打开右侧文件树舞台。
       setAuxOpen(false);
     } else if (request.tab === "shell") {
       // 真实终端：与后台任务共用辅助面板，但打的是「终端」标签。
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setActiveAux("shell");
       setAuxOpen(true);
     } else if (request.tab === "terminal") {
       if (request.url) setSelectedJobId(request.url);
       // 自动跟随时不抢占台前正在浏览的网页/文件舞台，仅在欢迎页空闲时自动展开终端抽屉。
       if (request.autoExpand && stageKindRef.current !== "welcome") return;
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setActiveAux("terminal");
       setAuxOpen(true);
     } else if (request.tab === "subagent" && request.url) {
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setAuxOpen(false);
       openSubagentTab(request.url, request.subagentRole);
     } else if (request.tab === "subagents") {
       if (request.url) setSelectedSubagentId(request.url);
       if (request.autoExpand && stageKindRef.current !== "welcome") return;
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setActiveAux("subagents");
       setAuxOpen(true);
     } else if (request.tab === "sideAsk" || request.tab === "details") {
+      actionsRef.current.onLeaveExtension?.();
+      actionsRef.current.dismissBlankTab?.();
       setActiveAux(request.tab);
       setAuxOpen(true);
     }

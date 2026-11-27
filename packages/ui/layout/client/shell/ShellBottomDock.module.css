@@ -1,17 +1,87 @@
-/* 底部面板宿主：竖向排布手柄与内容，高度由内联 style 控制。 */
+/* 底部面板宿主：上沿预览线拖拽、阻尼渐隐与松手平滑高度过渡，配色走主题变量。 */
 .host {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: visible;
+  transition: height var(--motion-duration-slow, 260ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.host[data-resizing="true"] {
+  transition: none;
+  contain: layout style;
+}
+
+.host[data-resizing="true"][data-resize-snap-anim="true"] {
+  transition: height var(--motion-duration-normal, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.host[data-collapsed="true"] {
   overflow: hidden;
+  pointer-events: none;
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity 140ms ease;
+}
+
+.host[data-resizing="true"] .content {
+  pointer-events: none;
+  opacity: calc(1 - var(--resize-tension, 0) * 0.55);
+}
+
+.host[data-snapped="true"] .content {
+  opacity: 0;
 }
 
 .handle {
-  flex: 0 0 auto;
-  background: transparent;
+  position: absolute;
+  z-index: 20;
+  inset: -4px 0 auto;
+  height: 9px;
+  cursor: row-resize;
+  touch-action: none;
+  outline: none;
 }
 
-.handle:hover,
-.handle:active {
+.handle::after {
+  content: "";
+  position: absolute;
+  inset: 4px 0 auto;
+  height: 2px;
+  background: transparent;
+  transition: background-color 150ms ease, height 150ms ease, box-shadow 150ms ease;
+}
+
+.handle:hover::after {
+  background: var(--color-line);
+}
+
+.handle:focus-visible::after {
   background: var(--color-accent);
+}
+
+.handle[data-dragging="true"]::after {
+  height: 2.5px;
+  background: var(--color-accent);
+}
+
+.handle[data-snapped="true"]::after {
+  height: 3px;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px rgb(var(--color-accent-rgb) / 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .host,
+  .content,
+  .handle::after {
+    transition: none;
+  }
 }

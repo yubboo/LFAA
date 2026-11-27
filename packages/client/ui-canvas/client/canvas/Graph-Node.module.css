@@ -1,0 +1,250 @@
+/* 节点卡片与流光贝塞尔连线样式：外置标题栏、悬浮快捷胶囊、空态上传按钮与端口手柄，消费主题语义变量。 */
+.nodeShell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.nodeQuickBar {
+  position: absolute;
+  bottom: calc(100% + 0.55rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  white-space: nowrap;
+}
+
+.nodeQuickBar button,
+.quickLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  padding: 0.2rem 0.42rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 0.74rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nodeQuickBar button:hover,
+.quickLink:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.quickDanger:hover {
+  color: var(--color-danger) !important;
+}
+
+.nodeHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-ink);
+}
+
+.nodeKindBadge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-ink-soft);
+}
+
+.nodeTitle {
+  font-weight: 600;
+}
+
+.nodeStatus {
+  margin-left: auto;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-accent);
+  font-size: 0.68rem;
+}
+
+.card {
+  width: 17rem;
+  min-height: 9.5rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: 0.9rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.card[data-selected="true"] {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), var(--color-menu-shadow);
+}
+
+.textBody {
+  flex: 1 1 auto;
+  padding: 0.75rem 0.85rem;
+  line-height: 1.55;
+}
+
+.textBody textarea {
+  width: 100%;
+  min-height: 6.5rem;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.textContent {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.textPlaceholder {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.mediaBox {
+  padding: 0.45rem;
+}
+
+.mediaBox img,
+.mediaBox video {
+  display: block;
+  width: 100%;
+  max-height: 11.5rem;
+  border-radius: 0.6rem;
+  object-fit: cover;
+  background: var(--color-panel);
+}
+
+.emptyMedia {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 1.25rem 0.9rem;
+}
+
+.emptyIcon {
+  color: var(--color-muted);
+}
+
+.emptyHint {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+}
+
+.uploadPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.uploadPill:hover {
+  opacity: 0.9;
+}
+
+.ports {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem 0.6rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.portCol {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.port {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+
+.handle {
+  width: 0.65rem !important;
+  height: 0.65rem !important;
+  border: 1.5px solid var(--color-ink-soft) !important;
+  background: var(--color-panel) !important;
+}
+
+.port[data-side="in"] .handle {
+  left: -1.05rem !important;
+}
+
+.port[data-side="out"] .handle {
+  right: -1.05rem !important;
+}
+
+.edgeBase {
+  stroke: var(--color-line) !important;
+  stroke-width: 1.6px !important;
+}
+
+.edgeGroup[data-pending="true"] .edgeBase {
+  stroke-dasharray: 5 5;
+}
+
+.edgeGroup[data-selected="true"] .edgeBase {
+  stroke: var(--color-ink) !important;
+  stroke-width: 2px !important;
+}
+
+.edgeGlow {
+  stroke: var(--color-accent);
+  stroke-width: 2px;
+  /* 按整条曲线归一化，只显示一段流光，避免长边上出现多道断续光段。 */
+  stroke-dasharray: 0.12 1;
+  stroke-linecap: round;
+  opacity: 0.75;
+  animation: edgePulse 2.4s linear infinite;
+}
+
+.edgeGroup[data-running="true"] .edgeGlow {
+  opacity: 1;
+  animation-duration: 1s;
+}
+
+@keyframes edgePulse {
+  from { stroke-dashoffset: 0.12; }
+  to { stroke-dashoffset: -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edgeGlow {
+    display: none;
+  }
+}

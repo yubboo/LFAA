@@ -1,10 +1,20 @@
 // Host 网关内的项目画布路由，所有操作先通过本机令牌及项目登记校验。
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, resolve, sep } from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { pipeline } from "node:stream/promises";
 import type { Context } from "@deepseek-ai/cordis";
 import { CanvasError, maxAssetBytes } from "@lfaa/canvas";
+
+function isWithinAllowedRoot(target: string, root: string): boolean {
+  const base = resolve(root);
+  const full = resolve(target);
+  const a = process.platform === "win32" ? base.toLowerCase() : base;
+  const b = process.platform === "win32" ? full.toLowerCase() : full;
+  return b === a || b.startsWith(a + sep);
+}
 
 const pattern = /^\/api\/canvas\/projects\/([^/]+)\/boards(?:\/([^/]+)(?:\/(assets|runs)(?:\/([^/]+))?)?)?$/u;
 
@@ -86,6 +96,10 @@ export function createCanvasHandler(ctx: Context) {
       else if (!resource && req.method === "PUT") {
         const data = await body(req);
         send(res, 200, await canvas.save(dir, revision(data.revision), data.graph));
+      } else if (!resource && req.method === "PATCH") {
+        const data = await body(req);
+        if (typeof data.title !== "string") throw new CanvasError(400, "画布名称无效 / Invalid canvas title");
+        send(res, 200, await canvas.rename(dir, data.title));
       } else if (resource === "assets") {
         await canvas.store.board(dir);
         if ((req.method === "GET" || req.method === "HEAD") && itemId) {
@@ -93,8 +107,23 @@ export function createCanvasHandler(ctx: Context) {
           await serve(req, res, file, asset.mime);
         } else if (req.method === "POST" && !itemId) {
           const data = await body(req, Math.ceil(maxAssetBytes * 4 / 3) + 4096);
-          if (typeof data.base64 !== "string" || typeof data.name !== "string" || typeof data.mime !== "string") throw new CanvasError(400, "素材参数无效 / Invalid asset");
-          send(res, 201, await canvas.store.addAsset(dir, data.name, data.mime, Buffer.from(data.base64, "base64")));
+          if (typeof data.libraryPath === "string" && data.libraryPath.trim()) {
+            const candidate = resolve(data.libraryPath.trim());
+            const projects = await ctx.workspace.listProjects().catch(() => []);
+            const allowedRoots = [
+              join(process.cwd(), "data"),
+              join(homedir(), ".lfaa", "media"),
+              ...projects.flatMap((item) => [item.rootPath, ...(item.rootPaths ?? [])]),
+            ].filter((root): root is string => Boolean(root && root.trim()));
+            if (!allowedRoots.some((root) => isWithinAllowedRoot(candidate, root))) {
+              throw new CanvasError(403, "仅允许引用资料库或项目目录下的素材 / Asset path outside allowed roots");
+            }
+            const name = typeof data.name === "string" ? data.name : undefined;
+            send(res, 201, await canvas.store.linkLibraryFile(dir, candidate, name));
+          } else {
+            if (typeof data.base64 !== "string" || typeof data.name !== "string" || typeof data.mime !== "string") throw new CanvasError(400, "素材参数无效 / Invalid asset");
+            send(res, 201, await canvas.store.addAsset(dir, data.name, data.mime, Buffer.from(data.base64, "base64")));
+          }
         } else throw new CanvasError(405, "请求方法不受支持 / Method not allowed");
       } else if (resource === "runs" && req.method === "POST" && !itemId) {
         const data = await body(req);

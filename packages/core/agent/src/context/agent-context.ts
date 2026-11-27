@@ -24,6 +24,8 @@ export interface RecalledContext {
   projectRuleNames: string[];
   contextWindow: Awaited<ReturnType<RunLoopDeps["memory"]["buildContextMessages"]>>;
   historyDigest: string;
+  /** 本轮动态召回的记忆与资产摘要：下沉到当前 user 消息尾部，避免改动 messages[0] 破坏跨轮 KV Cache。 */
+  turnDynamicContext: string;
   libraryHint: string;
   backgroundHint: string;
 }
@@ -56,7 +58,8 @@ function memoryLabel(scope: string, kind: string): string {
 /** 装入已保存的上下文并补齐尚未写入的新消息。 */
 export function buildRecentConversation(system: LlmMessage, window: RecalledContext["contextWindow"], prompt: string): LlmMessage[] {
   const messages: LlmMessage[] = [system];
-  if (window.summaryNote) messages.push({ role: "system", content: `前序会话摘要：${window.summaryNote}` });
+  // 历史摘要使用 user 角色而不使用 system，避免 Anthropic / Responses / Gemini 把它合并进顶层 systemInstruction 破坏静态系统缓存。
+  if (window.summaryNote) messages.push({ role: "user", content: `【前序会话摘要】${window.summaryNote}` });
   for (const msg of window.recentMessages) {
     if (msg.status === "streaming" || (msg.role === "assistant" && !msg.content.trim())) continue;
     messages.push({ role: msg.role, content: msg.content });
@@ -84,9 +87,10 @@ export async function recallAgentContext(
     }),
   ]);
   const memoryHints = memories.map((m) => `[${memoryLabel(m.scope, m.kind)}] ${m.content}`);
+  // 动态召回记忆不再拼入 messages[0]（systemPrompt），保证同一会话跨轮对话时 system 前缀字节级一致以命中 KV Cache。
   const { systemPrompt, documents } = await deps.rules.composeSystemPrompt({
     projectPaths: params.workspaceRoots,
-    memoryHints,
+    memoryHints: [],
   });
   const contextWindow = await deps.memory.buildContextMessages(params.sessionId, {
     maxRecentMessages: 16,
@@ -96,13 +100,24 @@ export async function recallAgentContext(
   const historyDigest = formatHistoryDigest(collectHistoryDigest(contextWindow.recentMessages));
   const projectRuleNames = documents.filter((doc) => doc.layer === "project").map((doc) => doc.source);
 
-  // 资料库摘要只在数据可达时展示，帮助模型优先把成品存入资产库。
+  // system 仅保留静态资料库路径与能力说明；动态资产计数与本轮记忆召回下沉到最新 user 消息前，保住前缀缓存。
   const assetPreview = recentAssets.slice(0, 6).map((a) => `${a.title}(${a.fileName})`).join("、");
   const libraryHint = storageState
-    ? `LFAA 资料库/资产库本地目录：${storageState.dataRoot}（当前已有 ${recentAssets.length} 项资产/产物${assetPreview ? `：${assetPreview}` : ""}）。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`
+    ? `LFAA 资料库/资产库本地目录：${storageState.dataRoot}。你可通过 list_library_assets / read_library_asset 查看资料库内容，产出的报告、文档或成品请优先调用 save_library_artifact 存入资产库以便用户在「资料库」界面统一查看。`
     : "";
+  const dynamicParts: string[] = [];
+  if (memoryHints.length > 0) {
+    dynamicParts.push(`【本轮相关长期记忆】\n${memoryHints.map((line) => `- ${line}`).join("\n")}`);
+  }
+  if (storageState && recentAssets.length > 0) {
+    dynamicParts.push(`【当前资料库资产（共 ${recentAssets.length} 项）】${assetPreview}`);
+  }
+  if (historyDigest) {
+    dynamicParts.push(`【前序工具轨迹摘要（仅供参考，可直接复用避免重复探查）】\n${historyDigest}`);
+  }
+  const turnDynamicContext = dynamicParts.join("\n\n");
   const backgroundHint = buildBackgroundHint(params.workspaceRoots);
-  return { systemPrompt, projectRuleNames, contextWindow, historyDigest, libraryHint, backgroundHint };
+  return { systemPrompt, projectRuleNames, contextWindow, historyDigest, turnDynamicContext, libraryHint, backgroundHint };
 }
 
 /** 会话工作位置与授权目录提示，附带权限边界说明。 */

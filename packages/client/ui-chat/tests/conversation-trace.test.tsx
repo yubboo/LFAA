@@ -1,16 +1,12 @@
 // 验证独立轨迹按文本偏移呈现真实步骤，并兼容历史记录。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getChatLocale } from "../client/locales";
 
 (globalThis as { React?: typeof React }).React = React;
-registerHooks({ load(url, context, nextLoad) {
-  if (url.endsWith(".css")) return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-  return nextLoad(url, context);
-} });
+
 const { ConversationTrace } = await import("../client/conversation/Conversation-Trace");
 // 组件文案随本机语言切换，断言使用同一份 locale，避免 en-US 之外的环境误报。
 const locale = getChatLocale();

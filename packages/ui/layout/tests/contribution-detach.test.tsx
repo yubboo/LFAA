@@ -1,22 +1,12 @@
 // 验证界面贡献「可拆卸」：注册的视图/上下文面板被 dispose 后只移除自己，其余贡献与外壳照常渲染。
 // 这是「删一块界面不连带删能力」的最小自动化证据；对应 docs/architecture/structure.md 的可拆卸验收。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Context } from "@deepseek-ai/cordis";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { WorkbenchClientService } = await import("../client/workbench-service");
 const { ShellWorkspace } = await import("../client/shell/ShellWorkspace");

@@ -156,7 +156,11 @@ export const webBundlePlugin: Plugin.Object<WebBundleConfig> = {
     mount({ id: "commands", module: "@lfaa/commands" });
     // 媒体生成工具依赖工具注册表与模型服务。
     mount({ id: "tool-media", module: "@lfaa/tool-media" });
-    mount({ id: "canvas", module: "@lfaa/canvas" });
+    mount({
+      id: "canvas",
+      module: "@lfaa/canvas",
+      config: { root: `${config.repoRoot}/data/canvas`, mediaRoot: `${config.repoRoot}/data` },
+    });
     // 执行策略中间件挂在工具注册表之后：写前必读 → 超时兜底 → 计划模式 → 长结果落盘。
     mount({ id: "fs-observation-policy", module: "@lfaa/fs-observation-policy", config: {} });
     mount({ id: "timeout-policy", module: "@lfaa/timeout-policy", config: {} });

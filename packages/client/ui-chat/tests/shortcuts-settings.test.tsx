@@ -1,24 +1,10 @@
 // 设置中心「键盘快捷键」页回归：只渲染已注册的真实动作，键位与动作标题来自工作台注册表。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { WorkbenchClientService } = await import("@lfaa/ui-layout/client");
 const { Context } = await import("@deepseek-ai/cordis");

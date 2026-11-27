@@ -1,26 +1,12 @@
 // 验证 @lfaa/chat Host/Client 双端 Cordis 生命周期、最近会话注入与项目聊天计数统计。
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
 import { memoryPlugin } from "@lfaa/memory";
 import { chatPlugin } from "@lfaa/chat";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 test("Host chatPlugin 管理会话 CRUD 并统计项目非归档聊天数", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-chat-host-"));

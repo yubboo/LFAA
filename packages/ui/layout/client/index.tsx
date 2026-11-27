@@ -8,6 +8,14 @@ export { WorkbenchClientService } from "./workbench-service";
 export type { LibraryTabKey, WorkbenchSnapshot } from "./workbench-service";
 export type { WorkspaceMode } from "./navigation/navigation";
 export { readStoredJson, writeStoredJson } from "./shell/ui-preferences";
+export { useVerticalResize } from "./shell/useVerticalResize";
+export {
+  computeKeyVerticalResizeHeight,
+  computeVerticalPreviewOffset,
+  computeVerticalResizeOutcome,
+  hasExceededVerticalDragThreshold,
+  type VerticalResizeOutcome,
+} from "./shell/vertical-resize";
 export {
   SHORTCUT_BINDINGS_KEY,
   findShortcutConflict,

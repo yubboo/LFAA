@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,15 +9,6 @@ import { fileURLToPath } from "node:url";
 import type { WorkbenchSnapshot } from "../client/workbench-service";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ShellWorkspace } = await import("../client/shell/ShellWorkspace");
 const { locales } = await import("../client/locales");

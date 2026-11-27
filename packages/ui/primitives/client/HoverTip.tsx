@@ -63,10 +63,11 @@ export function HoverTip({
 
   const placement = anchor && anchor.top < ABOVE_FLIP_TOP ? "bottom" : "top";
   const half = size.width / 2;
+  // 坐标取整像素，避免在 125%/150% 缩放屏幕下因半像素定位触发相邻滚动区重栅格化抖动。
   const center = anchor
-    ? Math.min(Math.max(anchor.center, VIEWPORT_MARGIN + half), window.innerWidth - VIEWPORT_MARGIN - half)
+    ? Math.round(Math.min(Math.max(anchor.center, VIEWPORT_MARGIN + half), window.innerWidth - VIEWPORT_MARGIN - half))
     : 0;
-  const top = anchor ? (placement === "bottom" ? anchor.bottom + 6 : anchor.top - size.height - 6) : 0;
+  const top = anchor ? Math.round(placement === "bottom" ? anchor.bottom + 6 : anchor.top - size.height - 6) : 0;
 
   return (
     <span

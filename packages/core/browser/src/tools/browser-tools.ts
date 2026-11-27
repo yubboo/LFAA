@@ -5,6 +5,7 @@ import { resolveSafeWorkspacePath } from "@lfaa/fs";
 import type { LlmService } from "@lfaa/llm";
 import type { ToolsService } from "@lfaa/tools";
 import { validateBrowserUrl, type BrowserRuntime } from "../session/browser-service";
+import { formatRecentBrowserErrors, registerBrowserDiagnosticTools, runBrowserDiagnose } from "./browser-diagnose";
 
 /** 根据扩展名取图片 MIME；不支持的格式直接拒绝。 */
 function imageMime(filePath: string): string | null {
@@ -39,29 +40,23 @@ async function visionAnswer(
 }
 
 const DEVICE_VIEWPORT_PRESETS: Record<string, { width: number; height: number }> = {
-  "4k": { width: 2560, height: 1440 },
-  "laptop-l": { width: 1440, height: 900 },
-  laptop: { width: 1280, height: 800 },
-  "surface-pro-7": { width: 912, height: 1368 },
-  "ipad-air": { width: 820, height: 1180 },
-  "ipad-mini": { width: 768, height: 1024 },
-  "surface-duo": { width: 540, height: 720 },
-  "iphone-15-pro-max": { width: 430, height: 932 },
-  "pixel-8": { width: 412, height: 915 },
-  "iphone-15-pro": { width: 393, height: 852 },
-  "galaxy-s24-ultra": { width: 412, height: 915 },
-  "iphone-se": { width: 375, height: 667 },
+  "4k": { width: 2560, height: 1440 }, "laptop-l": { width: 1440, height: 900 }, laptop: { width: 1280, height: 800 },
+  "surface-pro-7": { width: 912, height: 1368 }, "ipad-air": { width: 820, height: 1180 }, "ipad-mini": { width: 768, height: 1024 },
+  "surface-duo": { width: 540, height: 720 }, "iphone-15-pro-max": { width: 430, height: 932 }, "pixel-8": { width: 412, height: 915 },
+  "iphone-15-pro": { width: 393, height: 852 }, "galaxy-s24-ultra": { width: 412, height: 915 }, "iphone-se": { width: 375, height: 667 },
 };
 
 export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, runtime: BrowserRuntime): () => void {
-  const formatSnapshotOutput = (snap: Awaited<ReturnType<BrowserRuntime["snapshot"]>>) => {
+  const formatSnapshotOutput = (snap: Awaited<ReturnType<BrowserRuntime["snapshot"]>>, sessionId?: string) => {
     const els = snap.elements.slice(0, 35).map((e) =>
       `[${e.ref}] <${e.tag}${e.type ? ` type=${e.type}` : ""}> ${e.text || e.placeholder || e.href || ""}`.trim(),
     );
+    const recentErrors = sessionId ? formatRecentBrowserErrors(runtime, sessionId) : "";
     return [
       `URL: ${snap.url}`,
       `Title: ${snap.title}`,
       `Errors: ${snap.errorCount} (console total: ${snap.consoleCount})`,
+      ...(recentErrors ? [recentErrors] : []),
       "Interactive elements:",
       els.join("\n") || "(无可见可交互元素)",
       "Text excerpt:",
@@ -145,7 +140,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         validateBrowserUrl(rawUrl);
         const snap = await runtime.navigate(ctx.sessionId, rawUrl, true);
         if (snap.downloadStarted) return { ok: true, output: "页面触发了下载。保存结果在内置浏览器的下载面板查看；如需审批，请由用户确认。", summary: "触发下载" };
-        return { ok: true, output: formatSnapshotOutput(snap), summary: `打开 ${snap.title || snap.url}` };
+        return { ok: true, output: formatSnapshotOutput(snap, ctx.sessionId), summary: `打开 ${snap.title || snap.url}` };
       },
     }),
     tools.registerTool({
@@ -158,7 +153,8 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       execute: async (_args, ctx) => {
         const snap = await runtime.snapshot(ctx.sessionId, false);
         const waiting = runtime.downloads.list(ctx.sessionId).some((item) => item.state === "awaiting");
-        const output = waiting ? `有文件等待用户确认下载。\n${formatSnapshotOutput(snap)}` : formatSnapshotOutput(snap);
+        const formatted = formatSnapshotOutput(snap, ctx.sessionId);
+        const output = waiting ? `有文件等待用户确认下载。\n${formatted}` : formatted;
         return { ok: true, output, summary: `快照 ${snap.elements.length} 个元素` };
       },
     }),
@@ -183,7 +179,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           ...(typeof args.selector === "string" ? { selector: args.selector } : {}),
           ...(label ? { label } : {}),
         }, true);
-        return { ok: true, output: formatSnapshotOutput(snap), summary: `点击完成 -> ${snap.url}` };
+        return { ok: true, output: formatSnapshotOutput(snap, ctx.sessionId), summary: `点击完成 -> ${snap.url}` };
       },
     }),
     tools.registerTool({
@@ -212,7 +208,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           submit: args.submit === true,
           ...(label ? { label } : {}),
         }, true);
-        return { ok: true, output: formatSnapshotOutput(snap), summary: "已在网页输入文本" };
+        return { ok: true, output: formatSnapshotOutput(snap, ctx.sessionId), summary: "已在网页输入文本" };
       },
     }),
     tools.registerTool({
@@ -251,7 +247,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
       execute: async (args, ctx) => {
         const key = typeof args.key === "string" ? args.key : "Enter";
         const snap = await runtime.pressKey(ctx.sessionId, key, true);
-        return { ok: true, output: formatSnapshotOutput(snap), summary: `按下 ${key}` };
+        return { ok: true, output: formatSnapshotOutput(snap, ctx.sessionId), summary: `按下 ${key}` };
       },
     }),
     tools.registerTool({
@@ -329,9 +325,11 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         const mime = snap.screenshotMime ?? "image/png";
         const dataUrl = `data:${mime};base64,${snap.screenshotBase64}`;
         const browserEvidenceId = runtime.saveEvidence(snap);
-        const runtimeMeta = `当前页面：${snap.title || "未命名"} (${snap.url}) · 视口 ${snap.viewport.width} × ${snap.viewport.height}`;
+        const diag = await runBrowserDiagnose(runtime, ctx.sessionId);
+        const runtimeMeta = `当前页面：${snap.title || "未命名"} (${snap.url}) · 视口 ${snap.viewport.width} × ${snap.viewport.height}\n${diag.compactForVision}`;
         const prompt = [
-          "仅按下面的目标核查截图。逐项写明区域、期望和可见现象，只有确实违背验收要点才判定失败。静态截图无法判断交互、动画或画面以外的内容。",
+          "结合下方自动 DOM/控制台/网络体检事实与页面截图核查问题。逐项写明区域、期望和可见现象，只有确实违背验收要点或存在可见/控制台硬伤才判定失败。",
+          `自动体检事实：${diag.compactForVision}`,
           "末尾单独一行输出 VERDICT: PASS、VERDICT: NEEDS_FIX 或 VERDICT: UNVERIFIED。截图不足以确认目标时写 UNVERIFIED。",
           ...(requirements ? [`用户需求与验收要点：\n${requirements}`] : []),
           ...(focus ? [`重点检查区域：${focus}`] : []),
@@ -397,22 +395,7 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
         }
       },
     }),
-    tools.registerTool({
-      moduleName: "@lfaa/browser",
-      name: "browser_console",
-      title: "读取网页控制台日志",
-      description: "读取内置浏览器累计捕获的 Console 错误、警告及 HTTP >= 400 失败请求。",
-      permissionLevel: "read",
-      parameters: { type: "object", properties: {} },
-      execute: async (_args, ctx) => {
-        const logs = runtime.getConsole(ctx.sessionId);
-        return {
-          ok: true,
-          output: logs.length > 0 ? JSON.stringify(logs.slice(-40), null, 2) : "（暂无控制台或网络异常记录）",
-          summary: `共 ${logs.length} 条浏览器日志`,
-        };
-      },
-    }),
+    ...registerBrowserDiagnosticTools(tools, runtime),
     tools.registerTool({
       moduleName: "@lfaa/browser",
       name: "browser_tabs",
@@ -469,22 +452,6 @@ export function registerBrowserAgentTools(tools: ToolsService, llm: LlmService, 
           ...(typeof args.y === "number" ? { y: args.y } : {}),
         }, true);
         return { ok: true, output: formatSnapshotOutput(snap), summary: "悬停完成" };
-      },
-    }),
-    tools.registerTool({
-      moduleName: "@lfaa/browser",
-      name: "browser_network",
-      title: "读取网页网络请求",
-      description: "读取内置浏览器近期 HTTP 请求记录、状态码与失败请求详情。",
-      permissionLevel: "read",
-      parameters: { type: "object", properties: {} },
-      execute: async (_args, ctx) => {
-        const items = runtime.getNetwork(ctx.sessionId);
-        return {
-          ok: true,
-          output: items.length > 0 ? JSON.stringify(items.slice(-40), null, 2) : "（暂无网络请求记录）",
-          summary: `共 ${items.length} 条网络记录`,
-        };
       },
     }),
   ];

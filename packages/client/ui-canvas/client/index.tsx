@@ -1,4 +1,4 @@
-// 无限画布客户端通过工作台契约添加可卸载的右侧标签，并延迟加载编辑器。
+// 无限画布客户端通过工作台契约添加可卸载的右侧标签，并向画布透传 workbench 服务以复用项目创建与全屏对话。
 import { lazy, Suspense } from "react";
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
@@ -14,7 +14,7 @@ export const canvasClientPlugin: Plugin.Object<void> = {
       title: { zh: "无限画布", en: "Infinite canvas" },
       render: ({ projectId, isZh }) => (
         <Suspense fallback={<span role="status">{isZh ? "正在打开画布…" : "Opening canvas…"}</span>}>
-          <CanvasWorkspace key={projectId ?? "none"} projectId={projectId} isZh={isZh} />
+          <CanvasWorkspace key={projectId ?? "none"} projectId={projectId} isZh={isZh} workbench={ctx.workbench} />
         </Suspense>
       ),
     }));

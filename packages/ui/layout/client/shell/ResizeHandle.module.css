@@ -76,21 +76,31 @@
   box-shadow: 0 0 10px rgb(var(--color-accent-rgb) / 0.45);
 }
 
-/* 使用栅格边界裁剪收缩的左栏，避免整栏位移或透明过渡造成绘制残影。 */
-:global([data-resizing="true"]) > :global([data-region="section-navigation"]) {
-  overflow: clip;
-}
-
-:global([data-left-drag-collapsed="true"]) > :global([data-region="section-navigation"]),
-:global([data-right-drag-collapsed="true"]) > :global([data-region="context-panel"]) {
-  visibility: hidden;
+/* 拖拽期间屏蔽非手柄子区域的悬停与 Tooltip 干扰，避免误触与视觉残留。 */
+:global([data-resizing="true"]) > :not([data-resize-side]) {
   pointer-events: none;
-  border-color: transparent;
 }
 
-/* 减少动态效果时立即切换分隔线反馈。 */
+/* 进入阻尼区时随张力柔和淡出目标栏，提示即将磁吸收起；跨过阈值后由轨道 200ms 过渡平滑滑收到 0。 */
+:global([data-resizing-side="left"]) > :global([data-pane-side="left"]),
+:global([data-resizing-side="right"]) > :global([data-pane-side="right"]),
+:global([data-layout="preview-center"][data-resizing-side="right"]) > :global([data-pane="right"]) {
+  opacity: calc(1 - var(--resize-tension, 0) * 0.55);
+  transition: opacity 140ms ease;
+}
+
+:global([data-left-drag-collapsed="true"]) > :global([data-pane-side="left"]),
+:global([data-right-drag-collapsed="true"]) > :global([data-pane-side="right"]),
+:global([data-layout="preview-center"][data-right-drag-collapsed="true"]) > :global([data-pane="right"]) {
+  opacity: 0;
+}
+
+/* 减少动态效果时立即切换分隔线与淡出反馈。 */
 @media (prefers-reduced-motion: reduce) {
-  .resizeHandle::after {
+  .resizeHandle::after,
+  :global([data-resizing-side="left"]) > :global([data-pane-side="left"]),
+  :global([data-resizing-side="right"]) > :global([data-pane-side="right"]),
+  :global([data-layout="preview-center"][data-resizing-side="right"]) > :global([data-pane="right"]) {
     transition: none;
   }
 }

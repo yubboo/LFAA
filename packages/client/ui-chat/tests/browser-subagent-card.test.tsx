@@ -1,25 +1,11 @@
 // 验证思维链中专属浏览器子智能体卡片的运行中提示、步骤列表与完成态摘要渲染。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AgentStepItem } from "../client/store/chat-types";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { BrowserSubagentCard, isBrowserSubagentStep } = await import("../client/conversation/Browser-Subagent-Card");
 
@@ -162,6 +148,33 @@ test("浏览器卡片直接展示本轮目标栏与内嵌截图缩略图条", ()
   );
   assert.match(html, /目标/u);
   assert.match(html, /验证首屏导航点击与表单提交反馈/u);
+  assert.match(html, /已查看 1 张图像/u);
   assert.match(html, /展开实时验收截图/u);
   assert.match(html, /首屏导航与 Hero/u);
+});
+
+test("resultPreview 为纯空白时不渲染空的 resultBox", () => {
+  const emptyResultStep: AgentStepItem = {
+    id: "child-act-4-sub-b4",
+    iteration: 1,
+    phase: "act",
+    status: "done",
+    title: "浏览器验收助手",
+    resultPreview: "   \n\n  ",
+    startedAt: 1000,
+    timestamp: 3000,
+    subagent: {
+      id: "sub-b4",
+      role: "浏览器验收助手",
+      status: "done",
+      kind: "browser",
+      steps: [
+        { id: "s1", name: "browser_navigate", label: "打开网页", status: "done" },
+      ],
+    },
+  };
+  const html = renderToStaticMarkup(
+    <BrowserSubagentCard step={emptyResultStep} isZh={true} live={false} />,
+  );
+  assert.doesNotMatch(html, /class="resultBox"/u);
 });

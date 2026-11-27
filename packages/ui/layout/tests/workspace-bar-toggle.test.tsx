@@ -1,20 +1,10 @@
 // 验证工作区顶栏的展开/收起入口统一由共享 PanelToggleButton 渲染：文案、展开状态与右栏隐藏规则保持一致。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { WorkspaceBar } = await import("../client/shell/WorkspaceBar");
 const { locales } = await import("../client/locales");

@@ -1,7 +1,6 @@
 // 验证「预览区在左」下两列的收起/展开语义：关掉最后一个标签只收预览列，展开时补回分屏。
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { registerHooks } from "node:module";
 import { resolve } from "node:path";
 import test from "node:test";
 import React, { createElement } from "react";
@@ -11,15 +10,6 @@ import { Context } from "@deepseek-ai/cordis";
 import type { WorkbenchClientService } from "../client/workbench-service";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { WorkbenchShell } = await import("../client/shell/WorkbenchShell");
 const { WorkbenchClientService: Service } = await import("../client/workbench-service");

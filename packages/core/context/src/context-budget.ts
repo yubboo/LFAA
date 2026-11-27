@@ -1,12 +1,15 @@
 // 运行内上下文预算：压缩早期工具结果、必要时丢弃过老轮次，并在供应商报上下文超限时提供降级依据。
 import type { LlmMessage } from "@lfaa/llm";
 
-/** 单次运行默认允许发送给模型的上下文字符预算（约 40k–60k tokens 的中英混排文本）。 */
-export const DEFAULT_CONTEXT_BUDGET_CHARS = 160_000;
+/** 单次运行默认允许发送给模型的上下文字符高水位（约 60k–80k tokens）：留足安全余量，让常规多轮任务全程 Append-Only 吃满 KV Cache。 */
+export const DEFAULT_CONTEXT_BUDGET_CHARS = 240_000;
+/** 触发压缩后一次性压到的低水位比例：避免后续每轮连续撞线反复改写前缀砸穿 KV Cache。 */
+const COMPACTION_TARGET_RATIO = 0.55;
 /** 压缩时始终完整保留的最近轮次数（一轮 = assistant 工具调用 + 对应工具结果）。 */
 export const KEEP_RECENT_ROUNDS = 4;
-/** 压缩标记：调用方据此幂等更新同一提示，不重复插入。 */
+/** 压缩标记：文案保持完全静态（不含变化计数），保证压缩后后续轮次前缀字节级一致。 */
 export const COMPACTION_MARKER = "【上下文压缩】";
+const STATIC_COMPACTION_NOTE = `${COMPACTION_MARKER} 较早的部分历史消息与工具结果已压缩或省略以释放上下文空间。需要具体细节时请重新读取对应文件或行号，不要凭记忆推测。`;
 
 export interface CompactOptions {
   budgetChars: number;
@@ -83,57 +86,61 @@ export function compactConversation(input: ReadonlyArray<LlmMessage>, options: C
     return { messages, compacted: false, truncatedResults: 0, droppedMessages: 0 };
   }
 
+  // 高/低水位滞回压缩：一旦触发就一次性压到低水位（默认 55% 预算），
+  // 防止紧接着下一轮又超预算导致每轮改写前缀、持续砸穿大模型 KV Prompt Cache。
+  const targetBudget = Math.max(4_000, Math.floor(budget * COMPACTION_TARGET_RATIO));
   const lastUserIndex = messages.reduce((last, message, index) => (message.role === "user" ? index : last), 0);
   const groups = buildGroups(messages, lastUserIndex);
   const recentStart = groups.length > keepRecent ? groups[groups.length - keepRecent]!.start : lastUserIndex;
 
-  // 第一步：保留结构，只压缩最近轮次之前的工具结果与过长正文。
+  // 第一步：保留结构，压缩最近轮次之前的工具结果、过长正文及历史大体积写文件参数。
   for (let index = 1; index < recentStart; index += 1) {
     const message = messages[index]!;
     if (message.role === "tool" && message.content.length > toolCap) {
       message.content = `${tail(message.content, toolCap)}\n…[较早工具结果已压缩]`;
       truncatedResults += 1;
+    } else if (message.role === "assistant" && message.toolCalls?.length) {
+      let shrunkCalls = false;
+      const nextCalls = message.toolCalls.map((call) => {
+        if (call.argumentsJson.length <= toolCap * 2) return call;
+        shrunkCalls = true;
+        return { ...call, argumentsJson: `${call.argumentsJson.slice(0, Math.min(400, toolCap))}…[较早参数已压缩]` };
+      });
+      if (shrunkCalls) {
+        message.toolCalls = nextCalls;
+        truncatedResults += 1;
+      }
     } else if (message.role === "assistant" && !message.toolCalls?.length && message.content.length > 2_000) {
       message.content = `${message.content.slice(0, 2_000)}…[较早回复已压缩]`;
     }
   }
 
-  // 第二步：仍超预算时，从最早处整组丢弃，直到进入预算或只剩最近轮次。
-  if (countChars(messages) > budget) {
+  // 第二步：仍高于低水位目标时，从最早处按组丢弃直到回落到 targetBudget 以下（至少保留最近轮次）。
+  if (countChars(messages) > targetBudget) {
     const keepFrom = groups.length > keepRecent ? groups[groups.length - keepRecent]!.start : lastUserIndex;
     const removed = new Set<number>();
+    let currentChars = countChars(messages);
     for (const group of groups) {
-      if (group.start >= keepFrom) break;
+      if (group.start >= keepFrom || currentChars <= targetBudget) break;
       // 整组删除（含 assistant 工具调用及其对应的全部 tool 消息），避免留下孤儿 tool 触发提供商 HTTP 400。
       for (let i = group.start; i < group.end; i += 1) {
         removed.add(i);
+        currentChars -= messageChars(messages[i]!);
       }
     }
     const kept = messages.filter((_, index) => index === 0 || !removed.has(index));
     droppedMessages = messages.length - kept.length;
     messages.length = 0;
     messages.push(...kept);
-    // 丢弃后重新压缩剩余早期结果，进一步贴近预算。
-    const remainingLastUser = messages.reduce((last, message, index) => (message.role === "user" ? index : last), 0);
-    const remainingGroups = buildGroups(messages, remainingLastUser);
-    const remainingRecent = remainingGroups.length > keepRecent
-      ? remainingGroups[remainingGroups.length - keepRecent]!.start
-      : remainingLastUser;
-    for (let index = 1; index < remainingRecent; index += 1) {
-      const message = messages[index]!;
-      if (message.role === "tool" && message.content.length > toolCap) {
-        message.content = `${tail(message.content, toolCap)}\n…[较早工具结果已压缩]`;
-        truncatedResults += 1;
-      }
-    }
   }
 
   const compacted = truncatedResults > 0 || droppedMessages > 0;
   if (compacted) {
-    const note = `${COMPACTION_MARKER} 较早的 ${droppedMessages} 条消息已省略，${truncatedResults} 条工具结果已压缩为尾部片段。需要更多细节时请重新读取具体文件或行号，不要凭记忆推测。`;
+    // 压缩说明使用完全静态文案且使用 user 角色（仅 messages[0] 保留为唯一 system），
+    // 确保 Anthropic / Responses / Gemini 的顶层 system 缓存不受影响，且后续轮次前缀字节级一致。
     const existing = messages.findIndex((message) => message.content.startsWith(COMPACTION_MARKER));
-    if (existing >= 0) messages[existing] = { role: "system", content: note };
-    else messages.splice(1, 0, { role: "system", content: note });
+    if (existing >= 0) messages[existing] = { role: "user", content: STATIC_COMPACTION_NOTE };
+    else messages.splice(1, 0, { role: "user", content: STATIC_COMPACTION_NOTE });
   }
 
   return { messages, compacted, truncatedResults, droppedMessages };

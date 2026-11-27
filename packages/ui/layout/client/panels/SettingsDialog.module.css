@@ -13,6 +13,11 @@
   animation: settingsFadeIn 160ms ease-out;
 }
 
+.backdrop[data-state="closed"] {
+  pointer-events: none;
+  animation: settingsFadeOut 150ms ease-in forwards;
+}
+
 /* 设置中心有自己的背景图时，遮罩减淡，让用户能看到选中的图；弹窗本体仍不透明。 */
 :global(html[data-settings-open="true"][data-app-bg-settings="image"]) .backdrop {
   background: color-mix(in srgb, var(--color-scrim) 40%, transparent);
@@ -39,6 +44,20 @@
   color: var(--color-ink);
   box-shadow: var(--color-menu-shadow);
   animation: settingsPopIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dialog[data-state="closed"] {
+  animation: settingsPopOut 150ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes settingsFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes settingsPopOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(6px) scale(0.975); }
 }
 
 /* 左栏目录：标题、分组文字与可点条目，单独滚动且不挤压右侧内容。 */

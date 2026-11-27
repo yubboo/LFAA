@@ -7,7 +7,13 @@
   place-items: center;
   padding: 1rem;
   background: var(--color-scrim);
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(4px);
+  animation: confirmBackdropIn 150ms ease-out;
+}
+
+.backdrop[data-state="closed"] {
+  pointer-events: none;
+  animation: confirmBackdropOut 150ms ease-in forwards;
 }
 
 .dialog {
@@ -18,10 +24,43 @@
   border-radius: 1.2rem;
   background: var(--glass-popover-bg, var(--color-popover));
   background-image: var(--glass-sheen, none);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  /* 遮罩已带轻模糊，弹窗本体收敛至 14px，避免双层重模糊拖慢打开帧率。 */
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
   color: var(--color-ink);
+  animation: confirmDialogIn 170ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dialog[data-state="closed"] {
+  animation: confirmDialogOut 150ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes confirmBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes confirmBackdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes confirmDialogIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes confirmDialogOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(4px) scale(0.97); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog {
+    animation: none !important;
+  }
 }
 
 .header {

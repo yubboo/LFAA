@@ -10,7 +10,7 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { AgentStepItem } from "../store/chat-types";
-import { BrowserEvidence } from "./Browser-Evidence";
+import { BrowserScreenshotGallery, type BrowserGalleryItem } from "./Browser-Screenshot-Gallery";
 import { formatDuration } from "./StepTraceList";
 import { useBoundedScroll } from "./useBoundedScroll";
 import styles from "./Browser-Subagent-Card.module.css";
@@ -41,7 +41,6 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
   const isRunning = Boolean(live && sub?.status === "running");
   // 展开态交给原生 details 维护，同时同步给共享滚动视口：收起时不测量，运行中重新展开后恢复贴底。
   const [open, setOpen] = useState(isRunning);
-  const [activeEvidenceId, setActiveEvidenceId] = useState<string>();
   const goalLine = step.detail
     ?.split(/\r?\n/u)
     .map((line) => line.trim())
@@ -81,6 +80,15 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
   const countText = stepCount > 0
     ? (isZh ? `${stepCount} 浏览器步骤` : `${stepCount} browser ${stepCount === 1 ? "step" : "steps"}`)
     : undefined;
+  const galleryItems: BrowserGalleryItem[] = childSteps
+    .filter((item) => Boolean(item.browserEvidence))
+    .map((item) => ({
+      id: item.browserEvidence!.id,
+      sessionId: item.browserEvidence!.sessionId,
+      caption: [item.label ?? item.name, item.target].filter(Boolean).join(" · ") || undefined,
+    }));
+  // 去掉首尾空白与连续空行，纯空白结果绝不渲染空荡荡的滚动框。
+  const cleanResultPreview = step.resultPreview?.trim().replace(/\n{3,}/gu, "\n\n") || undefined;
 
   return (
     <details
@@ -90,7 +98,6 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
       onToggle={(event) => {
         const nextOpen = event.currentTarget.open;
         setOpen(nextOpen);
-        if (!nextOpen) setActiveEvidenceId(undefined);
         if (nextOpen && isRunning) resumeFollowing();
       }}
     >
@@ -165,8 +172,6 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
                   const itemDone = item.status === "done" && !itemErr && item.browserVerdict !== "unverified";
                   const itemUnverified = !itemErr && item.browserVerdict === "unverified";
                   const stepTitle = [item.label ?? item.name, item.target, item.resultSummary].filter(Boolean).join(" · ");
-                  const evidence = item.browserEvidence;
-                  const expanded = Boolean(evidence && activeEvidenceId === evidence.id);
                   return (
                     <li key={item.id} className={styles.stepEntry}>
                       <div className={styles.stepItem}>
@@ -189,22 +194,6 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
                           {item.resultSummary && <span className={styles.stepTarget}>· {item.resultSummary}</span>}
                         </span>
                       </div>
-                      {evidence && (
-                        <div className={styles.stepEvidenceWrap}>
-                          <button
-                            type="button"
-                            className={styles.inlineThumbBtn}
-                            data-selected={expanded ? "true" : undefined}
-                            aria-pressed={expanded}
-                            aria-label={expanded
-                              ? (isZh ? "收起截图预览" : "Collapse screenshot")
-                              : (isZh ? "展开实时验收截图" : "Expand verification screenshot")}
-                            onClick={() => setActiveEvidenceId((cur) => (cur === evidence.id ? undefined : evidence.id))}
-                          >
-                            <BrowserEvidence id={evidence.id} sessionId={evidence.sessionId} isZh={isZh} compact={!expanded} />
-                          </button>
-                        </div>
-                      )}
                     </li>
                   );
                 })}
@@ -219,8 +208,12 @@ export const BrowserSubagentCard = memo(function BrowserSubagentCard({
           </ScrollArea>
         )}
 
-        {!isRunning && step.resultPreview && (
-          <div className={styles.resultBox}>{step.resultPreview}</div>
+        {galleryItems.length > 0 && (
+          <BrowserScreenshotGallery items={galleryItems} isZh={isZh} />
+        )}
+
+        {!isRunning && cleanResultPreview && (
+          <div className={styles.resultBox}>{cleanResultPreview}</div>
         )}
       </div>
     </details>

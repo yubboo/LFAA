@@ -20,6 +20,7 @@
     "ui:shot": "node --import tsx scripts/ui-shot.mts",
     "ui:shot:list": "node --import tsx scripts/ui-shot.mts --list",
     "verify:coordination": "node --import tsx scripts/verify-coordination.mts",
+    "verify:canvas-motion": "node --import tsx scripts/verify-canvas-motion.mts",
     "build": "node scripts/build.mjs",
     "build:lib": "tsc -b tsconfig.host.json",
     "build:bundle": "tsdown",

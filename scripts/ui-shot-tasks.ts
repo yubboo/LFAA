@@ -19,8 +19,9 @@ export type ShotStep =
   | { drag: string; toX: number }
   /** 向匹配元素派发一次带图片的粘贴事件，用于输入区附件相关状态。 */
   | { pasteImage: string }
-  /** 右键点击匹配元素，用于右键菜单状态。 */
-  | { rightClick: string };
+  /** 点击匹配元素，可指定区域内的位置，避开画布上的卡片。 */
+  | { rightClick: string; position?: { x: number; y: number } }
+  | { doubleClick: string; position?: { x: number; y: number } };
 
 /** 一条截图任务。 */
 export interface ShotTask {
@@ -49,6 +50,12 @@ const OPEN_CANVAS: ShotStep[] = [
   { wait: 500 },
 ];
 
+const CANVAS_MENU_POSITION = { x: 128, y: 124 };
+const RIGHT_CANVAS_MENU: ShotStep[] = [
+  { rightClick: ".react-flow__pane", position: CANVAS_MENU_POSITION },
+  { hover: '[role="menu"][aria-label="添加节点"] [role="menuitem"]' },
+];
+
 /** 生成一条「设置中心」任务，省掉重复的打开步骤。 */
 function settingsTask(name: string, description: string, steps: ShotStep[] = [], options: Partial<ShotTask> = {}): ShotTask {
   return { name, group: "settings", description, steps: [...OPEN_SETTINGS, ...steps], ...options };
@@ -59,6 +66,13 @@ export const TASKS: ShotTask[] = [
   { name: "infinite-canvas-entry-light", group: "app", description: "右侧无限画布标签（浅色）", theme: "light", steps: OPEN_CANVAS },
   { name: "infinite-canvas-entry-mobile", group: "app", description: "窄屏右侧无限画布标签", width: 390, height: 844, theme: "dark",
     steps: [{ click: 'button[aria-label="展开右侧菜单栏"]' }, ...OPEN_CANVAS] },
+  { name: "infinite-canvas-menu-create-dark", group: "app", description: "双击画布打开新建节点菜单（深色）", theme: "dark",
+    steps: [...OPEN_CANVAS, { doubleClick: ".react-flow__pane", position: CANVAS_MENU_POSITION },
+      { hover: '[role="menu"][aria-label="新建节点"] [role="menuitem"]' }] },
+  { name: "infinite-canvas-menu-context-light", group: "app", description: "右键打开画布菜单（浅色）", theme: "light",
+    steps: [...OPEN_CANVAS, ...RIGHT_CANVAS_MENU] },
+  { name: "infinite-canvas-menu-context-mobile", group: "app", description: "右键打开窄屏画布菜单", width: 390, height: 844, theme: "dark",
+    steps: [{ click: 'button[aria-label="展开右侧菜单栏"]' }, ...OPEN_CANVAS, ...RIGHT_CANVAS_MENU] },
   // 应用壳层：四栏、宽屏、窄窗、手机、空白新聊天。
   { name: "app-home-light", group: "app", description: "工作区首页（浅色四栏）", theme: "light" },
   { name: "app-home-dark", group: "app", description: "工作区首页（深色四栏）", theme: "dark" },
@@ -544,7 +558,11 @@ async function applyStep(page: Page, step: ShotStep): Promise<void> {
     return;
   }
   if ("rightClick" in step) {
-    await page.locator(step.rightClick).first().click({ timeout: 15000, button: "right" });
+    await page.locator(step.rightClick).first().click({ timeout: 15000, button: "right", ...(step.position ? { position: step.position } : {}) });
+    return;
+  }
+  if ("doubleClick" in step) {
+    await page.locator(step.doubleClick).first().dblclick({ timeout: 15000, ...(step.position ? { position: step.position } : {}) });
     return;
   }
   if ("press" in step) {

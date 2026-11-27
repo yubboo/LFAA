@@ -1,6 +1,7 @@
 // 模式卡片：按悬浮卡片规范贴左二栏展开，复用账号卡片的几何、密度与交互。
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { useDismissibleLayer, usePanePresence } from "@lfaa/ui-primitives/client";
 import type { LocaleMessages } from "../locales";
 import type { WorkspaceMode } from "./navigation";
 import { NavigationIcon } from "./NavigationIcon";
@@ -21,8 +22,10 @@ export interface ModeMenuProps {
 export function ModeMenu({ open, anchorRef, locale, mode, onClose, onModeChange }: ModeMenuProps) {
   const [panelPos, setPanelPos] = useState<ModeMenuGeometry | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const mounted = usePanePresence(open, 140);
+  const layerRefs = useMemo(() => [panelRef, anchorRef], [anchorRef]);
 
-  /** 量取卡片位置：宽度取左二栏内宽；窗口变化时重算，打开前首帧就贴在栏内。 */
+  /** 量取卡片位置：宽度取左二栏内宽；窗口变化时重算，绘制前完成定位避免首帧跳闪。 */
   const measure = useCallback(() => {
     const trigger = anchorRef.current?.getBoundingClientRect();
     if (!trigger) {
@@ -37,43 +40,33 @@ export function ModeMenu({ open, anchorRef, locale, mode, onClose, onModeChange 
     }));
   }, [anchorRef]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     measure();
+  }, [measure, open]);
+
+  useEffect(() => {
+    if (!open) return;
     // 卡片 Portal 在 body 末尾；打开即把焦点送进当前选项，键盘不会越过整页才摸到菜单。
     panelRef.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')?.focus();
     window.addEventListener("resize", measure);
-    const closeOnOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
-      onClose();
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      onClose();
-      anchorRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", closeOnOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      window.removeEventListener("resize", measure);
-      document.removeEventListener("pointerdown", closeOnOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [anchorRef, measure, onClose, open]);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure, open]);
 
-  if (!open) return null;
+  useDismissibleLayer({ open, refs: layerRefs, onClose, returnFocusRef: anchorRef });
+
+  if (!mounted) return null;
 
   return createPortal(
     <>
-      <div className={styles.scrim} aria-hidden="true" onClick={onClose} />
+      {open && <div className={styles.scrim} aria-hidden="true" onClick={onClose} />}
       <section
         className={styles.menu}
         id="lfaa-mode-menu"
         ref={panelRef}
         role="menu"
         aria-label={locale.workspaceMode}
+        data-state={open ? "open" : "closed"}
         style={panelPos ? { left: `${panelPos.left}px`, top: `${panelPos.top}px`, width: `${panelPos.width}px` } : undefined}
         onKeyDown={(event) => {
           if (event.key === "Tab") {

@@ -10,6 +10,13 @@ export interface DynamicRoundHeader {
   active: boolean;
 }
 
+export interface ToolGroupMenuSummary {
+  label: string;
+  iconKind: RoundHeaderIconKind;
+  active: boolean;
+  failedCount: number;
+}
+
 /** 从纯思考正文中提取简短意图摘要（最多 28 字符），避免思考完成后永远写死「已思考」。 */
 function extractThoughtHeadline(detail: string | undefined, isZh: boolean): string {
   const lines = (detail ?? "")
@@ -149,4 +156,135 @@ export function resolveDynamicRoundHeader(params: {
     iconKind: "brain",
     active: false,
   };
+}
+
+/** 为单阶段工具总菜单生成简洁动作概括与图标：运行中紧跟活跃步骤，完成后按动作类别汇总并显式报告失败数。 */
+export function summarizeToolGroupMenu(
+  tools: readonly AgentStepItem[],
+  isZh: boolean,
+  live: boolean,
+): ToolGroupMenuSummary {
+  const failedCount = tools.filter((step) => step.status === "error").length;
+  const activeStep = [...tools]
+    .reverse()
+    .find((step) => step.status === "waiting_approval" || step.status === "running" || step.status === "preparing");
+
+  if (live && activeStep) {
+    return {
+      label: summarizeStepAction(activeStep, isZh, true),
+      iconKind: stepIconKind(activeStep),
+      active: true,
+      failedCount,
+    };
+  }
+
+  if (tools.length === 1) {
+    const only = tools[0]!;
+    return {
+      label: summarizeStepAction(only, isZh, false),
+      iconKind: stepIconKind(only),
+      active: false,
+      failedCount,
+    };
+  }
+
+  const counts = { read: 0, file: 0, command: 0, skill: 0, todo: 0, subagent: 0, other: 0 };
+  const order: Array<keyof typeof counts> = [];
+  const bump = (key: keyof typeof counts) => {
+    if (counts[key] === 0) order.push(key);
+    counts[key] += 1;
+  };
+
+  for (const step of tools) {
+    if (step.todos && step.todos.length > 0) {
+      bump("todo");
+      continue;
+    }
+    const kind = getActivityKind(step);
+    if (kind === "subagent") bump("subagent");
+    else if (kind === "skill") bump("skill");
+    else if (kind === "read") bump("read");
+    else if (kind === "file") bump("file");
+    else if (kind === "command") bump("command");
+    else bump("other");
+  }
+
+  const phrase = (key: keyof typeof counts): string => {
+    const n = counts[key];
+    switch (key) {
+      case "read":
+        return isZh ? (n > 1 ? `分析了 ${n} 个文件` : "分析了文件") : (n > 1 ? `Analyzed ${n} files` : "Analyzed file");
+      case "file":
+        return isZh ? (n > 1 ? `编辑了 ${n} 个文件` : "编辑了文件") : (n > 1 ? `Edited ${n} files` : "Edited file");
+      case "command":
+        return isZh ? (n > 1 ? `运行了 ${n} 条命令` : "运行了命令") : (n > 1 ? `Ran ${n} commands` : "Ran command");
+      case "skill":
+        return isZh ? (n > 1 ? `加载了 ${n} 项技能` : "加载了技能") : (n > 1 ? `Loaded ${n} skills` : "Loaded skill");
+      case "todo":
+        return isZh ? "更新了任务清单" : "Updated task list";
+      case "subagent":
+        return isZh ? (n > 1 ? `协作了 ${n} 个子智能体` : "调用了子智能体") : (n > 1 ? `${n} subagents` : "Subagent");
+      case "other":
+        return isZh ? (n > 1 ? `执行了 ${n} 项工具` : "执行了工具") : (n > 1 ? `Ran ${n} tools` : "Ran tool");
+    }
+  };
+
+  const shown = order.slice(0, 3).map(phrase);
+  const sep = isZh ? "、" : ", ";
+  const suffix = order.length > 3 ? (isZh ? " 等" : " and more") : "";
+  const latestTool = tools[tools.length - 1];
+  const primaryIcon: RoundHeaderIconKind = counts.file > 0
+    ? "file"
+    : counts.command > 0
+      ? "command"
+      : counts.read > 0
+        ? "read"
+        : counts.subagent > 0
+          ? "subagent"
+          : latestTool
+            ? stepIconKind(latestTool)
+            : "tool";
+
+  return {
+    label: `${shown.join(sep)}${suffix}`,
+    iconKind: primaryIcon,
+    active: false,
+    failedCount,
+  };
+}
+
+const CHECK_THINK_RE = /(?:检查|验证|排查|测试|报错|失败|核对|确认|审查|verify|check|debug|error|test)/iu;
+const PLAN_THINK_RE = /(?:计划|方案|设计|架构|步骤|清单|布局|规划|plan|design|architecture|step)/iu;
+
+/** 根据真实思考阶段、持续耗时与思考正文意图生成动态思维链标题，避免千篇一律写死「已分析」。 */
+export function resolveThinkingHeader(params: {
+  thinkStep?: AgentStepItem | undefined;
+  thinkDetail?: string | undefined;
+  thinkRunning: boolean;
+  durationMs?: number | undefined;
+  liveStageLabel: string;
+  isZh: boolean;
+}): string {
+  const { thinkStep, thinkDetail, thinkRunning, durationMs = 0, liveStageLabel, isZh } = params;
+  if (thinkStep?.status === "error") return liveStageLabel;
+
+  const text = (thinkDetail ?? "").trim();
+  const recentTail = text.slice(-260);
+  const isDeep = durationMs >= 10_000 || text.length >= 700;
+  const isLiveDeep = durationMs >= 6_000 || text.length >= 400;
+
+  if (thinkRunning) {
+    if (thinkStep?.modelStage === "reasoning" && text) {
+      if (CHECK_THINK_RE.test(recentTail)) return isZh ? "正在检查分析" : "Inspecting & verifying";
+      if (PLAN_THINK_RE.test(recentTail)) return isZh ? "正在规划方案" : "Planning approach";
+      if (isLiveDeep) return isZh ? "正在深度思考" : "Deep thinking";
+      return isZh ? "正在思考" : "Thinking";
+    }
+    return liveStageLabel;
+  }
+
+  if (isDeep) return isZh ? "深度思考" : "Deep thought";
+  if (CHECK_THINK_RE.test(text)) return isZh ? "已检查分析" : "Checked & analyzed";
+  if (PLAN_THINK_RE.test(text)) return isZh ? "已规划方案" : "Planned approach";
+  return isZh ? "已分析" : "Analyzed";
 }

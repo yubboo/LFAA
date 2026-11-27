@@ -18,8 +18,12 @@ export function ProjectRowActions({
   menuStore: ProjectMenuStore;
   onNewChatInProject: (project: WorkbenchProjectItem) => void;
 }) {
-  const snapshot = useSyncExternalStore(menuStore.subscribe, menuStore.getSnapshot, menuStore.getSnapshot);
-  const isMenuOpen = snapshot.actionMenu?.projectId === project.id;
+  // 仅订阅当前项目行的菜单展开态，避免悬停其它项目行时引发整列项目按钮集体重渲染。
+  const isMenuOpen = useSyncExternalStore(
+    menuStore.subscribe,
+    () => menuStore.getSnapshot().actionMenu?.projectId === project.id,
+    () => false,
+  );
 
   return (
     <>

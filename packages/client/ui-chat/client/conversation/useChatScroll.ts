@@ -139,6 +139,8 @@ export function useChatScroll(sessionId: string | null, latestTurnId: string | u
     if (pendingRestore.current !== null) applyPendingRestore(viewport, true);
     else if (followBottom.current) pinToBottomSync();
     const observer = new ResizeObserver(() => {
+      // 侧栏/底栏拖拽改宽期间不触发强制回流测量与平滑滚动，避免每帧卡顿；松手后会由尺寸稳定帧补齐。
+      if (viewport.closest('[data-resizing="true"]')) return;
       // 待落位的记忆优先：容器长够（或内容停止增长）再落到记忆位置，期间不跟底。
       if (pendingRestore.current !== null) {
         applyPendingRestore(viewport, true);

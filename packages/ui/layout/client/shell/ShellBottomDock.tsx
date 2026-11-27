@@ -1,7 +1,9 @@
-// Shell 底部面板宿主：有贡献且展开时占第二行（跨中间+右侧两列），顶部 6px 手柄可拖动改高度。
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+// Shell 底部面板宿主：有贡献且展开时占第二行（跨中间+右侧两列），与侧栏共用方案 A 预览线拖拽与平滑吸附收起。
+import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { usePanePresence } from "@lfaa/ui-primitives/client";
 import type { WorkbenchClientService, WorkbenchSnapshot } from "../workbench-service";
 import { readStoredJson, writeStoredJson } from "./ui-preferences";
+import { useVerticalResize } from "./useVerticalResize";
 import { BottomDock } from "./BottomDock";
 import styles from "./ShellBottomDock.module.css";
 
@@ -34,53 +36,64 @@ export function ShellBottomDock({
   isCompact: boolean;
 }) {
   const [height, setHeight] = useState(readHeight);
-  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const open = snapshot.bottomPanels.length > 0 && snapshot.bottomPanelOpen;
+  const mounted = usePanePresence(open, isCompact ? 0 : undefined);
 
-  const onPointerMove = useCallback((event: globalThis.PointerEvent) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    // 手柄在上沿：往上拖变高，往下拖变矮。
-    const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, drag.startHeight + (drag.startY - event.clientY)));
-    setHeight(next);
+  const handleCommitHeight = useCallback((next: number) => {
+    const rounded = Math.round(next);
+    setHeight(rounded);
+    writeStoredJson(HEIGHT_KEY, rounded);
   }, []);
 
-  const stopDrag = useCallback(() => {
-    if (!dragRef.current) return;
-    dragRef.current = null;
-    setHeight((current) => {
-      writeStoredJson(HEIGHT_KEY, current);
-      return current;
-    });
-    window.removeEventListener("pointermove", onPointerMove);
-  }, [onPointerMove]);
+  const handleCollapse = useCallback(() => {
+    service.setBottomPanelOpen(false, !isCompact);
+  }, [isCompact, service]);
 
-  useEffect(() => () => window.removeEventListener("pointermove", onPointerMove), [onPointerMove]);
+  const { dragging, snapped, startResize, handleKeyResize } = useVerticalResize({
+    containerRef: hostRef,
+    height,
+    minHeight: MIN_HEIGHT,
+    maxHeight: MAX_HEIGHT,
+    onCommitHeight: handleCommitHeight,
+    onCollapse: handleCollapse,
+  });
 
-  if (snapshot.bottomPanels.length === 0 || !snapshot.bottomPanelOpen) return null;
+  if (!mounted || snapshot.bottomPanels.length === 0) return null;
 
-  const style: CSSProperties = { height, minHeight: 0 };
+  const style: CSSProperties = { height: open ? height : 0, minHeight: 0 };
 
   return (
-    <div style={style} className={styles.host} data-bottom-dock="true">
+    <div
+      ref={hostRef}
+      style={style}
+      className={styles.host}
+      data-bottom-dock="true"
+      data-collapsed={open ? undefined : "true"}
+      data-snapped={snapped ? "true" : undefined}
+      aria-hidden={open ? undefined : true}
+      inert={open ? undefined : true}
+    >
       <div
         className={styles.handle}
         role="separator"
         aria-orientation="horizontal"
         aria-label={isZh ? "拖动调整底部面板高度" : "Resize bottom panel"}
-        style={{ height: 6, cursor: "row-resize" }}
-        onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
-          dragRef.current = { startY: event.clientY, startHeight: height };
-          window.addEventListener("pointermove", onPointerMove);
-          window.addEventListener("pointerup", stopDrag, { once: true });
-        }}
+        tabIndex={0}
+        data-dragging={dragging ? "true" : undefined}
+        data-snapped={snapped ? "true" : undefined}
+        onPointerDown={startResize}
+        onKeyDown={handleKeyResize}
       />
-      <BottomDock
-        panels={snapshot.bottomPanels}
-        activeId={snapshot.bottomPanels[0]?.id}
-        isZh={isZh}
-        onSelect={() => {}}
-        onClose={() => service.setBottomPanelOpen(false, !isCompact)}
-      />
+      <div className={styles.content}>
+        <BottomDock
+          panels={snapshot.bottomPanels}
+          activeId={snapshot.bottomPanels[0]?.id}
+          isZh={isZh}
+          onSelect={() => {}}
+          onClose={handleCollapse}
+        />
+      </div>
     </div>
   );
 }

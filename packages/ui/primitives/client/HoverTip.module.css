@@ -8,7 +8,8 @@
 /* 提示由 JS 定位到 body 上，left/top 与翻转由组件按触发元素位置计算。 */
 .tip {
   position: fixed;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
+  contain: layout style;
   display: inline-flex;
   align-items: center;
   gap: 0.38rem;
@@ -24,10 +25,8 @@
   box-shadow: 0 10px 26px rgb(0 0 0 / 0.42);
   pointer-events: none;
   opacity: 0;
-  /* 只做透明度过渡，避免分数像素屏幕上的纵向重栅格化被误认为会话区抖动。 */
+  /* 只做透明度过渡，且坐标取整像素，避免分数像素屏幕上的纵向重栅格化造成会话区抖动。 */
   transition: opacity 120ms ease;
-  /* 提前持有合成层：悬停时只改透明度，不在滚动容器内部临时新建图层，
-     否则按钮上方气泡出现的那一帧会重栅格化整个消息区，看起来像正文上下跳 1–2px。 */
   will-change: opacity;
   z-index: 80;
 }

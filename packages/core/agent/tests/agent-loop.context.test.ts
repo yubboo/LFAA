@@ -140,13 +140,16 @@ test("明确偏好自动沉淀并在下次运行召回，模型用量随消息�
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-memory-loop-"));
   const ctx = new Context();
   let turn = 0;
+  let firstSystemPrompt = "";
   let secondSystemPrompt = "";
+  let secondAllMessages = "";
 
   await ctx.plugin(llmPlugin, {
     storeFilePath: path.join(tempRoot, "llm.json"),
     adapter: async (profile, input) => {
       turn += 1;
       if (turn === 1) {
+        firstSystemPrompt = input.messages[0]?.content ?? "";
         return {
           model: profile.model,
           provider: profile.kind,
@@ -157,6 +160,7 @@ test("明确偏好自动沉淀并在下次运行召回，模型用量随消息�
         };
       }
       secondSystemPrompt = input.messages[0]?.content ?? "";
+      secondAllMessages = input.messages.map((m) => m.content).join("\n");
       return {
         model: profile.model,
         provider: profile.kind,
@@ -210,8 +214,10 @@ test("明确偏好自动沉淀并在下次运行召回，模型用量随消息�
       workspaceRoots: [tempRoot],
     });
     await waitRun(second.runId);
-    assert.match(secondSystemPrompt, /项目事实/u);
-    assert.match(secondSystemPrompt, /pnpm/u);
+    // 动态召回记忆下沉至本轮尾部上下文，既送达模型又保证跨轮 messages[0] 字节级一致以命中 KV Cache。
+    assert.equal(secondSystemPrompt, firstSystemPrompt);
+    assert.match(secondAllMessages, /项目事实/u);
+    assert.match(secondAllMessages, /pnpm/u);
     const secondMessage = (await ctx.memory.getSession(session.id))?.messages
       .find((item) => item.id === second.assistantMessageId);
     assert.deepEqual(secondMessage?.tokenUsage, { promptTokens: 50, completionTokens: 10, totalTokens: 60 });

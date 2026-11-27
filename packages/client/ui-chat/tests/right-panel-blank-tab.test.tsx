@@ -1,24 +1,10 @@
 // 回归：历史持久化里残留的空白浏览器状态，在文件标签已打开时不得再渲染出一个「新标签页」。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 /** 只提供 localStorage 的最小 window 桩，用于模拟「上次退出时留下了空白浏览器状态」。 */
 function installWindowStub(persisted: Record<string, string>): () => void {

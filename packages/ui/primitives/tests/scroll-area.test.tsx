@@ -1,22 +1,12 @@
 // 验证共享滚动容器 ScrollArea 的 SSR 输出：方向标记、常驻槽标记、附加类名与内容包裹都正确，
 // 且在无 DOM 的服务端渲染下不会因滚动监听而报错。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // 测试用 tsx 走经典 JSX 运行时，和 layout 包用例一样把 React 挂到全局。
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ScrollArea } = await import("../client/ScrollArea");
 

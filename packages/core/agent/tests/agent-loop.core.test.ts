@@ -102,6 +102,7 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
 
   let callTurn = 0;
   let capturedSystemPrompt = "";
+  let capturedAllMessages = "";
 
   const ctx = new Context();
   await ctx.plugin(llmPlugin, {
@@ -110,6 +111,7 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
       callTurn += 1;
       if (callTurn === 1) {
         capturedSystemPrompt = input.messages[0]?.content ?? "";
+        capturedAllMessages = input.messages.map((m) => m.content).join("\n");
         input.onDelta?.({ type: "reasoning", text: "核对任务阶段。" });
         input.onDelta?.({ type: "text", text: "先检查 README 📝。" });
         input.onDelta?.({ type: "tool_call", toolCallId: "tc-read", toolName: "read_file" });
@@ -225,7 +227,8 @@ test("AgentService 完成 Think -> Act(读写工具+人工审批) -> Check 闭�
     assert.ok(capturedSystemPrompt.includes("写入文件前须明确检查内容"));
     assert.ok(capturedSystemPrompt.includes(`已授权目录：${workspaceDir}`));
     assert.ok(capturedSystemPrompt.includes("保持输出简明"));
-    assert.ok(capturedSystemPrompt.includes("REPORT.md 用于存放项目检查摘要"));
+    assert.ok(capturedAllMessages.includes("REPORT.md 用于存放项目检查摘要"));
+    assert.ok(!capturedSystemPrompt.includes("REPORT.md 用于存放项目检查摘要"));
     assert.ok(capturedSystemPrompt.includes("LFAA 资料库/资产库本地目录"));
     assert.ok(capturedSystemPrompt.includes("LFAA 背景图个人目录"));
     assert.ok(ctx.tools.getTool("list_library_assets"));

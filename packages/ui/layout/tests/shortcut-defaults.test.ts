@@ -1,16 +1,6 @@
 // 默认快捷键表守护：键位不重复，且不落在浏览器 / 系统会截走的组合上（避免「设了没反应」）。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { DEFAULT_SHORTCUT_KEYS, defaultShortcutKeys, shortcutHint } = await import("../client/shortcut-defaults");
 

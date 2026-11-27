@@ -1,6 +1,5 @@
 // 验证文件活动行的彩标渲染、真实语义状态、悬停精准路径、真实行号展示，以及 read_file 点击打开右栏预览逻辑。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -16,19 +15,6 @@ import {
 } from "../client/shared/file-activity";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ToolStepRow } = await import("../client/conversation/Tool-Step-Row");
 

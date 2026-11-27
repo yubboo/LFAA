@@ -62,15 +62,36 @@
   padding: var(--popover-padding);
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: var(--popover-radius);
-  /* 实底 + 半透明玻璃色叠加：既保留质感，又绝不透出下层聊天内容（避免穿模观感）。 */
+  /* 实底 + 半透明玻璃色叠加：保留质感且不透出下层内容；实底无需高斯模糊，避免白耗 GPU。 */
   background-color: var(--color-shell);
   background-image: linear-gradient(var(--color-popover), var(--color-popover)), var(--glass-sheen, none);
-  backdrop-filter: blur(26px) saturate(180%);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
   color: var(--color-ink);
   /* 浮层宽度跟随左二栏（JS 写入），按卡片自身宽度切换紧凑排版。 */
   container-type: inline-size;
+  transform-origin: bottom left;
+  animation: userMenuIn 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.panel[data-state="closed"] {
+  pointer-events: none;
+  animation: userMenuOut 130ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes userMenuIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes userMenuOut {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(4px) scale(0.97); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none !important;
+  }
 }
 
 .account {

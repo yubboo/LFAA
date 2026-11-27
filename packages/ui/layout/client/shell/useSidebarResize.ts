@@ -119,6 +119,7 @@ export function useSidebarResize({
     const startClientX = event.clientX;
 
     let rafId: number | null = null;
+    let snapAnimTimer: number | null = null;
     let latestClientX = startClientX;
     let lastVisualWidth = initialWidth;
     let hasElasticTension = false;
@@ -126,6 +127,15 @@ export function useSidebarResize({
     let prevCursor = "";
     let prevUserSelect = "";
     let captured = false;
+
+    const triggerSnapAnim = () => {
+      shellEl.dataset.resizeSnapAnim = "true";
+      if (snapAnimTimer !== null) window.clearTimeout(snapAnimTimer);
+      snapAnimTimer = window.setTimeout(() => {
+        snapAnimTimer = null;
+        delete shellEl.dataset.resizeSnapAnim;
+      }, 220);
+    };
 
     // 仅左二向右才联动右栏。沿用临时宽度变量，回拉时撤掉联动并恢复原值。
     const previewRightPush = (nextLeftWidth: number) => {
@@ -142,8 +152,10 @@ export function useSidebarResize({
     const activateDrag = () => {
       dragActivated = true;
       onBeforeDrag?.();
-      // 写入第一帧宽度前先切换绘制状态，不等待 React 提交拖拽状态。
+      // 写入第一帧宽度前先切换绘制状态，保证实时跟手零延迟。
       shellEl.dataset.resizing = "true";
+      shellEl.dataset.resizingSide = side;
+      shellEl.style.setProperty("--resize-tension", "0");
       shellEl.style.setProperty(dragWidthVar, `${initialWidth}px`);
       commitDragRef({ side, snappedCollapsed: false, width: initialWidth });
 
@@ -180,7 +192,14 @@ export function useSidebarResize({
       const snappedChanged = current.snappedCollapsed !== outcome.snappedCollapsed;
       lastVisualWidth = outcome.visualWidth;
       hasElasticTension = outcome.tension > 0;
+
+      // 跨过 50% 吸附线进入磁吸收起或反向弹回的瞬间，短开 200ms 轨道过渡，告别瞬间闪断。
+      if (snappedChanged) {
+        triggerSnapAnim();
+      }
+
       shellEl.style.setProperty(dragWidthVar, outcome.snappedCollapsed ? "0px" : `${outcome.visualWidth}px`);
+      shellEl.style.setProperty("--resize-tension", String(outcome.tension));
       previewRightPush(outcome.visualWidth);
 
       dragStateRef.current = { side, snappedCollapsed: outcome.snappedCollapsed, width: outcome.width };
@@ -211,6 +230,10 @@ export function useSidebarResize({
         window.cancelAnimationFrame(rafId);
         rafId = null;
       }
+      if (snapAnimTimer !== null) {
+        window.clearTimeout(snapAnimTimer);
+        snapAnimTimer = null;
+      }
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", finishDrag);
@@ -227,7 +250,10 @@ export function useSidebarResize({
         }
       }
       if (dragActivated) {
+        shellEl.style.removeProperty("--resize-tension");
         delete shellEl.dataset.resizing;
+        delete shellEl.dataset.resizingSide;
+        delete shellEl.dataset.resizeSnapAnim;
         document.body.style.cursor = prevCursor;
         document.body.style.userSelect = prevUserSelect;
       }
@@ -255,7 +281,7 @@ export function useSidebarResize({
       }
 
       if (finalState.snappedCollapsed) {
-        shellEl.style.removeProperty(dragWidthVar);
+        // 先提交收起状态让轨道保持 0px，再由 useLayoutEffect 清理临时拖拽宽度，避免松手瞬间闪回。
         commitDragRef(null);
         onCollapseSide(finalState.side);
         return;

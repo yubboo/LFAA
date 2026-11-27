@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
 import type { DialogAnimationPreset, DialogSize } from "../contract/index";
+import { usePanePresence } from "./usePanePresence";
 import styles from "./ModalDialog.module.css";
 
 const SIZE_CLASS: Record<DialogSize, string | undefined> = {
@@ -46,6 +47,8 @@ export function ModalDialog({
   footer,
   children,
 }: ModalDialogProps) {
+  const mounted = usePanePresence(open, 160);
+
   useEffect(() => {
     if (!open || typeof document === "undefined") return;
     const prevOverflow = document.body.style.overflow;
@@ -63,13 +66,16 @@ export function ModalDialog({
     };
   }, [open, onClose]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!mounted || typeof document === "undefined") return null;
+
+  const state = open ? "open" : "closed";
 
   const content = (
     <div
       className={styles.backdrop}
+      data-state={state}
       onMouseDown={(event) => {
-        if (closeOnBackdrop && event.target === event.currentTarget) {
+        if (open && closeOnBackdrop && event.target === event.currentTarget) {
           onClose();
         }
       }}
@@ -78,6 +84,7 @@ export function ModalDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-state={state}
         className={`${styles.dialog} ${SIZE_CLASS[size]} ${ANIM_CLASS[animation]}`}
       >
         <header className={styles.header}>

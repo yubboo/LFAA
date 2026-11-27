@@ -12,8 +12,11 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
   const [error, setError] = useState("");
   const [conflict, setConflict] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
   const current = useRef(graph);
   const saved = useRef(graph);
+  const undoStack = useRef<CanvasGraph[]>([]);
+  const redoStack = useRef<CanvasGraph[]>([]);
   const revision = useRef(initial.board.revision);
   const writing = useRef<Promise<void>>(Promise.resolve());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -40,13 +43,38 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
     return pending;
   }
 
-  function change(update: CanvasGraph | ((previous: CanvasGraph) => CanvasGraph)) {
-    const next = typeof update === "function" ? update(current.current) : update;
+  function commit(next: CanvasGraph, recordHistory = true) {
+    if (recordHistory) {
+      undoStack.current = [...undoStack.current.slice(-39), current.current];
+      redoStack.current = [];
+      setHistoryState({ canUndo: undoStack.current.length > 0, canRedo: false });
+    }
     current.current = next;
     setGraph(next);
     setDirty(true);
     clearTimeout(timer.current);
     if (!conflict) timer.current = setTimeout(() => void flush().catch(report), 230);
+  }
+
+  function change(update: CanvasGraph | ((previous: CanvasGraph) => CanvasGraph), recordHistory = true) {
+    const next = typeof update === "function" ? update(current.current) : update;
+    commit(next, recordHistory);
+  }
+
+  function undo() {
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    redoStack.current.push(current.current);
+    setHistoryState({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
+    commit(prev, false);
+  }
+
+  function redo() {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(current.current);
+    setHistoryState({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
+    commit(next, false);
   }
 
   function sync(detail: BoardDetail) {
@@ -115,5 +143,10 @@ export function useCanvasDocument(path: string, initial: BoardDetail) {
     }
   };
 
-  return { graph, assets, runs, conflict, dirty, error, report, flush, change, reload, run, addAsset, addRunOutput, getGraph: () => current.current };
+  return {
+    graph, assets, runs, conflict, dirty, error,
+    canUndo: historyState.canUndo, canRedo: historyState.canRedo,
+    report, flush, change, undo, redo, reload, run, addAsset, addRunOutput,
+    getGraph: () => current.current,
+  };
 }

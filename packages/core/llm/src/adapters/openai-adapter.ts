@@ -281,6 +281,9 @@ export async function callOpenAiCompatibleChat(
     // 流式调用默认不带用量；声明后多数兼容服务会在末尾分片返回 usage，供成本核算。
     stream_options: { include_usage: true },
   };
+  if (input.cacheKey && new URL(baseUrl).hostname === "api.openai.com") {
+    bodyPayload.prompt_cache_key = input.cacheKey;
+  }
   const apiTools = buildApiTools(input.tools);
   if (apiTools) {
     bodyPayload.tools = apiTools;

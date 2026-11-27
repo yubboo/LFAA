@@ -1,26 +1,11 @@
 // 验证 @lfaa/ui-icons 的映射与渲染：扩展名、特殊文件名、目录职责都应命中存在的彩色图标，而不是统一兜底。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // tsx 测试运行器使用经典 JSX 转换，需要把 React 挂到全局供组件模块解析。
 (globalThis as { React?: typeof React }).React = React;
-
-// 组件测试环境没有 CSS Modules 打包器，用代理把类名原样返回，避免样式导入中断用例。
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { FileTypeIcon } = await import("../client/index");
 const { GLYPHS } = await import("../client/glyphs");

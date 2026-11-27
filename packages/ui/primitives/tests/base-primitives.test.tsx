@@ -1,20 +1,10 @@
 // 验证基于 @base-ui/react 封装的 5 个通用交互原语（DropdownMenu / UiSwitch / UiSelect / UiTabs / UiTooltip）在 SSR 下渲染正常、无障碍属性完整。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const {
   DropdownMenu,

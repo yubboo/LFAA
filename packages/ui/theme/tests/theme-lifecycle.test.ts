@@ -1,22 +1,8 @@
 // 验证主题包 Host/契约预设导出及 Client 插件在工作台注册与卸载清理。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
 import { DEFAULT_APPEARANCE_CONFIG, THEME_PRESETS } from "../src/index";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 test("THEME_PRESETS 提供默认参考配色且不依赖 DOM", () => {
   assert.equal(DEFAULT_APPEARANCE_CONFIG.preset, "liquidGlass");

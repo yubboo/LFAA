@@ -47,10 +47,24 @@
   font-family: var(--content-font-family, var(--ui-font-family, inherit));
   transition: grid-template-columns var(--motion-duration-slow, 260ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
 }
-/* 拖拽调宽与窗口缩放期间关闭轨道过渡，宽度始终跟手。 */
+/* 拖拽调宽与窗口缩放期间关闭轨道过渡，宽度始终跟手；
+   跨过 50% 吸附线触发磁吸折叠或回弹的瞬间短开 200ms 过渡，避免从阻尼宽度瞬间闪断归零。 */
 .shell[data-resizing="true"],
 .shell[data-pane-resizing="true"] {
   transition: none;
+}
+.shell[data-resizing="true"][data-resize-snap-anim="true"] {
+  transition: grid-template-columns var(--motion-duration-normal, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+/* 拖拽期隔离各栏布局边界，并临时关闭壳层内毛玻璃模糊重算，避免长对话与悬浮胶囊每帧掉帧。 */
+.shell[data-resizing="true"] > .workspace,
+.shell[data-resizing="true"] > .leftPane,
+.shell[data-resizing="true"] > .rightPane {
+  contain: layout style;
+}
+.shell[data-resizing="true"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 /* 背景图：壳层图片层在 ShellBackground.module.css（按职责拆出，避免本文件超行数上限）；
    中间工作区再加一层主题色薄纱：图片仍可见，但会话正文、输入框与顶栏保持足够对比度。
@@ -97,12 +111,12 @@
     grid-column: 4;
     grid-row: 1;
   }
-  /* 面板保持自身宽度：轨道收窄时只被裁剪，不触发内部重排与容器查询跳变。 */
+  /* 面板保持自身最小展开宽度：阻尼收缩或收起轨道归零时只被裁剪，不压扁内部内容触发重排。 */
   .leftPane > :global([data-region="section-navigation"]) {
-    width: var(--left-sidebar-width);
+    width: max(var(--left-min-width), var(--left-sidebar-width));
   }
   .rightPane > :global([data-region="context-panel"]) {
-    width: var(--right-panel-width);
+    width: max(var(--panel-min-pixels), var(--right-panel-width));
   }
   /* 最大化时右栏占满剩余空间，不再保留收起前的固定宽度。 */
   .shell[data-right-maximized="true"] .rightPane > :global([data-region="context-panel"]) {

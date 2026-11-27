@@ -1,7 +1,12 @@
-// 底部终端面板：渲染在工作台列内部（不参与 Shell 栅格），位置跟随预览区，上沿可拖高。
+// 底部终端面板：渲染在工作台列内部，位置跟随预览区；采用 GPU 预览线拖拽、阻尼吸附收起与松手平滑落位。
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
-import { readStoredJson, writeStoredJson } from "@lfaa/ui-layout/client";
+import { usePanePresence } from "@lfaa/ui-primitives/client";
+import {
+  readStoredJson,
+  useVerticalResize,
+  writeStoredJson,
+  type WorkbenchClientService,
+} from "@lfaa/ui-layout/client";
 import { TerminalSurface } from "./TerminalSurface";
 import { readTerminalPlacement, subscribeTerminalPlacement, writeTerminalPlacement, type TerminalPlacement } from "./terminal-placement";
 import styles from "./TerminalDockPane.module.css";
@@ -18,7 +23,7 @@ function readHeight(): number {
   return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, value));
 }
 
-/** 终端放在底部时才渲染；空着返回 null，工作台列不会因此多占高度。 */
+/** 终端放在底部时才渲染；收起时等待高度过渡结束再卸载，避免瞬间闪断。 */
 export function TerminalDockPane({
   sessionId,
   isZh,
@@ -33,30 +38,28 @@ export function TerminalDockPane({
   const [visible, setVisible] = useState(() => readStoredJson<unknown>(VISIBLE_KEY, true) !== false);
   const [height, setHeight] = useState(readHeight);
   const dockRef = useRef<HTMLElement | null>(null);
-  const dragRef = useRef<{ startY: number; startHeight: number; current?: number } | null>(null);
 
   useEffect(() => subscribeTerminalPlacement(() => setPlacement(readTerminalPlacement())), []);
 
-  // 拖拽期间只改 DOM 高度（不走 React state），松手才提交，保证拖动手感与左右栏一致。
-  const onPointerMove = useCallback((event: PointerEvent) => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, drag.startHeight + (drag.startY - event.clientY)));
-    drag.current = next;
-    if (dockRef.current) dockRef.current.style.height = `${next}px`;
+  const handleCommitHeight = useCallback((next: number) => {
+    const rounded = Math.round(next);
+    setHeight(rounded);
+    writeStoredJson(HEIGHT_KEY, rounded);
   }, []);
 
-  const stopDrag = useCallback(() => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    window.removeEventListener("pointermove", onPointerMove);
-    const final = drag.current ?? height;
-    dragRef.current = null;
-    writeStoredJson(HEIGHT_KEY, final);
-    setHeight(final);
-  }, [height, onPointerMove]);
+  const handleCollapse = useCallback(() => {
+    setVisible(false);
+    writeStoredJson(VISIBLE_KEY, false);
+  }, []);
 
-  useEffect(() => () => window.removeEventListener("pointermove", onPointerMove), [onPointerMove]);
+  const { dragging, snapped, startResize, handleKeyResize } = useVerticalResize({
+    containerRef: dockRef,
+    height,
+    minHeight: MIN_HEIGHT,
+    maxHeight: MAX_HEIGHT,
+    onCommitHeight: handleCommitHeight,
+    onCollapse: handleCollapse,
+  });
 
   // 右栏入口（图标轨 / 起始页 / 快捷键）在底部模式下重新展开并聚焦这里的终端。
   useEffect(() => {
@@ -70,20 +73,32 @@ export function TerminalDockPane({
     return () => window.removeEventListener("lfaa:terminal-focus", focusTerminal);
   }, []);
 
-  if (placement !== "bottom" || !visible) return null;
+  const open = placement === "bottom" && visible;
+  const mounted = usePanePresence(open);
+
+  if (placement !== "bottom" || !mounted) return null;
 
   return (
-    <section ref={dockRef} className={styles.dock} style={{ height }} aria-label={isZh ? "底部终端" : "Bottom terminal"}>
+    <section
+      ref={dockRef}
+      className={styles.dock}
+      style={{ height: open ? height : 0 }}
+      data-collapsed={open ? undefined : "true"}
+      data-snapped={snapped ? "true" : undefined}
+      aria-label={isZh ? "底部终端" : "Bottom terminal"}
+      aria-hidden={open ? undefined : true}
+      inert={open ? undefined : true}
+    >
       <div
         className={styles.handle}
         role="separator"
         aria-orientation="horizontal"
         aria-label={isZh ? "拖动调整终端高度" : "Resize terminal"}
-        onPointerDown={(event) => {
-          dragRef.current = { startY: event.clientY, startHeight: height, current: height };
-          window.addEventListener("pointermove", onPointerMove);
-          window.addEventListener("pointerup", stopDrag, { once: true });
-        }}
+        tabIndex={0}
+        data-dragging={dragging ? "true" : undefined}
+        data-snapped={snapped ? "true" : undefined}
+        onPointerDown={startResize}
+        onKeyDown={handleKeyResize}
       />
       <div className={styles.body}>
         <TerminalSurface
@@ -92,10 +107,7 @@ export function TerminalDockPane({
           placement="bottom"
           workbench={workbench}
           onRequestRightTab={() => writeTerminalPlacement("right")}
-          onClose={() => {
-            setVisible(false);
-            writeStoredJson(VISIBLE_KEY, false);
-          }}
+          onClose={handleCollapse}
         />
       </div>
     </section>

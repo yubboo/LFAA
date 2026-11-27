@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import { registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -11,20 +10,6 @@ import { Context } from "@deepseek-ai/cordis";
 import { WORKBENCH_REGIONS } from "@lfaa/ui-layout";
 import { workspacePlugin } from "@lfaa/workspace";
 import { buildFolderPickerPowerShell } from "@lfaa/workspace";
-
-// 在 Node 测试环境桩代 CSS Modules，使含样式导入的 Client TSX 模块可直接运行生命周期测试。
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 test("WORKBENCH_REGIONS 包含完整四栏区域", () => {
   assert.deepEqual([...WORKBENCH_REGIONS], [

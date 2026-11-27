@@ -15,11 +15,23 @@ export class CanvasService extends Service {
   private readonly runner: CanvasRunner;
   private readonly pending = new Map<string, Promise<unknown>>();
 
-  constructor(ctx: Context, config: { root?: string } = {}) {
+  constructor(ctx: Context, config: { root?: string; mediaRoot?: string } = {}) {
     super(ctx, "canvas");
-    this.store = new CanvasStore(config.root ?? join(homedir(), ".lfaa", "canvas"));
+    this.store = new CanvasStore(config.root ?? join(homedir(), ".lfaa", "canvas"), config.mediaRoot);
     this.runner = new CanvasRunner(this.store, ctx.llm);
     ctx.effect(() => () => this.runner.stop());
+  }
+
+  /** 更新画布标题并递增修订号。 */
+  rename(dir: string, title: string): Promise<CanvasBoard> {
+    return this.serial(dir, async () => {
+      const clean = title.trim();
+      if (!clean || clean.length > 120) throw new CanvasError(400, "画布名称无效 / Invalid canvas title");
+      const board = await this.store.board(dir);
+      const updated = { ...board, title: clean, revision: board.revision + 1 };
+      await this.store.saveBoard(dir, updated);
+      return updated;
+    });
   }
 
   async create(projectId: string, title: string): Promise<CanvasBoard> {

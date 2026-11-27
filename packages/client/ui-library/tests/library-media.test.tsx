@@ -1,20 +1,10 @@
 // 验证资料库「图像」分类的筛选、空态/错误态与卡片渲染，界面不暴露磁盘绝对路径。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { LibraryMediaGrid } = await import("../client/views/LibraryMediaGrid");
 const { zhMessages } = await import("@lfaa/client-ui-chat/client");
@@ -32,8 +22,6 @@ const items = [
   },
   { path: "C:\\ws\\.lfaa-media\\videos\\b.mp4", name: "b.mp4", kind: "video" as const, bytes: 4096, createdAt: 1_762_000_000_000 },
 ];
-
-
 
 test("图像分类渲染类型筛选与卡片，提示词作为标题且不写磁盘路径", () => {
   const markup = renderToStaticMarkup(createElement(LibraryMediaGrid, {

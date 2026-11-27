@@ -1,24 +1,10 @@
 // 验证新会话空态引导：不再渲染项目范围提示条与额外说明，只保留标题、模式、输入栏与起步建议。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ChatMessageList } = await import("../client/conversation/ChatMessageList");
 const { zhMessages } = await import("../client/locales.zh");

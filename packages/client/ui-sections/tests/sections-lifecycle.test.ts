@@ -1,25 +1,11 @@
 // 验证自定义分区包 Host 服务生命周期、CRUD/重名校验、级联清理以及 Client 插件注册与卸载。
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { registerHooks } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
 import { sectionsPlugin } from "@lfaa/sections";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 test("Host sectionsPlugin 支持分区增删改、重名校验与删除通知", async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-sec-test-"));

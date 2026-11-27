@@ -1,25 +1,11 @@
 // 验证输入框右下角动作：运行中显示暂停、中断可续写时显示继续、空闲时显示发送。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { zhMessages } from "../client/locales.zh";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ComposerRightActions } = await import("../client/composer/ComposerRightActions");
 

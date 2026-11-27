@@ -1,6 +1,7 @@
 // @lfaa/web-server：构造常规能力 HTTP 处理器（工作区、技能、插件、模型、记忆、媒体文件等），并集中提供
 // 「工作区根」与「媒体目录允许列表」两个跨处理器复用的解析函数，供 dev 与生产宿主共用。
 import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import type { ApiHandler } from "@lfaa/api-gateway";
 import { createAttachmentHttpHandler } from "@lfaa/attachment-local";
@@ -103,7 +104,7 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
     return { roots: [worktree.path], worktree };
   };
 
-  // 媒体读取边界：项目根、已存在项目根、默认工作根与项目外聊天目录。
+  // 媒体读取边界：项目根、工作树、默认工作根、统一资料库存储目录（data）与项目外聊天目录。
   const resolveMediaAllowedRoots = async (): Promise<string[]> => {
     const projects = await context.workspace.listProjects().catch(() => []);
     const worktrees = await context.worktree.list().catch(() => []);
@@ -112,6 +113,7 @@ export function createCommonHandlers(deps: CommonHandlerDeps): CommonHandlers {
       ...projects.flatMap((project) => [project.rootPath, ...(project.rootPaths ?? [])]),
       ...worktrees.map((worktree) => worktree.path),
       projectRoot,
+      join(projectRoot, "data"),
       general?.outsideProjectFolder,
     ].filter((root): root is string => Boolean(root && root.trim()));
   };

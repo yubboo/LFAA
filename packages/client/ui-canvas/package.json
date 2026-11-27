@@ -24,6 +24,7 @@
     "@deepseek-ai/cordis": "^4.1.0",
     "@lfaa/canvas": "workspace:*",
     "@lfaa/ui-layout": "workspace:*",
+    "@tabler/icons-react": "3.52.0",
     "@xyflow/react": "12.12.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

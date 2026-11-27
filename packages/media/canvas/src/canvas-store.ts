@@ -53,8 +53,15 @@ async function entries(dir: string): Promise<string[]> {
   }
 }
 
+interface StoredCanvasAsset extends CanvasAsset {
+  filePath?: string;
+}
+
 export class CanvasStore {
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    private readonly mediaRoot?: string,
+  ) {}
 
   projectDir(projectId: string): string {
     return join(this.root, createHash("sha256").update(projectId).digest("hex"));
@@ -84,25 +91,74 @@ export class CanvasStore {
   }
 
   async assets(dir: string): Promise<CanvasAsset[]> {
-    const assets = await this.records<CanvasAsset>(join(dir, "assets"));
-    return assets.sort((left, right) => left.name.localeCompare(right.name));
+    const records = await this.records<StoredCanvasAsset>(join(dir, "assets"));
+    return records
+      .map(({ id, kind, mime, name }) => ({ id, kind, mime, name }))
+      .sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async asset(dir: string, id: string): Promise<{ asset: CanvasAsset; file: string }> {
     if (!uuid.safeParse(id).success) throw new CanvasError(404, "找不到素材 / Asset not found");
-    const asset = await readOptional<CanvasAsset>(join(dir, "assets", id + ".json"));
-    if (!asset) throw new CanvasError(404, "找不到素材 / Asset not found");
-    return { asset, file: join(dir, "assets", id + "." + extensions[asset.mime]) };
+    const record = await readOptional<StoredCanvasAsset>(join(dir, "assets", id + ".json"));
+    if (!record) throw new CanvasError(404, "找不到素材 / Asset not found");
+    const asset: CanvasAsset = { id: record.id, kind: record.kind, mime: record.mime, name: record.name };
+    const file = record.filePath || join(dir, "assets", id + "." + extensions[record.mime]);
+    return { asset, file };
   }
 
-  async addAsset(dir: string, name: string, mime: string, bytes: Buffer, id: string = randomUUID()): Promise<CanvasAsset> {
+  async addAsset(
+    dir: string,
+    name: string,
+    mime: string,
+    bytes: Buffer,
+    id: string = randomUUID(),
+    meta?: { prompt?: string; model?: string },
+  ): Promise<CanvasAsset> {
     if (!bytes.length || bytes.length > maxAssetBytes) throw new CanvasError(413, "素材大小超出限制 / Asset exceeds 24 MiB");
     const detected = inferMedia(bytes);
     const kind = detected ? mediaTypes.get(detected) : undefined;
     if (!detected || !kind || (mime && detected !== mime)) throw new CanvasError(415, "不支持该素材格式 / Unsupported asset");
-    const asset = { id, kind, mime: detected, name: name.trim().slice(0, 160) || id };
-    await atomicWrite(join(dir, "assets", id + "." + extensions[detected]), bytes);
+    const cleanName = name.trim().slice(0, 160) || id;
+    const ext = extensions[detected];
+    const asset: CanvasAsset = { id, kind, mime: detected, name: cleanName };
+
+    // 统一存放在资料库对应的 images / videos 目录，并写入 sidecar 元数据，与左侧资料库完全互通。
+    if (this.mediaRoot) {
+      const subDir = kind === "video" ? "videos" : "images";
+      const filePath = join(this.mediaRoot, ".lfaa-media", subDir, `${id}.${ext}`);
+      await atomicWrite(filePath, bytes);
+      const sidecar = {
+        kind,
+        createdAt: Date.now(),
+        source: "canvas",
+        name: cleanName,
+        ...(meta?.prompt ? { prompt: meta.prompt } : {}),
+        ...(meta?.model ? { model: meta.model } : {}),
+      };
+      await atomicWrite(`${filePath}.json`, JSON.stringify(sidecar, null, 2));
+      const stored: StoredCanvasAsset = { ...asset, filePath };
+      await atomicWrite(join(dir, "assets", id + ".json"), JSON.stringify(stored));
+      return asset;
+    }
+
+    await atomicWrite(join(dir, "assets", id + "." + ext), bytes);
     await atomicWrite(join(dir, "assets", id + ".json"), JSON.stringify(asset));
+    return asset;
+  }
+
+  /** 将资料库已有图片/视频直接登记为当前画布资产（复用原文件，不重复拷贝）。 */
+  async linkLibraryFile(dir: string, filePath: string, name?: string): Promise<CanvasAsset> {
+    const bytes = await readFile(filePath).catch(() => {
+      throw new CanvasError(404, "找不到资料库素材 / Library asset not found");
+    });
+    const detected = inferMedia(bytes);
+    const kind = detected ? mediaTypes.get(detected) : undefined;
+    if (!detected || !kind) throw new CanvasError(415, "不支持该素材格式 / Unsupported asset");
+    const id = randomUUID();
+    const fallbackName = filePath.split(/[\\/]/u).pop() || id;
+    const asset: CanvasAsset = { id, kind, mime: detected, name: (name?.trim() || fallbackName).slice(0, 160) };
+    const stored: StoredCanvasAsset = { ...asset, filePath };
+    await atomicWrite(join(dir, "assets", id + ".json"), JSON.stringify(stored));
     return asset;
   }
 

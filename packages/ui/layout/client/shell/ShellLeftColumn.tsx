@@ -1,5 +1,6 @@
 // 组合四栏 Shell 左栏：一级图标栏、窄屏抽屉遮罩、左二导航侧栏与宽度拖拽手柄。
 import { useMemo, type KeyboardEvent, type PointerEvent } from "react";
+import { CollapsePane } from "@lfaa/ui-primitives/client";
 import type { WorkbenchSectionItem } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { LocalProject, NavigationTarget, NavigationView, RecentItem, WorkspaceMode } from "../navigation/navigation";
@@ -156,7 +157,13 @@ export function ShellLeftColumn({
         />
       )}
 
-      {leftSidebarOpen && (
+      {/* 桌面端收起时保留面板到轨道过渡结束再卸载，裁剪固定宽度内容；抽屉模式立即释放。 */}
+      <CollapsePane
+        open={leftSidebarOpen}
+        side="left"
+        durationMs={isCompact ? 0 : undefined}
+        className={styles.leftPane}
+      >
         <NavigationSidebar
           locale={locale}
           domain={domain}
@@ -200,7 +207,7 @@ export function ShellLeftColumn({
           sidebarMode={sidebarMode}
           onChangeSidebarMode={onChangeSidebarMode}
         />
-      )}
+      </CollapsePane>
 
       {!isCompact && leftSidebarOpen && (
         <SidebarResizeHandle

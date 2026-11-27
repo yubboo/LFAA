@@ -26,17 +26,18 @@ export function useChatSelector<T>(
   selector: (snapshot: ChatStoreSnapshot) => T,
   isEqual: (prev: T, next: T) => boolean = shallowEqual,
 ): T {
-  const cacheRef = useRef<{ snapshot: ChatStoreSnapshot; value: T } | null>(null);
+  const cacheRef = useRef<{ snapshot: ChatStoreSnapshot; selector: (snapshot: ChatStoreSnapshot) => T; value: T } | null>(null);
   const getSnapshot = (): T => {
     const snap = store.getSnapshot();
     const cached = cacheRef.current;
-    if (cached && cached.snapshot === snap) return cached.value;
+    // 只有快照与 selector 闭包均未变化时才短路；组件局部 state（如 reviewMessageId）变化导致重渲染时必须重新求值。
+    if (cached && cached.snapshot === snap && cached.selector === selector) return cached.value;
     const next = selector(snap);
     if (cached && isEqual(cached.value, next)) {
-      cacheRef.current = { snapshot: snap, value: cached.value };
+      cacheRef.current = { snapshot: snap, selector, value: cached.value };
       return cached.value;
     }
-    cacheRef.current = { snapshot: snap, value: next };
+    cacheRef.current = { snapshot: snap, selector, value: next };
     return next;
   };
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);

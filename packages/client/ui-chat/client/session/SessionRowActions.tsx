@@ -18,8 +18,12 @@ export function SessionRowActions({
   chatStore: ChatClientStore;
   menuStore: SessionMenuStore;
 }) {
-  const snap = useSyncExternalStore(menuStore.subscribe, menuStore.getSnapshot, menuStore.getSnapshot);
-  const isMenuOpen = snap.actionMenu?.sessionId === session.id;
+  // 仅订阅当前行的菜单展开态，避免悬停其它会话行更新 hoverCard 时触发整列所有行按钮重渲染。
+  const isMenuOpen = useSyncExternalStore(
+    menuStore.subscribe,
+    () => menuStore.getSnapshot().actionMenu?.sessionId === session.id,
+    () => false,
+  );
   const archiveLabel = session.archived
     ? (isZh ? "取消归档" : "Unarchive")
     : (isZh ? "归档对话" : "Archive");

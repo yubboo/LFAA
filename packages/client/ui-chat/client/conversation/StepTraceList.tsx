@@ -41,8 +41,6 @@ export function StepTraceList({
   createdAt,
   now: externalNow,
   durationMs,
-  toolCount,
-  activitySummary,
   tokenUsage,
   isStreaming,
   expanded,
@@ -73,16 +71,12 @@ export function StepTraceList({
   const now = externalNow ?? internalNow;
 
   const labels = timelineMessages[isZh ? "zh" : "en"];
-  const toolSummary = toolCount && toolCount > 0
-    ? (isZh ? `${toolCount} 步工具` : `${toolCount} ${toolCount === 1 ? "tool" : "tools"}`)
-    : undefined;
   if (isStreaming) {
     const elapsed = formatDuration(now - createdAt, isZh);
     const status = (
       <>
         <span className={styles.activityTitle}>{labels.elapsed}</span>
-        <span className={styles.elapsed}>{elapsed}</span>
-        {toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
+        <span className={styles.summaryElapsed}>{elapsed}</span>
       </>
     );
     return onToggle ? (
@@ -100,21 +94,16 @@ export function StepTraceList({
   const elapsedLabel = durationMs === undefined
     ? labels.process
     : `${labels.elapsed} ${formatDuration(durationMs, isZh)}`;
-  // 有过程摘要时以它当总行标题（如「已运行 3 个命令、已读取 2 个文件」），用时降为次级信息。
-  const primaryLabel = activitySummary ?? elapsedLabel;
   return onToggle ? (
-    <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
-      <span className={styles.summaryLabel}>{primaryLabel}</span>
-      {activitySummary && <span className={styles.elapsed}>{elapsedLabel}</span>}
-      {!activitySummary && toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
-      {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
+    <button type="button" className={`${styles.disclosure} ${styles.summaryBar}`} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
+      <span className={styles.summaryElapsed}>{elapsedLabel}</span>
+      {usageLabel && <span className={styles.summaryTokens}>{usageLabel}</span>}
       <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
     </button>
   ) : durationMs !== undefined || usageLabel ? (
-    <div className={styles.liveStatus}>
-      <span className={styles.summaryLabel}>{primaryLabel}</span>
-      {durationMs !== undefined && <span className={styles.elapsed}>{elapsedLabel}</span>}
-      {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
+    <div className={`${styles.liveStatus} ${styles.summaryBar}`}>
+      <span className={styles.summaryElapsed}>{elapsedLabel}</span>
+      {usageLabel && <span className={styles.summaryTokens}>{usageLabel}</span>}
     </div>
   ) : null;
 }

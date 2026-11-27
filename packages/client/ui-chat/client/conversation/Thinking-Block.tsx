@@ -1,6 +1,6 @@
 // 思维链与同轮执行折叠块：以脑形图标、实时状态与左侧细竖线引导呈现本轮思考正文及关联工具链，
 // 思考正文超过预设高度后自动启用统一细滚动条并在流式思考时智能跟随底部，默认展开且点击标题一次收起或展开整轮过程。
-import { memo, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@lfaa/ui-primitives/client";
 import {
   IconBrain,
@@ -54,25 +54,35 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   toolCount = 0,
   live,
   isZh,
+  defaultOpen,
   children,
 }: {
-  /** 标题文案（动态跟随本轮最新操作或思考意图，不再固定写死「已思考」）。 */
+  /** 标题文案（流式时为「正在思考」等状态，完成后为「已思考」）。 */
   label: string;
-  /** 左侧图标语义类型，默认脑形图标，有工具操作时动态切换。 */
+  /** 左侧图标语义类型，默认脑形图标。 */
   iconKind?: RoundHeaderIconKind | undefined;
   /** 可选耗时文案（如「3 秒」）。 */
   durationText?: string | undefined;
   /** 本轮思考正文，支持流式逐段追加。 */
   reasoningText?: string | undefined;
-  /** 本轮包含的工具调用数：收起后在标题行提示，便于感知折叠内容。 */
+  /** 本轮包含的工具调用数：仅保留兼容签名，工具链现由独立 ToolGroupFold 承载。 */
   toolCount?: number | undefined;
-  /** 本轮是否仍在实时运行中：用于开启微光呼吸动效与流式贴底跟随。 */
+  /** 本轮是否仍在实时思考中：用于开启微光呼吸动效、流式贴底跟随与自动展开/收起。 */
   live: boolean;
   isZh: boolean;
-  /** 本轮关联的过程说明与工具链，随本轮思考块同步收起/展开。 */
+  /** 初始是否展开；默认展开着跑，用户可随时点击标题收起或重新展开。 */
+  defaultOpen?: boolean | undefined;
+  /** 可选附属内容。 */
   children?: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  const wasLiveRef = useRef(live);
+
+  // 新一轮实时思考启动时自动展开；结束后保持当前展开态，不强行收起，由用户随时点击控制。
+  useEffect(() => {
+    if (live && !wasLiveRef.current) setOpen(true);
+    wasLiveRef.current = live;
+  }, [live]);
   // 去掉部分推理模型偶发输出的 "(Thinking)" 前缀，保持思考正文清爽自然。
   const trimmed = (reasoningText?.trim() ?? "").replace(/^(?:\(Thinking\)|\[Thinking\])\s*/iu, "");
   const hasBody = trimmed.length > 0;

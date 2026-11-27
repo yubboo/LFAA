@@ -36,6 +36,7 @@ export {
   resolvePaneTransitionMs,
   usePanePresence,
 } from "./usePanePresence";
+export { useDismissibleLayer } from "./useDismissibleLayer";
 // 可见性感知轮询：后台标签页停表、回前台补一次，供工作台面板统一使用。
 export { useVisibleInterval } from "./useVisibleInterval";
 // 设置页通用外观与控件：页外壳、无边框分组、条目行、表单字段、危险组、开关、分段与可搜索下拉；供设置中心各功能页共用。

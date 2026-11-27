@@ -1,25 +1,11 @@
 // 验证共享限高滚动视口的溢出边缘计算、实时自动贴底与手动上滚暂停逻辑，以及 ThinkingBlock 的 SSR 渲染结构。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { measureBoundedScrollEdges, resolveBoundedScrollFollow } from "../client/conversation/useBoundedScroll";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, k) => String(k) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ThinkingBlock } = await import("../client/conversation/Thinking-Block");
 

@@ -1,36 +1,72 @@
-// 项目画布入口：选择或创建持久化画布，并负责载入与重试。
-import { useEffect, useState, type FormEvent } from "react";
+// 项目画布入口：自动载入或创建默认画布直达沉浸式编辑器，并复用左二栏同款创建项目弹窗与全屏对话抽屉。
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { IconFolderPlus } from "@tabler/icons-react";
 import type { BoardDetail } from "@lfaa/canvas/contract";
+import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
 import { boardsPath, createBoard, getBoard, getModels, listBoards, type CanvasListItem, type CanvasModel } from "../api/canvas-api";
 import { labels } from "../locales";
 import { CanvasEditor } from "./Canvas-Editor";
 import styles from "./Canvas.module.css";
 
-export default function CanvasWorkspace({ projectId, isZh }: { projectId: string | null; isZh: boolean }) {
+export default function CanvasWorkspace({
+  projectId,
+  isZh,
+  workbench,
+}: {
+  projectId: string | null;
+  isZh: boolean;
+  workbench?: WorkbenchClientService;
+}) {
   const t = labels[isZh ? "zh" : "en"];
+  const wbSnap = useSyncExternalStore(
+    workbench ? workbench.subscribe : () => () => {},
+    () => workbench?.getSnapshot() ?? null,
+    () => null,
+  );
+
+  const effectiveProjectId = projectId ?? wbSnap?.activeProjectId ?? wbSnap?.projects[0]?.id ?? null;
+  const activeProject = wbSnap?.projects.find((item) => item.id === effectiveProjectId);
+  const maximized = Boolean(wbSnap?.rightPanelMaximized);
+
   const [boards, setBoards] = useState<CanvasListItem[]>([]);
   const [models, setModels] = useState<CanvasModel[]>([]);
   const [boardId, setBoardId] = useState("");
   const [initial, setInitial] = useState<BoardDetail | null>(null);
-  const [name, setName] = useState("");
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const base = projectId ? boardsPath(projectId) : "";
-  const preference = "lfaa-canvas-board:" + projectId;
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+
+  const base = effectiveProjectId ? boardsPath(effectiveProjectId) : "";
+  const preference = "lfaa-canvas-board:" + effectiveProjectId;
   const path = boardId ? base + "/" + boardId : "";
 
+  // 有项目时自动进入上次画布或自动创建默认「未命名画布」，直达沉浸式画布不拦路。
   useEffect(() => {
-    if (!projectId) return;
+    if (!effectiveProjectId) return;
     const controller = new AbortController();
-    void listBoards(projectId, controller.signal).then((items) => {
+    setError("");
+    void listBoards(effectiveProjectId, controller.signal).then(async (items) => {
+      if (controller.signal.aborted) return;
+      if (items.length === 0) {
+        const created = await createBoard(effectiveProjectId, t.untitledBoard);
+        if (controller.signal.aborted) return;
+        setBoards([{ canvasId: created.canvasId, title: created.title }]);
+        setBoardId(created.canvasId);
+        return;
+      }
       setBoards(items);
       const remembered = localStorage.getItem(preference);
-      if (remembered && items.some((item) => item.canvasId === remembered)) setBoardId(remembered);
-    }).catch((cause: unknown) => { if (!controller.signal.aborted) setError(String(cause)); });
-    void getModels(controller.signal).then(setModels).catch((cause: unknown) => { if (!controller.signal.aborted) setError(String(cause)); });
+      const target = remembered && items.some((item) => item.canvasId === remembered)
+        ? remembered
+        : items[0]!.canvasId;
+      setBoardId(target);
+    }).catch((cause: unknown) => {
+      if (!controller.signal.aborted) setError(String(cause));
+    });
+
+    void getModels(controller.signal).then(setModels).catch(() => {});
     return () => controller.abort();
-  }, [projectId, preference, retry]);
+  }, [effectiveProjectId, preference, retry, t.untitledBoard]);
 
   useEffect(() => {
     if (!path) return;
@@ -39,45 +75,85 @@ export default function CanvasWorkspace({ projectId, isZh }: { projectId: string
     void getBoard(path, controller.signal).then((data) => {
       setInitial(data);
       localStorage.setItem(preference, data.board.canvasId);
-    }).catch((cause: unknown) => { if (!controller.signal.aborted) setError(String(cause)); });
+    }).catch((cause: unknown) => {
+      if (!controller.signal.aborted) setError(String(cause));
+    });
     return () => controller.abort();
   }, [path, preference, retry]);
 
-  async function create(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!projectId || !name.trim() || creating) return;
-    setCreating(true);
-    setError("");
+  async function handleCreateBoard() {
+    if (!effectiveProjectId) return;
     try {
-      const board = await createBoard(projectId, name.trim());
-      setBoards((items) => [...items, board]);
-      setBoardId(board.canvasId);
-      setName("");
+      const nextTitle = `${t.untitledBoard} ${boards.length + 1}`;
+      const created = await createBoard(effectiveProjectId, nextTitle);
+      setBoards((items) => [...items, { canvasId: created.canvasId, title: created.title }]);
+      setBoardId(created.canvasId);
     } catch (cause) {
       setError(String(cause));
-    } finally {
-      setCreating(false);
     }
   }
 
-  if (!projectId) return <div className={styles.start}><p>{t.noProject}</p></div>;
-  if (initial && initial.board.canvasId === boardId) {
-    return <CanvasEditor key={boardId} path={path} initial={initial} models={models} isZh={isZh}
-      onBack={() => { setBoardId(""); localStorage.removeItem(preference); }} />;
+  const projectDialog = createProjectOpen && wbSnap?.projectProvider?.renderCreateDialog
+    ? wbSnap.projectProvider.renderCreateDialog({
+        onCreated: (project) => {
+          setCreateProjectOpen(false);
+          workbench?.setActiveProject(project.id);
+        },
+        onClose: () => setCreateProjectOpen(false),
+      })
+    : null;
+
+  const renderFullscreenChat = wbSnap?.views.find((v) => v.id === "workspace")?.render;
+
+  if (!effectiveProjectId) {
+    return (
+      <div className={styles.start}>
+        <p className={styles.startHint}>{t.noProject}</p>
+        {wbSnap?.projectProvider?.renderCreateDialog && (
+          <button type="button" className={styles.createProjectBtn} onClick={() => setCreateProjectOpen(true)}>
+            <IconFolderPlus size={16} />
+            <span>{t.createProject}</span>
+          </button>
+        )}
+        {projectDialog}
+      </div>
+    );
   }
+
+  if (initial && initial.board.canvasId === boardId) {
+    return (
+      <>
+        <CanvasEditor
+          key={boardId}
+          path={path}
+          initial={initial}
+          boards={boards}
+          projectName={activeProject?.name ?? t.untitledProject}
+          models={models}
+          isZh={isZh}
+          maximized={maximized}
+          onSelectBoard={(id) => setBoardId(id)}
+          onCreateBoard={() => void handleCreateBoard()}
+          onCreateProject={wbSnap?.projectProvider?.renderCreateDialog ? () => setCreateProjectOpen(true) : undefined}
+          onRenamed={(title) => setBoards((list) => list.map((b) => b.canvasId === boardId ? { ...b, title } : b))}
+          renderFullscreenChat={renderFullscreenChat}
+        />
+        {projectDialog}
+      </>
+    );
+  }
+
   return (
     <div className={styles.start}>
-      <form className={styles.inline} onSubmit={(event) => void create(event)}>
-        <input maxLength={120} aria-label={t.title} placeholder={t.title} value={name} onChange={(event) => setName(event.target.value)} />
-        <button type="submit" disabled={!name.trim() || creating}>{t.create}</button>
-      </form>
-      {error && <div role="alert" className={styles.error}>{error} <button onClick={() => setRetry(retry + 1)}>{t.reload}</button></div>}
-      {boards.length === 0 && !boardId && <p>{t.empty}</p>}
-      {boards.length > 0 && <ul className={styles.boards}>
-        {boards.map((board) => <li key={board.canvasId}>
-          <button onClick={() => setBoardId(board.canvasId)}>{board.title}</button>
-        </li>)}
-      </ul>}
+      {error ? (
+        <div role="alert" className={styles.errorToast}>
+          <span>{error}</span>
+          <button type="button" onClick={() => setRetry((r) => r + 1)}>{t.reload}</button>
+        </div>
+      ) : (
+        <p className={styles.startHint}>{isZh ? "正在打开画布…" : "Opening canvas…"}</p>
+      )}
+      {projectDialog}
     </div>
   );
 }

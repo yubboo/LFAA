@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { IconX } from "@tabler/icons-react";
+import { usePanePresence } from "./usePanePresence";
 import styles from "./ConfirmDialog.module.css";
 
 /** 轻抖关键帧：幅度逐次收敛，读出「这里不能点外面」而不至于晃得难受。 */
@@ -43,6 +44,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
+  const mounted = usePanePresence(open, 160);
   const titleId = useId();
   const descId = useId();
   const dialogRef = useRef<HTMLElement>(null);
@@ -73,18 +75,22 @@ export function ConfirmDialog({
     };
   }, [open, nudge]);
 
-  if (!open) return null;
+  if (!mounted) return null;
+
+  const state = open ? "open" : "closed";
 
   const modalNode = (
     <div
       className={styles.backdrop}
+      data-state={state}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) nudge();
+        if (open && event.target === event.currentTarget) nudge();
       }}
     >
       <section
         ref={dialogRef}
         className={styles.dialog}
+        data-state={state}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}

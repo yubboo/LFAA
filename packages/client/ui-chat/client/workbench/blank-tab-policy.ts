@@ -2,17 +2,22 @@
 // 纯函数，供 RightWorkbenchPane 与单测共用，不依赖 React 与浏览器环境。
 import type { RightStageKind } from "./WorkbenchTabs";
 
-/** 右栏标签栏的真实内容标签计数（文件 / 辅助面板 / 子智能体 / 变更审查）。 */
+/** 右栏标签栏的真实内容标签计数（文件 / 辅助面板 / 子智能体 / 变更审查 / 插件标签如无限画布）。 */
 export interface WorkbenchTabCounts {
   fileTabs: number;
   auxTabs: number;
   subagentTabs: number;
   reviewTabOpen: boolean;
+  extensionTabs?: number;
 }
 
 /** 标签栏是否已有真实内容标签；有内容时空白占位就失去存在意义。 */
 export function hasContentTab(counts: WorkbenchTabCounts): boolean {
-  return counts.fileTabs > 0 || counts.auxTabs > 0 || counts.subagentTabs > 0 || counts.reviewTabOpen;
+  return counts.fileTabs > 0
+    || counts.auxTabs > 0
+    || counts.subagentTabs > 0
+    || counts.reviewTabOpen
+    || (counts.extensionTabs ?? 0) > 0;
 }
 
 /** 面板空着且没有浏览器标签时，自动补一个「新标签页」占位，避免只剩一个孤零零的「+」。 */
@@ -39,10 +44,15 @@ export function shouldDropBlankTabForContent(input: {
   browserOpen: boolean;
   browserTabs: number;
   browserBlank: boolean;
+  extensionActive?: boolean;
+  /** 用户主动点击「+」新建的空白标签必须保留，切到侧边聊天等标签时绝不自动删除。 */
+  manualBlankTab?: boolean;
 }): boolean {
+  if (input.manualBlankTab) return false;
   const contentStage = input.stageKind === "file"
     || input.stageKind === "review"
     || input.stageKind === "subagent"
-    || input.stageKind === "utility";
+    || input.stageKind === "utility"
+    || Boolean(input.extensionActive);
   return contentStage && input.browserOpen && input.browserTabs === 0 && input.browserBlank;
 }

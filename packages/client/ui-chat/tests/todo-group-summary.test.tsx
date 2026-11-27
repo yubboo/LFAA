@@ -1,7 +1,6 @@
 // 验证一轮里有多步操作时，活动摘要会并列真实动作，不再只显示最后一步或退回「N 项操作」。
 // 断言固定使用中文词典：CI（en-US）与本地（zh-CN）的 navigator.language 不同，不能让用例随宿主语言漂移。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,19 +8,6 @@ import { zhMessages } from "../client/locales.zh";
 import type { AgentStepItem } from "../client/store/chat-types";
 
 (globalThis as { React?: typeof React }).React = React;
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return {
-        format: "module",
-        shortCircuit: true,
-        source: "export default new Proxy({}, { get: (_, key) => String(key) });",
-      };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { AssistantTimeline } = await import("../client/conversation/AssistantTimeline");
 

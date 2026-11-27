@@ -219,6 +219,8 @@ export const ToolStepRow = memo(function ToolStepRow({
   }
 
   const formattedArgs = formatArgsPreview(step.argsPreview);
+  const showCommandResult = Boolean(command && (step.status === "done" || step.status === "error"));
+  const showTraceLink = Boolean(onOpenTrace && kind !== "read" && kind !== "file");
 
   return (
     <details className={styles.activityDisclosure}>
@@ -235,13 +237,6 @@ export const ToolStepRow = memo(function ToolStepRow({
             </div>
             <pre>{`$ ${command.command}`}</pre>
             {command.output && <pre className={detailStyles.output}>{command.output}</pre>}
-            {(step.status === "done" || step.status === "error") && (
-              <div className={detailStyles.commandResult} data-status={step.status}>
-                <StatusIcon size={13} aria-hidden="true" />
-                {step.status === "done" ? labels.commandSucceeded : labels.commandFailed}
-                {command.exitCode !== undefined && <span>{labels.exitCode} {command.exitCode}</span>}
-              </div>
-            )}
           </>
         ) : (
           <>
@@ -269,10 +264,21 @@ export const ToolStepRow = memo(function ToolStepRow({
           </>
         )}
         {step.detail && <pre className={detailStyles.output}>{step.detail}</pre>}
-        {onOpenTrace && kind !== "read" && kind !== "file" && (
-          <button type="button" className={detailStyles.traceLink} onClick={() => onOpenTrace(step.id)}>
-            {locale.isZh ? "查看" : "View"}
-          </button>
+        {(showTraceLink || showCommandResult) && (
+          <div className={detailStyles.detailFooter}>
+            {showTraceLink && onOpenTrace && (
+              <button type="button" className={detailStyles.traceLink} onClick={() => onOpenTrace(step.id)}>
+                {locale.isZh ? "查看" : "View"}
+              </button>
+            )}
+            {showCommandResult && command && (
+              <div className={detailStyles.commandResult} data-status={step.status}>
+                <StatusIcon size={13} aria-hidden="true" />
+                {step.status === "done" ? labels.commandSucceeded : labels.commandFailed}
+                {command.exitCode !== undefined && <span>{labels.exitCode} {command.exitCode}</span>}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </details>

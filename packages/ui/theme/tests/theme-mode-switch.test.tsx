@@ -1,6 +1,5 @@
 // 验证账号菜单里的三档外观开关：档位顺序、当前选中项、图标随解析出的明暗切换。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import React, { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,16 +8,6 @@ import type { AppearanceStore } from "../client/appearance-store";
 
 // Node 测试环境没有自动注入 React（项目走 classic JSX 运行时），先挂到全局。
 (globalThis as { React?: typeof React }).React = React;
-
-// 样式模块在 Node 里没有真实文件，统一替换成类名代理，保证组件能渲染出结构。
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ThemeModeQuickSwitch } = await import("../client/components/ThemeModeQuickSwitch");
 

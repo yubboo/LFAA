@@ -1,17 +1,7 @@
 // 验证「新建标签页」快捷键在工作台收起时也能生效：先把工作台展开，再切到浏览器标签舞台。
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import test from "node:test";
 import { Context } from "@deepseek-ai/cordis";
-
-registerHooks({
-  load(url, context, nextLoad) {
-    if (url.endsWith(".css")) {
-      return { format: "module", shortCircuit: true, source: "export default new Proxy({}, { get: (_, k) => String(k) });" };
-    }
-    return nextLoad(url, context);
-  },
-});
 
 const { ChatClientStore } = await import("../client/store/chat-store");
 const { registerChatShortcuts } = await import("../client/shortcut-actions");
