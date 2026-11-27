@@ -81,7 +81,6 @@ test("视图全部卸下后中央列回退欢迎页而不是崩溃", () => {
       snapshot,
       locale: locales.zh,
       mode: "chatgpt",
-      newChatSelected: false,
       workspaceNotice: "",
       isCompact: false,
       isRightMaximized: false,

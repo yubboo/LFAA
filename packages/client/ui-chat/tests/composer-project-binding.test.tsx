@@ -80,6 +80,8 @@ function renderComposerHtml(options: {
       setMediaRatio: noop,
       mediaStyle: "auto",
       setMediaStyle: noop,
+      removeAttachment: noop,
+      undoAttachmentInsert: () => false,
     },
     projects,
     workspaceMode: options.mode,

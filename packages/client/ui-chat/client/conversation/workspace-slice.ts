@@ -10,7 +10,8 @@ export function selectWorkspaceSlice(s: ChatStoreSnapshot) {
     loaded: s.loaded,
     draftProjectId: s.draftProjectId,
     draftWorktree: s.draftWorktree,
-    submittingMessage: s.submittingMessage,
+    // 快照里 submittingMessage 声明为可选；切片收窄成布尔，供只接受 boolean 的输入栏切片复用。
+    submittingMessage: s.submittingMessage === true,
     runningRunId: s.runningRunId,
     filePreviewTabs: s.filePreviewTabs,
     activeFilePreviewId: s.activeFilePreviewId,
@@ -18,7 +19,8 @@ export function selectWorkspaceSlice(s: ChatStoreSnapshot) {
     activeProfileId: s.activeProfileId,
     // 输入栏的 @ 提及、外部插入与排队消息都由这几项驱动，缺一会让输入框在挂载时报错。
     sessions: s.sessions,
-    pendingComposerInsert: s.pendingComposerInsert,
+    // 可选字段在切片里收窄成可空值：输入栏只接受 `null` 表示空，不接受 `undefined`。
+    pendingComposerInsert: s.pendingComposerInsert ?? null,
     queuedMessages: s.queuedMessages,
     permissionMode: s.permissionMode,
     reasoningLevel: s.reasoningLevel,

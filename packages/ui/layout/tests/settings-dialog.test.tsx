@@ -89,7 +89,6 @@ test("设置弹窗打开时中央工作区仍渲染背景视图", () => {
     locale: locales.zh,
     view: "workspace",
     mode: "chatgpt",
-    newChatSelected: false,
     workspaceNotice: "",
     isCompact: false,
     isRightMaximized: false,

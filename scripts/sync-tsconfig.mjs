@@ -103,11 +103,39 @@ writeFileSync(
   "utf8",
 );
 
+/**
+ * 找出 `src` 下自带 `package.json` 的独立工程目录。
+ * 内置技能里随包分发的第三方工程（如 stageshow）自带依赖与构建脚本，依赖不在 workspace 内，
+ * 纳入 workspace 类型检查只会把「找不到 vite/lucide-react」之类的跨工程错误当成本仓错误。
+ */
+function findNestedProjects(pkgDir) {
+  const found = [];
+  const walk = (dir, depth) => {
+    if (depth > 6) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name === "node_modules") continue;
+      const full = join(dir, entry.name);
+      if (existsSync(join(full, "package.json"))) {
+        found.push(relative(pkgDir, full).split(sep).join("/"));
+        continue;
+      }
+      walk(full, depth + 1);
+    }
+  };
+  const srcDir = join(pkgDir, "src");
+  if (existsSync(srcDir)) walk(srcDir, 0);
+  return found;
+}
+
 // 3) 每包 tsconfig：rootDir src → outDir lib/types，references 对应 workspace 依赖
 //    带 contract 的包把 rootDir 上提到包根，契约才能编译进 lib/types/contract。
 for (const pkg of packages) {
   const include = ['"src"'];
   if (pkg.hasContract) include.push('"contract"');
+  const nested = findNestedProjects(pkg.dir);
+  const excludeBlock = nested.length > 0
+    ? `,\n  "exclude": [${nested.map((dir) => `"${dir}"`).join(", ")}]`
+    : "";
   const references = pkg.deps
     .map((name) => byName.get(name))
     .filter(Boolean)
@@ -135,7 +163,7 @@ for (const pkg of packages) {
     "outDir": "lib/types",
     "types": ["node"]${isVendor ? "," : ""}
 ${strictBlock}  },
-  "include": [${include.join(", ")}]${refBlock}
+  "include": [${include.join(", ")}]${excludeBlock}${refBlock}
 }
 `,
     "utf8",

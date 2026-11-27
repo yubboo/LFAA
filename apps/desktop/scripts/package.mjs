@@ -1,10 +1,9 @@
 // 桌面安装包构建：全量构建 → 生成 staging（真实文件、无符号链接）→ electron-builder 出 NSIS 安装包。
 // 与 DSH 一致：桌面端的构建/打包脚本、配置、资源都在 apps/desktop 内，根目录只做转发。
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 const APP_DIR = resolve(import.meta.dirname, "..");
 const ROOT = resolve(APP_DIR, "..", "..");
@@ -66,14 +65,37 @@ function findPackageRoot(entryFile, specifier) {
     const manifestPath = join(dir, "package.json");
     if (existsSync(manifestPath)) {
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^\uFEFF/u, ""));
+      // dist 下常有只标 "type" 的子包清单（没有 name），名字对不上就继续往上找真正的包根。
       if (manifest.name === specifier) return { dir, manifest };
-      return { dir, manifest };
     }
     const parent = dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
   throw new Error(`无法定位依赖包根目录：${specifier}`);
+}
+
+/**
+ * 解析已安装依赖的包目录。
+ * 两个坑都要绕开：一是有的包（如 @modelcontextprotocol/sdk）根导出只有类型、没有可 require 的入口；
+ * 二是 pnpm 的包目录是符号链接，只有真实目录的 node_modules 下才有兄弟依赖。
+ * 因此统一按真实目录逐级向上查 node_modules，而不是要求解析出入口文件。
+ */
+function resolvePackageDir(fromDir, specifier) {
+  let dir;
+  try {
+    dir = realpathSync(fromDir);
+  } catch {
+    dir = fromDir;
+  }
+  for (let depth = 0; depth < 12; depth += 1) {
+    const candidate = join(dir, "node_modules", ...specifier.split("/"));
+    if (existsSync(join(candidate, "package.json"))) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
 }
 
 /** 从宿主应用的生产依赖出发收集闭包：从每个包自己的目录按包名解析，兼容 pnpm 的链接布局。 */
@@ -91,7 +113,6 @@ function collectPackages() {
       const manifestPath = join(packageEntry.dir, "package.json");
       if (!existsSync(manifestPath)) continue;
       const manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^\uFEFF/u, ""));
-      const requireFrom = createRequire(pathToFileURL(manifestPath));
       const names = [
         ...Object.keys(manifest.dependencies ?? {}),
         ...Object.keys(manifest.optionalDependencies ?? {}),
@@ -99,13 +120,10 @@ function collectPackages() {
       ];
       for (const dependency of names) {
         if (BUILD_ONLY.has(dependency) || HOST_UNNEEDED.has(dependency) || packages.has(dependency)) continue;
-        try {
-          const entryFile = requireFrom.resolve(dependency);
-          packages.set(dependency, { dir: findPackageRoot(entryFile, dependency).dir });
-          changed = true;
-        } catch {
-          // 可选依赖缺失或仅声明 peer 而未安装：交给 staging 自检暴露，不在这里静默假设。
-        }
+        const dir = resolvePackageDir(packageEntry.dir, dependency);
+        if (!dir) continue;
+        packages.set(dependency, { dir });
+        changed = true;
       }
     }
   }

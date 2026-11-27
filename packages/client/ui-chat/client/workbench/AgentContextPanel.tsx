@@ -7,6 +7,7 @@ import {
 import { useVisibleInterval } from "@lfaa/ui-primitives/client";
 import { RightBrowserPane } from "@lfaa/client-ui-browser/client";
 import type { ChatClientStore } from "../store/chat-store";
+import type { ChatStoreSnapshot } from "../store/chat-types";
 import { useChatSelector } from "../store/use-chat-selector";
 import type { ChatLocaleMessages } from "../locales";
 import { RightSideAskPane } from "./RightSideAskPane";

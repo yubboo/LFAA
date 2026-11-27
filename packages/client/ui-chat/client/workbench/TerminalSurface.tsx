@@ -17,7 +17,8 @@ export function TerminalSurface({
   isZh: boolean;
   /** 当前渲染位置：决定切换按钮的文案与目标。 */
   placement: TerminalPlacement;
-  workbench: WorkbenchClientService;
+  /** 工作台服务：位置切换要它改底部面板的展开状态；缺失时只渲染终端本体。 */
+  workbench?: WorkbenchClientService | undefined;
   /** 切回右栏时由调用方把「终端」标签重新打开（底部面板没有标签栏可依赖）。 */
   onRequestRightTab?: () => void;
   /** 关闭当前终端（底部面板用它收起；右栏标签有自带的 ×）。 */
@@ -31,7 +32,7 @@ export function TerminalSurface({
     const next: TerminalPlacement = placement === "bottom" ? "right" : "bottom";
     writeTerminalPlacement(next);
     // 底部面板的展开状态由工作台服务持有：切到底部就展开，切回右栏就收起。
-    workbench.setBottomPanelOpen(next === "bottom", true);
+    workbench?.setBottomPanelOpen(next === "bottom", true);
     if (next === "right") onRequestRightTab?.();
   };
 
@@ -44,9 +45,12 @@ export function TerminalSurface({
       <header className={styles.bar}>
         <span className={styles.title}>{isZh ? "终端" : "Terminal"}</span>
         <span className={styles.hint}>{current === placement ? "" : ""}</span>
-        <button type="button" className={styles.moveBtn} onClick={switchPlacement}>
-          {label}
-        </button>
+        {/* 位置切换依赖工作台服务；没有服务时不渲染一个点不动的按钮。 */}
+        {workbench && (
+          <button type="button" className={styles.moveBtn} onClick={switchPlacement}>
+            {label}
+          </button>
+        )}
         {onClose && (
           <button type="button" className={styles.closeBtn} aria-label={isZh ? "关闭终端" : "Close terminal"} onClick={onClose}>
             ×

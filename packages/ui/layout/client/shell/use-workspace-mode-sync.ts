@@ -2,7 +2,7 @@
 // 从 WorkbenchShell 抽出，避免 Shell 文件继续变长，同时让「新聊天 / 切模式」两条入口共用同一份规则。
 import { useCallback, useEffect, useRef } from "react";
 import type { WorkbenchClientService } from "../workbench-service";
-import type { WorkspaceMode } from "./navigation";
+import type { WorkspaceMode } from "../navigation/navigation";
 
 export function useWorkspaceModeSync(
   service: WorkbenchClientService,
