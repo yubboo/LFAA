@@ -11,51 +11,10 @@
   color: var(--color-ink);
 }
 
-.diagram {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* React Flow 默认背景用自带的 #141414 / #fff，强制回落到主题语义变量，与壳层和预设色调完全融合。 */
-.diagram :global(.react-flow) {
-  background: var(--color-shell);
-}
-
-/* 主题背景图为图片时画布舞台与空态让出底色，由外层 ContextPanel 薄纱统一透出壁纸。 */
+/* 主题背景图为图片时画布外框与空态让出底色，由外层 ContextPanel 薄纱统一透出壁纸。 */
 :global(html[data-app-bg-workspace="image"]) :is(.editor, .start),
-:global(html[data-app-bg-workspace="image"]) .diagram :global(.react-flow),
-:global(html[data-settings-open="true"][data-app-bg-settings="image"]) :is(.editor, .start),
-:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .diagram :global(.react-flow) {
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) :is(.editor, .start) {
   background: transparent;
-}
-
-.diagram :global(.react-flow__background) {
-  opacity: 0.35;
-}
-
-/* 叠加三组同坐标的点阵，让色彩从左上暖区过渡到青蓝区。 */
-.diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm) {
-  opacity: 0.87;
-  pointer-events: none;
-}
-
-.emptyGridBlue {
-  mask-image: radial-gradient(ellipse 58% 60% at 56% 47%, var(--color-ink) 12%, color-mix(in srgb, var(--color-ink) 64%, transparent) 46%, transparent 98%);
-}
-
-.emptyGridCyan {
-  mask-image: radial-gradient(ellipse 44% 46% at 42% 41%, var(--color-ink) 13%, color-mix(in srgb, var(--color-ink) 52%, transparent) 48%, transparent 96%);
-}
-
-.emptyGridWarm {
-  mask-image: radial-gradient(ellipse 24% 28% at 34% 25%, var(--color-ink) 5%, color-mix(in srgb, var(--color-ink) 55%, transparent) 40%, transparent 96%);
-}
-
-/* 手势期间只暂停流光，曲线和节点继续跟随 React Flow 的位置。 */
-.diagram:is([data-viewport-moving="true"], [data-node-drag="true"]) [data-canvas-edge-pulse] {
-  visibility: hidden;
-  animation-play-state: paused;
 }
 
 .start {

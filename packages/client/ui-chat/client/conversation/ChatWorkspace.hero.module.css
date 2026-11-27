@@ -28,7 +28,8 @@
   letter-spacing: 0.01em;
   line-height: 1.4;
   text-align: center;
-  text-wrap: balance;
+  /* 避免右侧栏展开/收起过渡期间 text-wrap: balance 每帧重算换行导致标题闪烁。 */
+  text-wrap: wrap;
 }
 
 /* 项目名是标题里的变量：浅底、同字号，用点状下划线提示“这是当前项目”，点击可切换。 */
@@ -36,10 +37,12 @@
   position: relative;
   display: inline-block;
   max-width: 100%;
+  vertical-align: baseline;
 }
 
 .projectName {
   display: inline-block;
+  max-width: 100%;
   margin-inline: 0.04em;
   padding: 0.02em 0.3em;
   border: 0;
@@ -49,11 +52,13 @@
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
   text-decoration: underline dotted var(--color-muted);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
   cursor: pointer;
   transition: background-color 140ms ease, color 140ms ease;
 }

@@ -29,18 +29,22 @@ export function CanvasTemplates({
     <div className={styles.overlay}>
       {/* 提示层透传鼠标，文字周围的空白区域也能双击打开节点菜单。 */}
       <p className={styles.hintRow}>
-        <span>{t.createNodeGesture}</span>{" "}
-        <IconPointer2 className={styles.hintPointer} size={34} color="var(--color-ink)" stroke={1.65} fill={`url(#${pointerGradient})`} aria-hidden="true">
-          <defs>
-            <linearGradient id={pointerGradient} x1="0" y1="0" x2="0.58" y2="0.92">
-              <stop offset="3%" stopColor="var(--color-warning)" />
-              <stop offset="25%" stopColor="var(--color-warning)" />
-              <stop offset="42%" stopColor="var(--color-teal)" />
-              <stop offset="58%" stopColor="var(--color-info)" />
-              <stop offset="100%" stopColor="var(--color-link)" />
-            </linearGradient>
-          </defs>
-        </IconPointer2>{" "}
+        <span>{t.createNodeGesture}</span>
+        <span className={styles.hintPointerWrap} aria-hidden="true">
+          <span className={styles.rippleOuter} />
+          <span className={styles.rippleInner} />
+          <IconPointer2 className={styles.hintPointer} size={28} color="var(--color-on-accent)" stroke={1.9} fill={`url(#${pointerGradient})`}>
+            <defs>
+              <linearGradient id={pointerGradient} x1="0" y1="0" x2="0.65" y2="0.95">
+                <stop offset="0%" stopColor="var(--color-warning)" />
+                <stop offset="28%" stopColor="var(--color-warning)" />
+                <stop offset="48%" stopColor="var(--color-teal)" />
+                <stop offset="72%" stopColor="var(--color-info)" />
+                <stop offset="100%" stopColor="var(--color-link)" />
+              </linearGradient>
+            </defs>
+          </IconPointer2>
+        </span>
         <span>{t.createNodeAction}</span>
       </p>
 

@@ -5,13 +5,14 @@ import { CanvasEdge } from "./Canvas-Edge";
 import { isLibraryDrag } from "./canvas-library-drag";
 import { GraphNode, type FlowNode } from "./Graph-Node";
 import styles from "./Canvas.module.css";
+import viewportStyles from "./Canvas-Viewport.module.css";
 
 const nodeTypes = { canvas: GraphNode };
 const edgeTypes = { canvasEdge: CanvasEdge };
 const emptyGridLayers = [
-  { key: "blue", color: "var(--color-link)", className: styles.emptyGridBlue ?? "" },
-  { key: "cyan", color: "var(--color-info)", className: styles.emptyGridCyan ?? "" },
-  { key: "warm", color: "var(--color-warning)", className: styles.emptyGridWarm ?? "" },
+  { key: "blue", color: "var(--color-link)", className: viewportStyles.emptyGridBlue ?? "" },
+  { key: "cyan", color: "var(--color-info)", className: viewportStyles.emptyGridCyan ?? "" },
+  { key: "warm", color: "var(--color-warning)", className: viewportStyles.emptyGridWarm ?? "" },
 ];
 
 type ViewportProps = Pick<ReactFlowProps<FlowNode, Edge>,
@@ -100,7 +101,7 @@ export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesCha
       role="region"
       aria-label={label}
       tabIndex={0}
-      className={styles.diagram}
+      className={viewportStyles.diagram}
       data-node-drag={movingNodes.size ? "true" : undefined}
       onDragOver={(event) => {
         if (!isLibraryDrag(event.dataTransfer)) return;
@@ -159,9 +160,9 @@ export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesCha
         colorMode={colorMode}
         proOptions={{ hideAttribution: true }}
       >
-        {showGrid && <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="var(--color-muted)" />}
+        {showGrid && <Background variant={BackgroundVariant.Dots} gap={22} size={1.0} color="var(--color-muted)" />}
         {showGrid && nodes.length === 0 && emptyGridLayers.map(({ key, color, className }) => (
-          <Background key={key} id={`${emptyGridId}-${key}`} className={className} variant={BackgroundVariant.Dots} gap={24} size={1.85} color={color} bgColor="transparent" />
+          <Background key={key} id={`${emptyGridId}-${key}`} className={className} variant={BackgroundVariant.Dots} gap={22} size={1.35} color={color} bgColor="transparent" />
         ))}
         {showMinimap && <MiniMap position="bottom-left" className={styles.minimap} pannable zoomable />}
       </ReactFlow>

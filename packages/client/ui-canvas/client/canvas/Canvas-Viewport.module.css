@@ -1,0 +1,67 @@
+/* React Flow 视口与空画布中央聚光点阵样式：深/浅双主题与壁纸背景模式自适应，严禁写死色值。 */
+.diagram {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* React Flow 默认背景用自带的 #141414 / #fff，强制回落到主题语义变量，与壳层和预设色调完全融合。 */
+.diagram :global(.react-flow) {
+  background: var(--color-shell);
+}
+
+/* 主题背景图为图片时画布舞台让出底色，由外层 ContextPanel 薄纱统一透出壁纸。 */
+:global(html[data-app-bg-workspace="image"]) .diagram :global(.react-flow),
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .diagram :global(.react-flow) {
+  background: transparent;
+}
+
+/* 基础点阵保持极轻克制，深/浅主题与壁纸模式下均不喧宾夺主。 */
+.diagram :global(.react-flow__background) {
+  opacity: 0.18;
+}
+
+:global(html[data-resolved-theme="light"]) .diagram :global(.react-flow__background) {
+  opacity: 0.24;
+}
+
+:global(html[data-app-bg-workspace="image"]) .diagram :global(.react-flow__background),
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .diagram :global(.react-flow__background) {
+  opacity: 0.14;
+}
+
+/* 空画布中央局部聚光点阵：仅在中央提示区域呈现暖橙 → 青蓝渐变光晕，外围自然消散至无。 */
+.diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm) {
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+:global(html[data-resolved-theme="light"]) .diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm) {
+  opacity: 0.62;
+}
+
+:global(html[data-app-bg-workspace="image"]) .diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm),
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .diagram :is(.emptyGridBlue, .emptyGridCyan, .emptyGridWarm) {
+  opacity: 0.58;
+}
+
+.emptyGridBlue {
+  -webkit-mask-image: radial-gradient(ellipse 25% 27% at 53% 54%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 52%, transparent) 44%, transparent 78%);
+  mask-image: radial-gradient(ellipse 25% 27% at 53% 54%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 52%, transparent) 44%, transparent 78%);
+}
+
+.emptyGridCyan {
+  -webkit-mask-image: radial-gradient(ellipse 20% 24% at 49% 47%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 56%, transparent) 42%, transparent 75%);
+  mask-image: radial-gradient(ellipse 20% 24% at 49% 47%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 56%, transparent) 42%, transparent 75%);
+}
+
+.emptyGridWarm {
+  -webkit-mask-image: radial-gradient(ellipse 14% 18% at 43% 38%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 54%, transparent) 38%, transparent 72%);
+  mask-image: radial-gradient(ellipse 14% 18% at 43% 38%, var(--color-ink) 0%, color-mix(in srgb, var(--color-ink) 54%, transparent) 38%, transparent 72%);
+}
+
+/* 手势期间只暂停流光，曲线和节点继续跟随 React Flow 的位置。 */
+.diagram:is([data-viewport-moving="true"], [data-node-drag="true"]) [data-canvas-edge-pulse] {
+  visibility: hidden;
+  animation-play-state: paused;
+}

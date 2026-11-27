@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**69 个包、3193 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**69 个包、3194 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -75,7 +75,7 @@ lfaa/
 │   ├── standards/  (4 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (506 个文件)
-├── packages/  (2348 个文件)
+├── packages/  (2349 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -100,7 +100,7 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (672 个文件)
+│   ├── client/  (673 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -120,10 +120,10 @@ lfaa/
 │   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (66 个文件)
-│   │   │   ├── client/  (57 个文件)
+│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (67 个文件)
+│   │   │   ├── client/  (58 个文件)
 │   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── canvas/  (37 个文件)
+│   │   │   │   ├── canvas/  (38 个文件)
 │   │   │   │   ├── previs/  (6 个文件)
 │   │   │   │   └── projects/  (10 个文件)
 │   │   │   ├── src/  (1 个文件)
@@ -1099,6 +1099,7 @@ lfaa/
 - `Canvas-Tools.tsx` — 无限画布左侧主工具栏及面板装配，复用资料库、节点、模板与运行命令。
 - `Canvas-Top-Bar.module.css` — 画布顶部多画布标签栏样式：对齐参考图「项目名 | 画布 1 | [画布 2 ···] +」布局，全量消费主题语义变量。
 - `Canvas-Top-Bar.tsx` — 画布顶部多画布标签栏：支持「< | 项目名 | 画布 1 | [画布 2 ···] + 列表」，··· 菜单含新窗口打开、重命名、复制与删除。
+- `Canvas-Viewport.module.css` — React Flow 视口与空画布中央聚光点阵样式：深/浅双主题与壁纸背景模式自适应，严禁写死色值。
 - `Canvas-Viewport.tsx` — React Flow 交互视图：拖动期间只更新渲染位置，落点才交给画布文档。
 - `Canvas-Workspace.tsx` — 项目画布入口：默认展示「我的项目」创建与管理大厅，新建或选择项目后同步左二栏并自动绑定进入无限画布编辑器。
 - `Canvas.module.css` — 沉浸式无限画布主样式：浮层胶囊、精致节点卡片、流光贝塞尔连线与底部控制条，全量使用主题语义变量。
