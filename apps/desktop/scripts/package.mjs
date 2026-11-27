@@ -29,6 +29,16 @@ const BUILD_ONLY = new Set(["vite", "esbuild", "rollup", "typescript", "tsx", "t
  */
 const HOST_UNNEEDED = new Set(["react", "react-dom", "scheduler", "@tabler/icons-react", "@tabler/icons"]);
 
+/**
+ * electron-builder 打包时要从 GitHub Releases 取 Electron 运行时与 NSIS 工具；
+ * 这些地址在国内网络下常整段超时（表现为 Timeout awaiting 'request'），
+ * 因此未显式配置镜像时改走 npmmirror；有环境变量时以环境变量为准。
+ */
+const DOWNLOAD_MIRRORS = {
+  ELECTRON_MIRROR: "https://npmmirror.com/mirrors/electron/",
+  ELECTRON_BUILDER_BINARIES_MIRROR: "https://npmmirror.com/mirrors/electron-builder-binaries/",
+};
+
 function run(command, args, label, options = {}) {
   console.log(`\n▸ ${label}`);
   const result = spawnSync(command, args, { cwd: ROOT, stdio: "inherit", ...options });
@@ -280,7 +290,11 @@ function main() {
     : zipOnly
       ? "electron-builder（免安装 zip）"
       : "electron-builder（NSIS + 免安装 zip）";
-  run(process.execPath, builderArgs, label, { cwd: APP_DIR });
+  const builderEnv = { ...process.env };
+  for (const [key, value] of Object.entries(DOWNLOAD_MIRRORS)) {
+    if (!builderEnv[key]) builderEnv[key] = value;
+  }
+  run(process.execPath, builderArgs, label, { cwd: APP_DIR, env: builderEnv });
 
   const artifacts = existsSync(RELEASE_DIR)
     ? readdirSync(RELEASE_DIR, { withFileTypes: true }).map((entry) => entry.name)
