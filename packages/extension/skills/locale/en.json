@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Skills",
+    "description": "Loads skill instructions on demand and installs skills from Git."
+  }
+}

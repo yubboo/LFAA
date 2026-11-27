@@ -22,6 +22,7 @@ import { useWorkbenchSummary } from "./useWorkbenchSummary";
 import { useWorkbenchTabClose } from "./useWorkbenchTabClose";
 import { useWorkbenchSessionState } from "./useWorkbenchSessionState";
 import { useWorkbenchAuxTabs } from "./useWorkbenchAuxTabs";
+import { useWorkbenchTabs } from "./useWorkbenchTabs";
 import { useWorkbenchBlankTab } from "./useWorkbenchBlankTab";
 import { shouldBootstrapBlankTab, shouldDropBlankTabForContent } from "./blank-tab-policy";
 import { useWorkbenchOpeners } from "./useWorkbenchOpeners";
@@ -157,6 +158,7 @@ export function RightWorkbenchPane({
   const activeBrowserTab = browserTabs.find((tab) => tab.active);
   const browserIsBlank = activeBrowserTab ? !activeBrowserTab.url || activeBrowserTab.url === "about:blank" : !browserInitialUrl;
   const showStartPage = stageKind === "welcome" || (stageKind === "browser" && browserIsBlank);
+  const extension = useWorkbenchTabs(workbench, boundProjectId, locale.isZh, state.rightPanelRequest);
 
   // 辅助面板只在与主舞台并列时出现；文件树已移到左二「项目工作区」，右栏不再承载它。
   const effectiveAuxTab = stageKind === "utility" ? activeAuxTab : null;
@@ -176,8 +178,8 @@ export function RightWorkbenchPane({
   });
 
   useEffect(() => {
-    onStageWideChange?.(stageKind !== "welcome" || effectiveAuxTab !== null);
-  }, [effectiveAuxTab, onStageWideChange, stageKind]);
+    onStageWideChange?.(extension.active || stageKind !== "welcome" || effectiveAuxTab !== null);
+  }, [effectiveAuxTab, extension.active, onStageWideChange, stageKind]);
 
   useWorkbenchRequests({
     request: state.rightPanelRequest,
@@ -269,6 +271,7 @@ export function RightWorkbenchPane({
     browserInitialUrl, browserExternalState,
     agentRunning: state.agentRunning, browserAutomationActive: state.browserAutomationActive,
     browserActivity: state.browserActivity, devtoolsRequest, showStartPage,
+    extensionShortcuts: extension.shortcuts,
     activeBrowserTabId: activeBrowserTab?.tabId, jobs, subagents, auxPane, renderAuxBody,
     onCloseAux: () => hideAuxTab(),
     onOpenUrl: handleOpenUrl,
@@ -301,14 +304,14 @@ export function RightWorkbenchPane({
   return (
     <div className={styles.workbench} data-layout={layoutMode}>
       <WorkbenchTopBar
-        tabProps={buildPaneTabProps({
-          isZh: locale.isZh, stageKind, auxTabs, auxTitles, activeAuxTab, fileTabs, activeFileTab,
+        tabProps={{ ...buildPaneTabProps({
+          isZh: locale.isZh, stageKind: extension.active ? "welcome" : stageKind, auxTabs, auxTitles, activeAuxTab, fileTabs, activeFileTab,
           browserOpen, browserTabs, browserIsBlank, reviewTabOpen, reviewMessageId,
           subagentTabs, activeSubagentTabId, rightStageKind: state.rightStageKind,
           store, workbench, hideAuxTab, openAuxTab, closeAuxTab, closeAuxTabAndMaybeCollapse,
           closeFileTab, closeBrowserTab, handleActivateBrowserTab, closeReviewTab,
           setReviewTabOpen, selectSubagentTab, closeSubagentTab, openNewBrowserTab, closeBrowserTabsExcept,
-        })}
+        }), extensionTabs: extension.tabs, onLeaveExtension: extension.leave }}
         actionProps={buildPaneActionProps({
           isZh: locale.isZh, store, projectId: boundProjectId, projectName: boundProjectName ?? undefined,
           jobs, subagents, compact, rightPanelMaximized, openReview, setSelectedJobId, openAux,
@@ -320,6 +323,7 @@ export function RightWorkbenchPane({
       <PaneStage
         splitAreaRef={splitAreaRef}
         stageProps={stageProps}
+        extensionContent={extension.content}
         rail={rail}
         dock={workbench && <TerminalDockPane sessionId={sessionId} isZh={locale.isZh} workbench={workbench} />}
       />

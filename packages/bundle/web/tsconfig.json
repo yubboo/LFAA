@@ -40,6 +40,7 @@
     { "path": "../../host/terminal" },
     { "path": "../../guard/timeout-policy" },
     { "path": "../../media/tool-media" },
+    { "path": "../../media/canvas" },
     { "path": "../../schedule/tool-schedule" },
     { "path": "../../core/tool-todo" },
     { "path": "../../core/tools" },

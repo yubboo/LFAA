@@ -21,6 +21,9 @@
   --color-topbar: rgb(var(--tint-topbar-rgb) / 0.9);
   --color-surface: rgb(var(--tint-surface-rgb) / 0.96);
   --color-ink: var(--user-fg, #171717);
+  /* 文字三档：正文 --color-ink 最强；过程标题与动作动词 --color-ink-soft 次之；
+     目标、命令、耗时等元信息 --color-muted 最弱。三档数值按对比度约 17:1 / 9:1 / 5:1（浅色）成对定义。 */
+  --color-ink-soft: #45494e;
   --color-muted: var(--tint-muted);
   --color-danger: #b3261e;
   /* 状态与语义色：浅色用深色值保证正文对比度，深色在下方成对覆盖。 */
@@ -127,6 +130,7 @@ html[data-resolved-theme="dark"] {
   --color-topbar: rgb(var(--tint-topbar-rgb) / 0.9);
   --color-surface: rgb(var(--tint-surface-rgb) / calc(0.82 + var(--glass-contrast) * 0.16));
   --color-ink: var(--user-fg, #f3f3f3);
+  --color-ink-soft: #c2c4c7;
   --color-muted: var(--tint-muted);
   --color-danger: #f2b8b5;
     --color-success: #4ade80;
@@ -200,6 +204,7 @@ html[data-theme="system"]:not([data-resolved-theme="light"]) {
     --color-topbar: rgb(var(--tint-topbar-rgb) / 0.9);
     --color-surface: rgb(var(--tint-surface-rgb) / calc(0.82 + var(--glass-contrast) * 0.16));
     --color-ink: var(--user-fg, #f3f3f3);
+    --color-ink-soft: #c2c4c7;
     --color-muted: var(--tint-muted);
   --color-danger: #f2b8b5;
     --color-success: #4ade80;

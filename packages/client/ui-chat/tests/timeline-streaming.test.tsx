@@ -130,13 +130,27 @@ test("完成态展示本轮 token 用量，没有用量时不显示", () => {
   assert.doesNotMatch(noUsage.html, /tokens/u);
 });
 
-test("完成后进度正文和步骤默认仍可见", () => {
+test("完成后过程行收进总行，正文段落仍可见", () => {
   const { html } = renderTimeline({ isStreaming: false, progressText: "我先检查文件。", content: "检查完成。", steps: [
     { id: "read-1", iteration: 1, phase: "act", status: "done", title: "读取文件", toolName: "read_file", textOffset: 7, timestamp: Date.now() },
+    { id: "cmd-1", iteration: 1, phase: "act", status: "done", title: "执行命令", toolName: "run_command",
+      commandTrace: { command: "git status" }, textOffset: 7, timestamp: Date.now() },
   ] });
+  // 正文（过程说明与最终答复）不受折叠影响。
   assert.match(html, /我先检查文件。/u);
   assert.match(html, /检查完成。/u);
-  assert.doesNotMatch(html, /hidden="" class="flow process"/u);
+  // 轮次标题与工具链折进总行，默认不展开。
+  assert.match(html, /class="roundActivity" hidden=""/u);
+  // 总行标题按动作类别报数量，不把内部工具名当标题。
+  assert.match(html, /1 command, 1 read/u);
+});
+
+test("流式运行中过程行保持展开", () => {
+  const { html } = renderTimeline({ isStreaming: true, steps: [
+    { id: "cmd-1", iteration: 1, phase: "act", status: "running", title: "执行命令", toolName: "run_command",
+      commandTrace: { command: "git status" }, timestamp: Date.now() },
+  ] });
+  assert.doesNotMatch(html, /class="roundActivity" hidden=""/u);
 });
 
 test("文件活动保留文件入口，命令活动提供轨迹入口", () => {

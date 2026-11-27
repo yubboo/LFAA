@@ -90,6 +90,7 @@ export interface ChatLocaleMessages {
   addContextMenuTitle: string;
   ctxFile: string;
   ctxFolder: string;
+  ctxImage: string;
   ctxMention: string;
   ctxActions: string;
   ctxBrowser: string;

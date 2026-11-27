@@ -49,6 +49,7 @@ export const SETTINGS_CATALOG: SettingsCatalogGroup[] = [
     items: [
       { viewId: "settings:browser", labelZh: "浏览器", labelEn: "Browser", icon: "map" },
       { viewId: "settings:connectors", labelZh: "连接器", labelEn: "Connectors", icon: "settings" },
+      { viewId: "settings:plugins", labelZh: "内置插件", labelEn: "Built-in plugins", icon: "settings" },
     ],
   },
 ];

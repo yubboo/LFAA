@@ -1,6 +1,6 @@
 # 插件分层与模式预设
 
-状态：**模型已定（DEV-000208 / 000209）；全局清单已从 16 项扩到 34 项，P0 全部落地，P1 进行中（DEV-000274 ~ 000289）**。
+状态：**P0/P1 已落地（DEV-000647）：只读清单投影 + 设置中心「内置插件」页；Loader 全量装配与启停闭环（P2/P3）待排期**。
 
 ## 1. 两层结构（对齐 DSH）
 
@@ -126,6 +126,15 @@
 ### P2 · 生态与观测
 
 `mcp-client`、`lsp`、`workflow` / `tool-workflow`、`ptc-runtime`、`typert-*`、`otel`、`product-analytics`、`open-in-app`、`document`、`acp` / `sdk`。
+
+### 3.1 只读清单与设置页（DEV-000647）
+
+- `GET /api/plugins/inventory`（`packages/extension/plugins/src/inventory/plugin-inventory.ts`）每次现读 `ctx.loader.entries()`，跳过 group 条目；只有根 Fiber 失败时才带 `diagnostic`；bundle 静态装配的模块按 `providedModules` 顺序补在前面，相位记为 active。
+- 显示元数据来自包内 `locale/zh.json` 与 `locale/en.json` 的 `meta.title` / `meta.description`（`catalog/package-meta.ts`）；缺 locale 时回落 `package.json.description` 并标 `source: package`。
+- 设置中心「内置插件」页（`packages/client/ui-plugins/client/inventory/`）只读：会话插件按当前预设分组（可切预设），全局插件默认折叠；卡片折叠显示标题、两行描述与条目 id，展开显示完整名称、来自、配置状态、运行状态；搜索覆盖标题、描述、包名与条目 id。
+- 38 个插件全部是 Cordis Loader 条目（id 即稳定短名，状态取真实 Fiber 相位）；多插件包用默认导出的组合 bundle 装载（`web` / `goal` / `compaction` / `agent-profile`），`sandbox` 默认只挂策略、本地后端仍由根上下文提供。
+- 每个条目展开后可「启用 / 停用」：停用写入 profile 的 `.plugin-manager/builtin-disabled.json`，并立即 `entry.update({ disabled })` 让 Loader 卸载；启动时由联线插件应用该清单，重启后保持。
+- 函数型配置由联线插件在装配完成后经 setter 注入；安装记录的名称与描述取自包内 locale 元数据，`pnpm check` 的 `plugin-locale-meta` 会拦住缺双语 meta 的插件包。
 
 ## 4. 模式预设（已实现数据）
 

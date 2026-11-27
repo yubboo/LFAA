@@ -141,3 +141,44 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* 手机端（≤767px）改成贴底弹层：整宽、上圆角、贴在安全区上，按钮仍然只需一次点击。 */
+@media (max-width: 767px) {
+  .backdrop {
+    align-items: end;
+    justify-items: stretch;
+    padding: 0;
+  }
+
+  .dialog {
+    width: 100%;
+    padding: 1.2rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom));
+    border: 1px solid var(--glass-border, var(--color-line));
+    border-bottom: 0;
+    border-radius: 1.2rem 1.2rem 0 0;
+    animation: lfaaConfirmSheetIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .actions {
+    margin-top: 1.15rem;
+  }
+
+  /* 触屏上按钮等宽铺满，保证 44px 触控高度，避免贴底弹层里出现两枚小按钮。 */
+  .cancelBtn,
+  .confirmBtn {
+    flex: 1 1 0;
+    min-height: 2.75rem;
+  }
+}
+
+@keyframes lfaaConfirmSheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

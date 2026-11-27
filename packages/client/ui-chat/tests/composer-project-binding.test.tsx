@@ -119,18 +119,18 @@ function renderComposerHtml(options: {
   }));
 }
 
-test("工作模式绑定项目空会话：项目与模式在头行，+ 回到工具行并排在素材库前", () => {
+test("工作模式绑定项目空会话：项目与模式在头行，+ 留在工具行且不再单列素材库按钮", () => {
   const html = renderComposerHtml({ mode: "codex", activeProjectId: "p-app1" });
   const app1Triggers = html.match(/<button[^>]*>[^<]*<svg[\s\S]*?<\/svg>[^<]*<span[^>]*>app1<\/span><\/button>/gu) ?? [];
   assert.equal(app1Triggers.length, 1);
   assert.doesNotMatch(html, /data-project-picker-trigger="true"/u);
   assert.match(html, /aria-label="添加文件等内容"/u);
   assert.match(html, /在“app1”中新建聊天/u);
-  // 模式胶囊进卡片头行（textarea 之前）；+ 回到工具行，且排在素材库图标左边。
+  // 模式胶囊进卡片头行（textarea 之前）；+ 在工具行，素材库入口已并入「添加上下文」菜单。
   assert.ok(html.indexOf('aria-label="会话模式') > -1);
   assert.ok(html.indexOf('aria-label="会话模式') < html.indexOf("<textarea"));
   assert.ok(html.indexOf('aria-label="添加文件等内容"') > html.indexOf("<textarea"));
-  assert.ok(html.indexOf('aria-label="添加文件等内容"') < html.indexOf('aria-label="生成素材库"'));
+  assert.doesNotMatch(html, /aria-label="生成素材库"/u);
 });
 
 test("项目内会话固定工作形态：聊天模式也按工作布局渲染项目入口", () => {

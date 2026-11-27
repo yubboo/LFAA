@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Subagents",
+    "description": "Runs in-process subagents with read/write boundaries and concurrency limits."
+  }
+}

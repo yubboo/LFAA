@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Task pipeline",
+    "description": "Chains subagents by task dependency and hands off only after acceptance."
+  }
+}

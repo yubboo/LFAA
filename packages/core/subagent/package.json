@@ -30,7 +30,8 @@
   "types": "./lib/types/index.d.ts",
   "files": [
     "lib",
-    "src"
+    "src",
+    "locale/*.json"
   ],
   "publishConfig": {
     "access": "public"

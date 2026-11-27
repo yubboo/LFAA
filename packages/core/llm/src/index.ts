@@ -10,10 +10,12 @@ import { knownMediaModels, listVideoProfileOptions } from "./media/media-models"
 import { fetchOfficialModels, normalizeModelCapability, resolveModelCapabilities, resolveModelKind } from "./capabilities";
 import { isTokenPlanBaseUrl, tokenPlanCatalogModels } from "./token-plan";
 import {
+  createMediaVideoTask,
   generateConfiguredAudio,
   generateConfiguredVideo,
   generateMediaImage,
   getConfiguredVideoTask,
+  getMediaVideoTask,
   selectImageProfile,
   type MediaImageInput,
   type MediaImageResult,
@@ -23,6 +25,7 @@ import {
   type MediaAudioResult,
 } from "./media/media";
 export type { MediaImageInput, MediaImageResult, MediaVideoInput, MediaVideoResult, MediaAudioInput, MediaAudioResult } from "./media/media";
+export { VideoSubmissionUncertainError } from "./media/media";
 import { callGeminiGenerateContentApi } from "./adapters/gemini-adapter";
 import { callOpenAiCompatibleChat } from "./adapters/openai-adapter";
 import { asApiProtocol, resolveEffectiveProtocol } from "./protocol-utils";
@@ -201,6 +204,25 @@ export class LlmService extends Service {
       const available = options.map((option) => `「${option.profileName}」${option.models.join("、")}`).join("；");
       throw new Error(`${detail}\n\n其他可用视频配置：${available}。请先向用户说明当前配置没有可用视频模型，并询问是否切换；用户同意后再调用 generate_video 并传 profileId。`);
     }
+  }
+
+  /** 画布先取得任务 ID，再由独立运行记录驱动轮询及恢复。 */
+  async submitVideo(input: MediaVideoInput): Promise<MediaVideoResult> {
+    const config = await this.readConfig();
+    const targetProfileId = input.profileId?.trim() || config.activeProfileId;
+    const source = config.profiles.find((item) => item.id === targetProfileId);
+    if (!source) throw new Error("请先配置视频模型。");
+    const model = input.modelId?.trim() || source.model;
+    if (resolveModelKind(model) !== "video") throw new Error("请选择视频模型。");
+    const created = await createMediaVideoTask({ ...source, model }, { ...input, modelId: model });
+    return { model, profileId: source.id, taskId: created.taskId, status: created.status, elapsedMs: 0 };
+  }
+
+  /** 按已提交时的模型查任务，避免文字转视频的自动模型回退改变查询上下文。 */
+  async querySubmittedVideo(input: { taskId: string; profileId: string; modelId: string }): Promise<MediaVideoResult> {
+    const profile = await this.resolveProfile(input.profileId);
+    const snapshot = await getMediaVideoTask({ ...profile, model: input.modelId }, input.taskId);
+    return { ...snapshot, model: input.modelId, profileId: profile.id, taskId: input.taskId, elapsedMs: 0 };
   }
 
   /** 查询视频任务：默认沿用当前配置；跨套餐任务需显式传 profileId。 */

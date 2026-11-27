@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Read before write",
+    "description": "Requires a read before editing an existing file, preventing blind overwrites."
+  }
+}

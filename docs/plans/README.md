@@ -21,6 +21,7 @@
 - [聊天消息列窗口化（虚拟列表）方案](thread-virtualization.md)：大会话切会话与滚动的渲染成本、TanStack Virtual 只借窗口不接管跟随、分阶段接入与回滚开关。**已实施**。
 - [真实终端 + 右侧/底部双位置方案](terminal-panel.md)：Host PTY（node-pty）+ xterm.js、WebSocket 双向流、右栏/底部两种展示位置与位置切换（默认右侧）。**待评审**。
 - [连接器（MCP + CLI）统一入口方案](connectors.md)：把 MCP 服务器与声明式 CLI 工具收进同一个「集成 → 连接器」页，含动作参数 schema、逐次审批、超时与进程树回收。**P0 已实施**。
+- [插件清单对齐 DSH（内置插件页 + Loader 全量装配）方案](plugin-inventory-parity.md)：以 Loader 为唯一真相的只读投影、每包 locale 元数据、设置页只读清单与插件中心启停分工。**待评审**。
 
 状态标记只用三种：**待评审**、**已实施**、**已放弃**（并在正文写原因）。
 

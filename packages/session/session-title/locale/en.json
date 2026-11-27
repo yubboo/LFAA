@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session titles",
+    "description": "Generates session titles heuristically or with the model, falling back on failure."
+  }
+}

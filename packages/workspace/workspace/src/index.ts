@@ -37,16 +37,10 @@ import type {
 export * from "./types";
 export { createWorkspaceHttpHandler } from "./http-handler";
 export { readProjectStore, syncDefaultProjectDir, writeProjectStore } from "./project-store";
+export type { WorkspacePluginConfig } from "./plugin-config";
 
-/** 为应用和隔离测试提供项目存储位置与默认路径解析。 */
-export interface WorkspacePluginConfig {
-  storeFilePath?: string;
-  documentsDir?: string;
-  defaultProjectsDirResolver?: () => Promise<string | undefined>;
-  /** 「项目外聊天」的工作目录；扫描默认项目目录时要跳过它，避免把它当成项目。 */
-  outsideProjectDirResolver?: () => Promise<string | undefined>;
-  folderPicker?: (title?: string, initialDir?: string) => Promise<FolderPickResult>;
-}
+import type { WorkspacePluginConfig } from "./plugin-config";
+import { ProjectDirResolvers, type ProjectDirResolverPair } from "./dir-resolvers";
 
 const DEFAULT_STORE_PATH = join(homedir(), ".lfaa", "projects.json");
 const MAX_TREE_ENTRIES = 200;
@@ -56,8 +50,8 @@ const MAX_PREVIEW_FILE_BYTES = 256 * 1024;
 export class WorkspaceService extends Service {
   private readonly storeFilePath: string;
   private readonly documentsOverride: string | undefined;
-  private readonly defaultProjectsDirResolver: (() => Promise<string | undefined>) | undefined;
-  private readonly outsideProjectDirResolver: (() => Promise<string | undefined>) | undefined;
+  /** 默认目录与「项目外聊天」目录的解析器；装配完成后可由联线插件注入。 */
+  private readonly dirResolvers: ProjectDirResolvers;
   private readonly folderPicker: (title?: string, initialDir?: string) => Promise<FolderPickResult>;
   private cachedDocumentsDir: string | null = null;
 
@@ -65,9 +59,13 @@ export class WorkspaceService extends Service {
     super(ctx, "workspace");
     this.storeFilePath = config.storeFilePath ? resolve(config.storeFilePath) : DEFAULT_STORE_PATH;
     this.documentsOverride = config.documentsDir;
-    this.defaultProjectsDirResolver = config.defaultProjectsDirResolver;
-    this.outsideProjectDirResolver = config.outsideProjectDirResolver;
+    this.dirResolvers = new ProjectDirResolvers(config.defaultProjectsDirResolver, config.outsideProjectDirResolver);
     this.folderPicker = config.folderPicker ?? openNativeFolderPicker;
+  }
+
+  /** 装配完成后注入默认目录与「项目外聊天」目录的解析器；返回注销函数。 */
+  setProjectDirResolvers(resolvers: ProjectDirResolverPair): () => void {
+    return this.dirResolvers.set(resolvers);
   }
 
   getStorageMode(): "host-fs" { return "host-fs"; }
@@ -76,8 +74,8 @@ export class WorkspaceService extends Service {
     if (!this.cachedDocumentsDir) {
       this.cachedDocumentsDir = await resolveUserDocumentsDir(this.documentsOverride);
     }
-    const configuredDir = !this.documentsOverride && this.defaultProjectsDirResolver
-      ? await this.defaultProjectsDirResolver().catch(() => undefined)
+    const configuredDir = !this.documentsOverride && this.dirResolvers.defaultDir
+      ? await this.dirResolvers.defaultDir().catch(() => undefined)
       : undefined;
     return {
       documentsDir: this.cachedDocumentsDir,
@@ -95,7 +93,7 @@ export class WorkspaceService extends Service {
 
   /** 「项目外聊天」目录：优先取设置里的值，缺省回退 `<文档>/lfaa/default-workspace`。 */
   private async resolveOutsideProjectDir(): Promise<string> {
-    const configured = (await this.outsideProjectDirResolver?.())?.trim();
+    const configured = (await this.dirResolvers.outsideDir?.())?.trim();
     if (configured) return resolve(configured);
     return join(await resolveUserDocumentsDir(this.documentsOverride), DEFAULT_WORKSPACE_SUBDIR, DEFAULT_OUTSIDE_SUBDIR);
   }

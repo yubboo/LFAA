@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Worktrees",
+    "description": "Creates per-session Git worktrees and cleans them up after checks."
+  }
+}

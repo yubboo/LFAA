@@ -46,14 +46,48 @@ export interface PresetSummary {
   unavailable?: boolean;
 }
 
-/** 可安装插件目录项。 */
-export interface PluginCatalogItem {
-  manifest: PluginManifest;
-  installed: boolean;
-  /** 安装时传给 Loader 的模块说明符。 */
+/** 双语文案：清单只需一次请求，界面按当前语言取用。 */
+export interface LocalizedText {
+  zh: string;
+  en: string;
+}
+
+/** Loader 条目根 Fiber 的生命周期相位；null 表示没有存活的根 Fiber。 */
+export type PluginFiberPhase = "pending" | "loading" | "active" | "failed" | "unloading" | null;
+
+/** 插件清单里的一行：一条 Loader 条目，或一个由 bundle 静态装配的模块。 */
+export interface PluginInventoryEntry {
+  /** 稳定标识：Loader 条目用它自己的 id，静态装配模块用 `bundle:<短名>`。 */
+  entryId: string;
+  /** Loader 导入的模块说明符（包名或 file: URL）。 */
   moduleName: string;
-  /** 是否已由当前应用的 bundle 装配；此类能力不应再单独安装或启用。 */
-  provided?: boolean;
-  /** 内置插件只能启用/停用；外部插件可安装与卸载。 */
-  kind?: "builtin" | "external";
+  /** 显示元数据；包目录读不到 locale 时回落 package.json 并带 error。 */
+  meta: {
+    title: LocalizedText;
+    description: LocalizedText;
+    /** locale = 来自包内 locale/*.json；package = 回落到 package.json。 */
+    source: "locale" | "package";
+    error?: string;
+  };
+  /** 配置状态：Loader 的有效启用位（含被父组禁用）。 */
+  enabled: boolean;
+  /** 运行状态：根 Fiber 相位。 */
+  fiberPhase: PluginFiberPhase;
+  /** 启动失败时的诊断文本。 */
+  diagnostic?: string;
+  /** true 表示由 bundle 静态装配，P2 之前无法启停。 */
+  provided: boolean;
+  kind: "builtin" | "external";
+  /** 清单展示顺序。 */
+  order: number;
+}
+
+/** 只读插件清单快照：一次请求返回条目、模式预设与当前模式。 */
+export interface PluginInventorySnapshot {
+  profile: string;
+  entries: PluginInventoryEntry[];
+  presets: PresetSummary[];
+  activePreset: string;
+  /** 是否具备启停能力（静态装配阶段为 false）。 */
+  managementAvailable: boolean;
 }

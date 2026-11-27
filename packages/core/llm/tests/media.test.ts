@@ -28,6 +28,15 @@ import {
 } from "../src/media/media";
 import type { LlmProfile } from "../src/types";
 
+test("视频参考素材进入各厂商的真实多模态字段", () => {
+  const frame = { role: "first_frame", url: "data:image/png;base64,AA==" } as const;
+  const motion = { role: "reference_video", url: "data:video/mp4;base64,AA==" } as const;
+  const wan = buildVideoTaskBody(profile({ model: "wan3.0-video" }), { prompt: "Follow Video 1.", visualInputs: [motion] });
+  assert.deepEqual(wan.input, { prompt: "Follow Video 1.", media: [{ type: motion.role, url: motion.url }] });
+  const ark = buildVideoTaskBody(profile({ model: "doubao-seedance-2.0" }), { prompt: "Continue.", visualInputs: [frame] }, "ark-video");
+  assert.deepEqual(ark.content, [{ type: "text", text: "Continue." }, { type: "image_url", role: frame.role, image_url: { url: frame.url } }]);
+});
+
 function profile(overrides: Partial<LlmProfile>): LlmProfile {
   return {
     id: "p1",

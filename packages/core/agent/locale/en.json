@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent loop",
+    "description": "Runs the Think → Act → Check loop across models, tools, memory, and rules."
+  }
+}

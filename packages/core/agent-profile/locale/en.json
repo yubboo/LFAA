@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent profiles",
+    "description": "Persists agent definitions, routing groups, and default model bindings."
+  }
+}

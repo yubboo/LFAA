@@ -43,6 +43,13 @@ export interface WorkbenchViewContribution<TContent = unknown> {
   render: () => TContent;
 }
 
+// 由业务插件贡献的新建标签入口，在当前项目的右侧工作台渲染。
+export interface WorkbenchTabContribution<TContent = unknown> {
+  id: string;
+  title: { zh: string; en: string };
+  render: (context: { projectId: string | null; isZh: boolean }) => TContent;
+}
+
 // 向全高右工作台插件传入同级辅助面板、项目上下文及抽屉关闭回调。
 export interface WorkbenchContextPanelRenderContext<TContent = unknown> {
   utilityPanels: WorkbenchContextPanelContribution<TContent>[];

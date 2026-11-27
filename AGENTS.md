@@ -50,7 +50,7 @@
 
 ## 2.2 浅色/深色双主题与 CSS 变量规范（强制）
 
-- **项目代码严禁写死颜色。** 组件样式只允许消费 `@lfaa/ui-theme` 语义变量（定义在 `@lfaa/ui-theme` 的 `client/tokens.css`，浅色/深色成对）：`--color-shell`/`--color-rail`/`--color-panel`/`--color-topbar`/`--color-surface`/`--color-popover`/`--color-active`/`--color-line`/`--color-ink`/`--color-muted`/`--color-accent`(`-rgb`)/`--color-success*`/`--color-warning*`/`--color-danger*`/`--color-info*`/`--color-link`(`-hover`)/`--color-violet*`/`--color-orange*`/`--color-teal*`/`--color-activity-positive*`/`--color-activity-negative*`/`--color-code-bg*`/`--color-code-ink`/`--color-code-muted`/`--color-on-accent`/`--color-scrim` 等；禁止直接写十六进制、`rgb()`、`hsl()`，也禁止 `var(--x, #固定色)` 回退。
+- **项目代码严禁写死颜色。** 组件样式只允许消费 `@lfaa/ui-theme` 语义变量（定义在 `@lfaa/ui-theme` 的 `client/tokens.css`，浅色/深色成对）：`--color-shell`/`--color-rail`/`--color-panel`/`--color-topbar`/`--color-surface`/`--color-popover`/`--color-active`/`--color-line`/`--color-ink`/`--color-ink-soft`/`--color-muted`/`--color-accent`(`-rgb`)/`--color-success*`/`--color-warning*`/`--color-danger*`/`--color-info*`/`--color-link`(`-hover`)/`--color-violet*`/`--color-orange*`/`--color-teal*`/`--color-activity-positive*`/`--color-activity-negative*`/`--color-code-bg*`/`--color-code-ink`/`--color-code-muted`/`--color-on-accent`/`--color-scrim` 等；禁止直接写十六进制、`rgb()`、`hsl()`，也禁止 `var(--x, #固定色)` 回退。
 - **规则由 `pnpm check` 的 `css-theme-literal` 强制**：只读 `client/**` 样式；阴影/滤镜/玻璃材质与 α ≤ 0.2 的半透明叠层自动放行；允许写具体色值的文件只有变量定义层（`@lfaa/ui-theme/client/tokens.css`）、代码高亮调色板、主题预览样张，登记在 `scripts/check-allowlist.json` 且只减不增。新增状态色必须在浅色与深色块成对定义并保证正文对比度 ≥ 4.5:1，组件里不再写 `:global(:root[data-resolved-theme="light"])` 颜色覆盖。
 - **状态色与玻璃态双端适配**：若语义色（如增删绿/红、错误红）或半透明边框在浅色/深色下对比度不足，必须回到 `@lfaa/ui-theme` 的 `tokens.css` 成对修正变量值，而不是在组件里加浅色覆盖。
 - **双主题实测验收**：涉及 Web UI 的每次修改，交付前须同时在**深色与浅色主题**下目视/实测确认文字对比度、弹窗、输入框及悬浮层均正常。
@@ -99,6 +99,7 @@
 - `.`：角色和格式，例 `Ai-Work.module.css`、`Ai-Work.test.tsx`、`css-modules.d.ts`、`README.zh.md`、`README.i18n.yaml`、`vite.config.ts`、`.env.example`。
 - 组件 `Ai-Work.tsx`、样式 `Ai-Work.module.css`、测试 `Ai-Work.test.tsx` 必须同基础名；React Hook 按社区约定 `useWorkspace.ts`，导出 `useWorkspace`。
 - 固定工具文件名（如 `package.json`、`tsconfig.json`、`index.ts`、`AGENTS.md`）优先于个人命名偏好。外部 API 字段如 `session_id` 不得擅自改成 `sessionId`。
+- **临时排查脚本用 `.lfaa-` 前缀（强制）**：Agent 一次性的排查 / 截图驱动脚本命名为 `.lfaa-<用途>.mjs`，放仓库根目录，任务结束立即删除；`.gitignore` 已忽略 `.lfaa-*`，不得借用 `.dsh-` 等其它工具前缀，也不得混进 `packages/`。**Python 脚本放 `Python/`，截图与图片一律写 `shots/`**，两者都不入库，也不得散落在仓库根目录；一次性 Python 脚本由 Agent 在任务结束直接删除、不必再确认，判断「换个页面还要再跑」的才留下。需要长期保留就改名进 `scripts/` 并补文件头与 npm script（详见规范 §4.1.8）。
 - 新建前检查目录命名；重命名须修复 import/exports/测试/文档，不能只靠大小写区分文件；旧文件不得未经批准全量重命名。
 - 文件名必须**短、准确、有语义**：普通手写文件基础名建议不超过 30 个英文字符、原则上不超过 3 个语义单词；超过 40 个字符必须解释（固定工具/协议/生成名例外）。
 - 禁止 `Workspace-Client-Menu-Navigation-Panel-View.tsx` 等无意义长串、`Data.ts` / `Helper.ts` / `Final2.ts` 等含糊名、`xwsp-hnd.ts` 等自造缩写。优先 `Workspace-Menu.tsx`、`session-service.ts` 等“实体 + 职责”命名；先用目录上下文减重复、再查是否混合职责。

@@ -1,0 +1,22 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "lib/types",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "contract"
+  ],
+  "references": [
+    {
+      "path": "../../core/llm"
+    },
+    {
+      "path": "../tool-media"
+    }
+  ]
+}

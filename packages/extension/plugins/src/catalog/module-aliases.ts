@@ -1,7 +1,7 @@
 // 合包后的旧插件 module 名迁移表：包名合并后，旧 profile 记录与旧会话模块列表都要映射到新包名。
 // 仅覆盖本仓已合并的插件包；外部插件名原样保留。
 import type { PluginRecord } from "../../contract/index";
-import { toRecordId } from "./plugin-catalog";
+import { toRecordId } from "./record-id";
 
 /** 旧 module 名 → 新 module 名。 */
 export const MODULE_ALIASES: Readonly<Record<string, string>> = {

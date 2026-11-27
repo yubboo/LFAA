@@ -33,3 +33,5 @@ plugins（浏览器半，已从 @lfaa/plugins 拆出）。
 ## 开发说明
 
 渲染与客户端状态在 `client/` 下；能力包 `@lfaa/plugins` 只保留 Host 侧。
+
+设置中心的「内置插件」页在 `client/inventory/`，只渲染 Host 的只读清单；安装与启停仍留在插件中心。

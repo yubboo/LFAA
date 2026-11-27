@@ -6,7 +6,7 @@ import { rightWorkbenchStartLabels } from "../locales";
 import styles from "./Right-Workbench-Start.module.css";
 
 export function RightWorkbenchStart({
-  isZh, store, projectId, worktreeId, projectName, onOpenUrl, onOpenTerminal, onOpenReview, onOpenSideAsk, children,
+  isZh, store, projectId, worktreeId, projectName, onOpenUrl, onOpenTerminal, onOpenReview, onOpenSideAsk, extraShortcuts, children,
 }: {
   isZh: boolean;
   store: ChatClientStore;
@@ -18,6 +18,7 @@ export function RightWorkbenchStart({
   onOpenTerminal: () => void;
   onOpenReview: () => void;
   onOpenSideAsk: () => void;
+  extraShortcuts?: ReactNode;
   children?: ReactNode;
 }) {
   const labels = rightWorkbenchStartLabels[isZh ? "zh" : "en"];
@@ -89,6 +90,7 @@ export function RightWorkbenchStart({
                 <span>{label}</span>
               </button>
             ))}
+            {extraShortcuts}
           </div>
         </section>
         {children}

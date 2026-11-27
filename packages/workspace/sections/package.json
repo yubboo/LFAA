@@ -32,7 +32,8 @@
   "files": [
     "lib",
     "src",
-    "contract"
+    "contract",
+    "locale/*.json"
   ],
   "publishConfig": {
     "access": "public"

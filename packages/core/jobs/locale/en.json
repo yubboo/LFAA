@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Background jobs",
+    "description": "Runs session-scoped background commands with live logs and process-tree cleanup."
+  }
+}

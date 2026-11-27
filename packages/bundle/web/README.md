@@ -61,3 +61,5 @@ This assembly bundle lives in `packages/bundle/web`.
 The Web bundle defines the built-in session presets. Standard includes delegation, Creative focuses on content and artifacts, and Minimal enables lightweight read-only work. PTC remains unavailable until its runtime is integrated.
 
 Standard and Creative include media generation tools. Existing sessions with the original built-in combinations receive the same media capability at runtime.
+
+Every builtin plugin now mounts as a Cordis Loader entry with a stable id, so the settings plugin list reads real Fiber phases and can enable or disable each one. Function-shaped configuration is injected after assembly through service setters (`shell.setResolveInvocation`, `workspace.setProjectDirResolvers`, `tools.setCommandHooks` / `setSandbox`, `jobs.setResolveInvocation`, `agent.setResolveSessionModules`) instead of living in Loader config. Packages that export several plugins ship a default composition bundle, so one entry covers the whole package: `web`, `goal`, `compaction`, `agent-profile`. `@lfaa/sandbox` defaults to the policy plugin alone; the local sandbox stays on the root context.

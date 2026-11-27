@@ -25,7 +25,8 @@
   },
   "files": [
     "lib",
-    "src"
+    "src",
+    "locale/*.json"
   ],
   "publishConfig": {
     "access": "public"

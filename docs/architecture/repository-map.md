@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**67 个包、2953 个文件、493 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**69 个包、3103 个文件、547 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -52,6 +52,7 @@ lfaa/
 ├── .githooks/  (1 个文件)
 ├── .github/  (1 个文件)
 │   └── workflows/  (1 个文件)
+├── Python/  (1 个文件)
 ├── apps/  (37 个文件)
 │   ├── cli/  (3 个文件)
 │   │   └── src/  (1 个文件)
@@ -64,37 +65,40 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (562 个文件)
+├── docs/  (578 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (5 个文件)
-│   ├── features/  (33 个文件)
-│   ├── plans/  (24 个文件)
-│   ├── standards/  (3 个文件)
+│   ├── features/  (34 个文件)
+│   ├── plans/  (25 个文件)
+│   ├── standards/  (4 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (482 个文件)
-├── packages/  (2148 个文件)
+│   └── updata-log/  (495 个文件)
+├── packages/  (2280 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── attachment/  (7 个文件)
-│   │   └── attachment-local/  # @lfaa/attachment-local  (7 个文件)
+│   ├── attachment/  (9 个文件)
+│   │   └── attachment-local/  # @lfaa/attachment-local  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
 │   ├── bundle/  (8 个文件)
 │   │   └── web/  # @lfaa/bundle-web  (8 个文件)
 │   │       ├── src/  (2 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── chat/  (31 个文件)
-│   │   ├── chat/  # @lfaa/chat  (12 个文件)
+│   ├── chat/  (35 个文件)
+│   │   ├── chat/  # @lfaa/chat  (14 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (3 个文件)
 │   │   ├── library/  # @lfaa/library  (6 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   └── review/  # @lfaa/review  (13 个文件)
+│   │   └── review/  # @lfaa/review  (15 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (591 个文件)
+│   ├── client/  (616 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -114,16 +118,22 @@ lfaa/
 │   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
+│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (22 个文件)
+│   │   │   ├── client/  (16 个文件)
+│   │   │   │   ├── api/  (1 个文件)
+│   │   │   │   ├── canvas/  (6 个文件)
+│   │   │   │   └── previs/  (6 个文件)
+│   │   │   └── src/  (1 个文件)
 │   │   ├── ui-chat/  # @lfaa/client-ui-chat  (339 个文件)
 │   │   │   ├── client/  (271 个文件)
-│   │   │   │   ├── composer/  (45 个文件)
+│   │   │   │   ├── composer/  (44 个文件)
 │   │   │   │   ├── conversation/  (71 个文件)
 │   │   │   │   ├── models/  (16 个文件)
 │   │   │   │   ├── session/  (19 个文件)
 │   │   │   │   ├── settings/  (16 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
 │   │   │   │   ├── store/  (20 个文件)
-│   │   │   │   └── workbench/  (69 个文件)
+│   │   │   │   └── workbench/  (70 个文件)
 │   │   │   │       └── pane/  (4 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (62 个文件)
@@ -139,10 +149,11 @@ lfaa/
 │   │   │   │   └── views/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (3 个文件)
-│   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (17 个文件)
-│   │   │   ├── client/  (11 个文件)
+│   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (20 个文件)
+│   │   │   ├── client/  (14 个文件)
 │   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── components/  (6 个文件)
+│   │   │   │   ├── components/  (5 个文件)
+│   │   │   │   ├── inventory/  (4 个文件)
 │   │   │   │   └── stream/  (1 个文件)
 │   │   │   └── src/  (1 个文件)
 │   │   ├── ui-review/  # @lfaa/client-ui-review  (16 个文件)
@@ -181,25 +192,29 @@ lfaa/
 │   │       │   └── worktree/  (4 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── compaction/  (12 个文件)
-│   │   └── compaction/  # @lfaa/compaction  (12 个文件)
+│   ├── compaction/  (14 个文件)
+│   │   └── compaction/  # @lfaa/compaction  (14 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (339 个文件)
-│   │   ├── agent/  # @lfaa/agent  (78 个文件)
-│   │   │   ├── src/  (48 个文件)
+│   ├── core/  (367 个文件)
+│   │   ├── agent/  # @lfaa/agent  (84 个文件)
+│   │   │   ├── locale/  (2 个文件)
+│   │   │   ├── src/  (51 个文件)
 │   │   │   │   ├── context/  (4 个文件)
 │   │   │   │   ├── run/  (35 个文件)
 │   │   │   │   └── tools/  (5 个文件)
-│   │   │   └── tests/  (25 个文件)
+│   │   │   └── tests/  (26 个文件)
 │   │   ├── agent-group/  # @lfaa/agent-group  (12 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (3 个文件)
-│   │   ├── agent-profile/  # @lfaa/agent-profile  (18 个文件)
+│   │   ├── agent-profile/  # @lfaa/agent-profile  (20 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (9 个文件)
 │   │   │   └── tests/  (4 个文件)
-│   │   ├── browser/  # @lfaa/browser  (35 个文件)
+│   │   ├── browser/  # @lfaa/browser  (37 个文件)
 │   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (27 个文件)
 │   │   │   │   ├── downloads/  (5 个文件)
 │   │   │   │   ├── session/  (10 个文件)
@@ -210,7 +225,8 @@ lfaa/
 │   │   ├── context/  # @lfaa/context  (8 个文件)
 │   │   │   ├── src/  (2 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── crew/  # @lfaa/crew  (14 个文件)
+│   │   ├── crew/  # @lfaa/crew  (16 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (5 个文件)
 │   │   │   └── tests/  (4 个文件)
 │   │   ├── fs/  # @lfaa/fs  (9 个文件)
@@ -219,21 +235,25 @@ lfaa/
 │   │   ├── guard/  # @lfaa/guard  (11 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (2 个文件)
-│   │   ├── jobs/  # @lfaa/jobs  (10 个文件)
+│   │   ├── jobs/  # @lfaa/jobs  (12 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── llm/  # @lfaa/llm  (33 个文件)
+│   │   ├── llm/  # @lfaa/llm  (35 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (18 个文件)
 │   │   │   │   ├── adapters/  (4 个文件)
 │   │   │   │   └── media/  (4 个文件)
 │   │   │   └── tests/  (9 个文件)
-│   │   ├── memory/  # @lfaa/memory  (16 个文件)
+│   │   ├── memory/  # @lfaa/memory  (18 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (8 个文件)
 │   │   │   └── tests/  (3 个文件)
 │   │   ├── metrics/  # @lfaa/metrics  (12 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (3 个文件)
-│   │   ├── rules/  # @lfaa/rules  (9 个文件)
+│   │   ├── rules/  # @lfaa/rules  (11 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (3 个文件)
 │   │   │   └── tests/  (1 个文件)
 │   │   ├── session/  # @lfaa/session  (13 个文件)
@@ -245,39 +265,48 @@ lfaa/
 │   │   ├── storage/  # @lfaa/storage  (11 个文件)
 │   │   │   ├── src/  (5 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── subagent/  # @lfaa/subagent  (13 个文件)
+│   │   ├── subagent/  # @lfaa/subagent  (15 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (6 个文件)
 │   │   │   └── tests/  (2 个文件)
-│   │   ├── system-prompt/  # @lfaa/system-prompt  (7 个文件)
+│   │   ├── system-prompt/  # @lfaa/system-prompt  (9 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── tool-todo/  # @lfaa/tool-todo  (7 个文件)
+│   │   ├── tool-todo/  # @lfaa/tool-todo  (9 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── tools/  # @lfaa/tools  (14 个文件)
+│   │   └── tools/  # @lfaa/tools  (16 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (2 个文件)
-│   ├── extension/  (710 个文件)
-│   │   ├── connectors/  # @lfaa/connectors  (21 个文件)
+│   ├── extension/  (725 个文件)
+│   │   ├── connectors/  # @lfaa/connectors  (23 个文件)
 │   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (13 个文件)
 │   │   │   │   └── catalog/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── mcp/  # @lfaa/mcp  (15 个文件)
+│   │   ├── mcp/  # @lfaa/mcp  (17 个文件)
 │   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (6 个文件)
 │   │   │   └── tests/  (2 个文件)
-│   │   ├── plugins/  # @lfaa/plugins  (25 个文件)
+│   │   ├── plugins/  # @lfaa/plugins  (32 个文件)
 │   │   │   ├── contract/  (1 个文件)
-│   │   │   ├── src/  (13 个文件)
-│   │   │   │   ├── catalog/  (4 个文件)
-│   │   │   │   ├── manager/  (7 个文件)
+│   │   │   ├── locale/  (2 个文件)
+│   │   │   ├── src/  (17 个文件)
+│   │   │   │   ├── catalog/  (6 个文件)
+│   │   │   │   ├── inventory/  (1 个文件)
+│   │   │   │   ├── manager/  (8 个文件)
 │   │   │   │   └── routes/  (1 个文件)
-│   │   │   └── tests/  (5 个文件)
-│   │   └── skills/  # @lfaa/skills  (649 个文件)
+│   │   │   └── tests/  (6 个文件)
+│   │   └── skills/  # @lfaa/skills  (653 个文件)
 │   │       ├── contract/  (1 个文件)
-│   │       ├── src/  (641 个文件)
-│   │       │   └── builtin-skills/  (637 个文件)
+│   │       ├── locale/  (2 个文件)
+│   │       ├── src/  (643 个文件)
+│   │       │   └── builtin-skills/  (639 个文件)
 │   │       │       ├── agent-browser/  (1 个文件)
 │   │       │       ├── animate/  (2 个文件)
 │   │       │       ├── animate-expo/  (2 个文件)
@@ -421,6 +450,8 @@ lfaa/
 │   │       │       │   ├── references/  (15 个文件)
 │   │       │       │   ├── scripts/  (12 个文件)
 │   │       │       │   └── teaching/  (18 个文件)
+│   │       │       ├── ui-measure/  (2 个文件)
+│   │       │       │   └── references/  (1 个文件)
 │   │       │       ├── ui-taste/  (26 个文件)
 │   │       │       │   ├── agents/  (1 个文件)
 │   │       │       │   ├── reference/  (15 个文件)
@@ -433,80 +464,99 @@ lfaa/
 │   │       │       │   └── scripts/  (3 个文件)
 │   │       │       └── write-swift/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── feedback/  (7 个文件)
-│   │   └── message-feedback/  # @lfaa/message-feedback  (7 个文件)
+│   ├── feedback/  (9 个文件)
+│   │   └── message-feedback/  # @lfaa/message-feedback  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── fs/  (7 个文件)
-│   │   └── fs-observation-policy/  # @lfaa/fs-observation-policy  (7 个文件)
+│   ├── fs/  (9 个文件)
+│   │   └── fs-observation-policy/  # @lfaa/fs-observation-policy  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── goal/  (12 个文件)
-│   │   └── goal/  # @lfaa/goal  (12 个文件)
+│   ├── goal/  (14 个文件)
+│   │   └── goal/  # @lfaa/goal  (14 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       │   └── tool/  (1 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── guard/  (7 个文件)
-│   │   └── timeout-policy/  # @lfaa/timeout-policy  (7 个文件)
+│   ├── guard/  (9 个文件)
+│   │   └── timeout-policy/  # @lfaa/timeout-policy  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── host/  (29 个文件)
-│   │   ├── terminal/  # @lfaa/terminal  (10 个文件)
+│   ├── host/  (32 个文件)
+│   │   ├── terminal/  # @lfaa/terminal  (12 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── web-server/  # @lfaa/web-server  (19 个文件)
-│   │       ├── src/  (11 个文件)
-│   │       │   └── handlers/  (4 个文件)
+│   │   └── web-server/  # @lfaa/web-server  (20 个文件)
+│   │       ├── src/  (12 个文件)
+│   │       │   └── handlers/  (5 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── interaction/  (7 个文件)
-│   │   └── commands/  # @lfaa/commands  (7 个文件)
+│   ├── interaction/  (9 个文件)
+│   │   └── commands/  # @lfaa/commands  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── media/  (18 个文件)
-│   │   └── tool-media/  # @lfaa/tool-media  (18 个文件)
+│   ├── media/  (36 个文件)
+│   │   ├── canvas/  # @lfaa/canvas  (16 个文件)
+│   │   │   ├── contract/  (1 个文件)
+│   │   │   ├── locale/  (2 个文件)
+│   │   │   ├── src/  (5 个文件)
+│   │   │   └── tests/  (2 个文件)
+│   │   └── tool-media/  # @lfaa/tool-media  (20 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (6 个文件)
 │   │       └── tests/  (7 个文件)
-│   ├── plan/  (8 个文件)
-│   │   └── plan-mode/  # @lfaa/plan-mode  (8 个文件)
+│   ├── plan/  (10 个文件)
+│   │   └── plan-mode/  # @lfaa/plan-mode  (10 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (2 个文件)
-│   ├── sandbox/  (14 个文件)
-│   │   └── sandbox/  # @lfaa/sandbox  (14 个文件)
+│   ├── sandbox/  (16 个文件)
+│   │   └── sandbox/  # @lfaa/sandbox  (16 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (5 个文件)
 │   │       │   └── local/  (2 个文件)
 │   │       └── tests/  (4 个文件)
-│   ├── schedule/  (7 个文件)
-│   │   └── tool-schedule/  # @lfaa/tool-schedule  (7 个文件)
+│   ├── schedule/  (9 个文件)
+│   │   └── tool-schedule/  # @lfaa/tool-schedule  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── session/  (18 个文件)
-│   │   ├── handoff/  # @lfaa/handoff  (11 个文件)
+│   ├── session/  (22 个文件)
+│   │   ├── handoff/  # @lfaa/handoff  (13 个文件)
+│   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   │   └── tool/  (1 个文件)
 │   │   │   └── tests/  (2 个文件)
-│   │   └── session-title/  # @lfaa/session-title  (7 个文件)
+│   │   └── session-title/  # @lfaa/session-title  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── shell/  (11 个文件)
-│   │   └── shell/  # @lfaa/shell  (11 个文件)
+│   ├── shell/  (13 个文件)
+│   │   └── shell/  # @lfaa/shell  (13 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       │   ├── bash/  (1 个文件)
 │   │       │   ├── env/  (1 个文件)
 │   │       │   └── pwsh/  (1 个文件)
 │   │       └── tests/  (2 个文件)
-│   ├── spill/  (7 个文件)
-│   │   └── spill-local/  # @lfaa/spill-local  (7 个文件)
+│   ├── spill/  (9 个文件)
+│   │   └── spill-local/  # @lfaa/spill-local  (9 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── ui/  (236 个文件)
+│   ├── ui/  (237 个文件)
 │   │   ├── icons/  # @lfaa/ui-icons  (15 个文件)
 │   │   │   ├── LICENSES/  (1 个文件)
 │   │   │   ├── client/  (4 个文件)
 │   │   │   ├── contract/  (2 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── layout/  # @lfaa/ui-layout  (107 个文件)
-│   │   │   ├── client/  (80 个文件)
+│   │   ├── layout/  # @lfaa/ui-layout  (108 个文件)
+│   │   │   ├── client/  (81 个文件)
 │   │   │   │   ├── navigation/  (30 个文件)
 │   │   │   │   ├── panels/  (15 个文件)
 │   │   │   │   └── shell/  (28 个文件)
@@ -528,22 +578,26 @@ lfaa/
 │   │       ├── contract/  (1 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (8 个文件)
-│   ├── web/  (14 个文件)
-│   │   └── web/  # @lfaa/web  (14 个文件)
+│   ├── web/  (16 个文件)
+│   │   └── web/  # @lfaa/web  (16 个文件)
+│   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (5 个文件)
 │   │       │   ├── fetch/  (1 个文件)
 │   │       │   └── tool/  (2 个文件)
 │   │       └── tests/  (4 个文件)
-│   └── workspace/  (40 个文件)
-│       ├── sections/  # @lfaa/sections  (10 个文件)
+│   └── workspace/  (48 个文件)
+│       ├── sections/  # @lfaa/sections  (12 个文件)
 │       │   ├── contract/  (1 个文件)
+│       │   ├── locale/  (2 个文件)
 │       │   └── src/  (3 个文件)
-│       ├── workspace/  # @lfaa/workspace  (16 个文件)
+│       ├── workspace/  # @lfaa/workspace  (20 个文件)
 │       │   ├── contract/  (1 个文件)
-│       │   ├── src/  (8 个文件)
+│       │   ├── locale/  (2 个文件)
+│       │   ├── src/  (10 个文件)
 │       │   └── tests/  (1 个文件)
-│       └── worktree/  # @lfaa/worktree  (14 个文件)
+│       └── worktree/  # @lfaa/worktree  (16 个文件)
 │           ├── contract/  (1 个文件)
+│           ├── locale/  (2 个文件)
 │           ├── src/  (5 个文件)
 │           └── tests/  (2 个文件)
 ├── patches/  (1 个文件)
@@ -555,6 +609,7 @@ lfaa/
 # .editorconfig
 # .gitattributes
 # .gitignore
+# .lfaa-gap.png
 # AGENTS.md
 # README.md
 # lfaa.bat
@@ -580,6 +635,7 @@ lfaa/
 | client | `@lfaa/client-ui-agent-group` | `packages/client/ui-agent-group` | LFAA 群聊界面（浏览器半）：工作台 Group 视图、发言编排卡片与群聊接口客户端。 |
 | client | `@lfaa/client-ui-agent-profile` | `packages/client/ui-agent-profile` | LFAA agent 定义与模型绑定：持久化可添加的 agent、路由组与其默认绑定，供会话与派发层读取。（浏览器半，已从 @lfaa/agent-profile 拆出）。 |
 | client | `@lfaa/client-ui-browser` | `packages/client/ui-browser` | LFAA 内置浏览器服务与可视化控制面板：遵循 DSH browser-use 独占注册契约，基于 playwright-core 复用本机 Edge/Chrome 驱动。（浏览器半，已从 @lfaa/browser 拆出）。 |
+| client | `@lfaa/client-ui-canvas` | `packages/client/ui-canvas` |  |
 | client | `@lfaa/client-ui-chat` | `packages/client/ui-chat` | LFAA 核心聊天与 Agent 工作台业务包，提供会话管理、流式思考/行动/检查步骤可视化与模型规则设置界面。（浏览器半，已从 @lfaa/chat 拆出）。 |
 | client | `@lfaa/client-ui-connectors` | `packages/client/ui-connectors` |  |
 | client | `@lfaa/client-ui-library` | `packages/client/ui-library` | LFAA 资料库功能包：图像/资产/记忆分类浏览、右栏检视器与存储位置设置。（浏览器半，已从 @lfaa/library 拆出）。 |
@@ -622,6 +678,7 @@ lfaa/
 | host | `@lfaa/terminal` | `packages/host/terminal` | LFAA Host 真实终端服务：基于 node-pty 的会话管理、窗口尺寸同步与 WebSocket 双向流。 |
 | host | `@lfaa/web-server` | `packages/host/web-server` | LFAA Web 宿主服务：装配运行时与全部 HTTP 接口，开发态托管 Vite、生产态托管 Web 产物。 |
 | interaction | `@lfaa/commands` | `packages/interaction/commands` | LFAA 斜杠命令注册 seam：插件注册命令，聊天输入栏通过 /api/commands 发现并执行。 |
+| media | `@lfaa/canvas` | `packages/media/canvas` |  |
 | media | `@lfaa/tool-media` | `packages/media/tool-media` | LFAA 媒体生成工具：调用套餐里的生图模型生成图片，保存到工作区并返回文件路径。 |
 | plan | `@lfaa/plan-mode` | `packages/plan/plan-mode` | LFAA 计划模式：开启后只允许只读工具，写与执行类工具被中间件拦截。 |
 | sandbox | `@lfaa/sandbox` | `packages/sandbox/sandbox` | LFAA 沙箱抽象契约：文件影响模式、沙箱策略与执行前判定接口，不绑定具体后端。 |
@@ -741,6 +798,7 @@ lfaa/
 ### docs/standards
 
 - `AI-Agent-Development-Standards.md` — AI Agent 项目工程开发规范
+- `dialogs.md` — 弹窗规范（强制）
 - `floating-cards.md` — 悬浮卡片规范（强制）
 - `settings-ui.md` — 设置中心界面规范（强制）
 
@@ -777,6 +835,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/attachment/attachment-local/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/attachment/attachment-local/src
 
 - `index.ts` — @lfaa/attachment-local：会话附件本机存储。附件字节保存到 ~/.lfaa/attachments/<session>/，元数据存会话索引。
@@ -795,7 +858,7 @@ lfaa/
 
 ### packages/bundle/web/src
 
-- `index.ts` — @lfaa/bundle-web 装配插件：把 Web Host 的基础能力、Loader 与跨服务联线组合成一个 bundle。
+- `index.ts` — @lfaa/bundle-web 装配插件：把 Web Host 的插件改成 Cordis Loader 条目，Loader 与插件管理在这里组合成 bundle。
 - `presets.ts` — @lfaa/bundle-web 模式预设：会话插件是从全局插件清单里挑出的子集，模式即该子集的命名组合。
 
 ### packages/bundle/web/tests
@@ -809,6 +872,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/chat/chat/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/chat/chat/src
 
@@ -842,6 +910,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/chat/review/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/chat/review/src
 
@@ -977,6 +1050,46 @@ lfaa/
 
 - `browser-render-mode.test.ts` — 验证内置浏览器双引擎模式判定、同源防自嵌套与 CDP 修饰键掩码计算。
 
+### packages/client/ui-canvas
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+
+### packages/client/ui-canvas/client
+
+- `css-modules.d.ts` — 为无限画布的 CSS Modules 提供浏览器侧类型。
+- `index.tsx` — 无限画布客户端通过工作台契约添加可卸载的右侧标签，并延迟加载编辑器。
+- `locales.ts` — 无限画布术语和端口标签，供节点、预演台和项目面板消费。
+
+### packages/client/ui-canvas/client/api
+
+- `canvas-api.ts` — 发起受工作台本机令牌保护的画布读写，媒体预览使用已有 URL 鉴权。
+
+### packages/client/ui-canvas/client/canvas
+
+- `Canvas-Editor.tsx` — 画布编辑器在右侧工作台内承载节点、连线、视口和属性面板。
+- `Canvas-Workspace.tsx` — 项目画布入口：选择或创建持久化画布，并负责载入与重试。
+- `Canvas.module.css` — 无限画布的节点、项目选择和属性面板，所有状态颜色来自工作台主题令牌。
+- `Graph-Node.tsx` — 在画布节点卡片上显示预览和各个有类型的输入输出端口。
+- `Node-Inspector.tsx` — 编辑生成参数和已选产物；模型能力会影响视频模式与可连端口。
+- `useCanvasDocument.ts` — 保持工作台编辑、宿主持久化和运行轮询各自的状态归属。
+
+### packages/client/ui-canvas/client/previs
+
+- `Previs-Editor.tsx` — 白模预演编辑器：内置简模、人物走位、相机关键帧与可重复使用的媒体输出。
+- `Previs.module.css` — 白模预演工作区布局，以语义主题呈现编辑控件，视口内由 Three.js 渲染。
+- `Stage-Viewport.tsx` — 浏览器白模视口：自由机位、轨迹预览，以及选中对象的三轴操作。
+- `stage-export.ts` — 在独立渲染画布输出当前静帧或按关键帧播放的真实视频文件。
+- `stage-renderer.ts` — Three.js 简模与摄像机渲染。资源由所属视口或导出操作独占和清理。
+- `stage-scene.ts` — 纯白模场景初始化与关键帧采样，供实时视口和静帧/短片导出共用。
+
+### packages/client/ui-canvas/src
+
+- `index.ts` — 无限画布浏览器包的 Host 占位入口，实际客户端通过 /client 挂载。
+
 ### packages/client/ui-chat
 
 - `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
@@ -1006,7 +1119,6 @@ lfaa/
 - `ComposerImagePreview.module.css` — 输入区图片大图预览：遮罩全屏、顶部工具条、默认约占屏幕七成的大图与缩放状态；颜色全部取 @lfaa/ui-theme 语义变量。
 - `ComposerImagePreview.tsx` — 输入区图片的大图预览：默认约占屏幕七成（四周留白），可缩放到 1:1 或更大；被放大时改用像素化渲染避免发虚。
 - `ComposerInputRow.tsx` — 输入卡片正文行：承载输入框与触发词/快捷键处理；行内按钮由底部工具条统一排版。
-- `ComposerMediaLibrary.tsx` — 输入框工具栏的「生成素材库」入口：图标按钮 + 素材库弹窗，复用提示词回填输入框。
 - `ComposerNotice.tsx` — 输入框上方的上下文提示条：显示一次性提示与关闭按钮。
 - `ComposerProjectChip.tsx` — 渲染聊天模式与停靠态输入栏内紧跟 + 按钮右侧的独立项目胶囊，点击开关统一项目选择器。
 - `ComposerProjectMenu.tsx` — 项目选择浮层：输入栏项目挂载条与引导区标题里的项目变量共用同一份搜索、项目列表与新建/解绑入口。
@@ -1277,6 +1389,7 @@ lfaa/
 - `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
 - `useWorkbenchTabClose.ts` — 右侧工作台标签关闭：最后一个内容标签关闭且没有其它标签时，收起整个右栏。
 - `useWorkbenchTabMenu.ts` — 右栏标签右键菜单与标签级快捷键：统一有序标签列表、当前舞台识别、单个/其他/右侧/全部关闭与前后切换。
+- `useWorkbenchTabs.tsx` — 订阅工作台插件标签贡献；同一工作台实例管理它们的打开、切换与清理。
 - `workbench-titles.ts` — 右侧工作台辅助面板标题字典：按语言返回文件树、上下文、终端、子智能体、侧边提问与工作详情标题。
 
 ### packages/client/ui-chat/client/workbench/pane
@@ -1449,7 +1562,7 @@ lfaa/
 
 - `css-modules.d.ts` — 声明 CSS Modules 类型导出，供 @lfaa/plugins 浏览器端组件安全导入样式。
 - `index.tsx` — @lfaa/plugins 浏览器端 Cordis 插件：注册插件中心主视图，并随运行状态动态挂卸各扩展详情页。
-- `locales.ts` — @lfaa/plugins 浏览器端中英文界面文案字典。
+- `locales.ts` — @lfaa/plugins 浏览器端中英文界面文案字典：插件中心只管扩展插件的安装与启停，内置插件在设置中心。
 
 ### packages/client/ui-plugins/client/api
 
@@ -1459,10 +1572,16 @@ lfaa/
 
 - `Add-Plugin.module.css` — 添加插件弹窗样式：复用主题变量，日志区固定高度可滚动，避免撑破界面。
 - `Add-Plugin.tsx` — @lfaa/plugins 添加插件弹窗：支持 npm 包名 / GitHub 地址 / 本地目录三种来源，实时展示安装日志。
-- `Catalog-Card.tsx` — @lfaa/plugins 插件中心目录卡片：区分「已装配」「已安装」与可安装三种状态，并提供安装入口。
 - `Plugin-Card.tsx` — @lfaa/plugins 插件中心已安装插件卡片：展示运行时状态、包名与失败原因，并承载启停/编辑/卸载操作。
 - `Plugins-View.module.css` — @lfaa/plugins 插件中心主视图样式，完全使用 @lfaa/ui-theme 语义变量以适配深浅双主题与窄屏。
-- `Plugins-View.tsx` — @lfaa/plugins 插件中心主视图：汇总真实状态与可安装目录，操作前二次确认并展示执行进度。
+- `Plugins-View.tsx` — @lfaa/plugins 插件中心主视图：只管理外部/自研插件（安装、启停、卸载、二创），内置插件已迁到设置中心。
+
+### packages/client/ui-plugins/client/inventory
+
+- `Inventory-Card.tsx` — 插件清单卡片：折叠时显示标题、两行描述、条目 id 与状态标签；展开后显示完整名称、来源与状态事实。
+- `Plugin-Inventory.module.css` — 设置中心「内置插件」页样式：卡片网格、分组标题与展开事实表，只消费 ui-theme 语义变量。
+- `Plugin-Inventory.tsx` — 设置中心「内置插件」页：只读清单，按当前预设拆会话插件与全局插件，支持搜索与逐卡展开。
+- `locales.ts` — 设置中心「内置插件」页的中英文文案：只放用户需要看到的词，不写实现说明。
 
 ### packages/client/ui-plugins/client/stream
 
@@ -1714,6 +1833,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/compaction/compaction/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/compaction/compaction/src
 
 - `basic.ts` — @lfaa/compaction-basic：把上下文压缩做成可替换服务，默认复用 @lfaa/context 的预算压缩。
@@ -1764,6 +1888,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/agent-profile/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/agent-profile/src
 
 - `http-handler.ts` — @lfaa/agent-profile HTTP 接口：agent 定义与模型绑定的增删改查，供 Agents 页与会话顶栏使用。
@@ -1783,10 +1912,18 @@ lfaa/
 - `routing.test.ts` — 验证路由候选解析、错误分类与派发器换目标规则（首 token 后不换、认不出就不换）。
 - `snapshot.test.ts` — 验证 agent 与绑定的导入导出：快照往返、按 id 覆盖、非法内容拒绝、内置 default 不被覆盖。
 
+### packages/core/agent/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/agent/src
 
+- `file-activity.ts` — 会话内文件活动解析：从已落盘消息或运行中步骤里定位本次文件操作的真实路径与预览。
 - `http-handler.ts` — 为本机 Web 服务提供 /api/agent/* 任务启动、SSE 轨迹推送、人工审批与任务中止接口。
 - `index.ts` — @lfaa/agent Host 侧 Cordis 服务：连接 llm/tools/memory/rules 四大能力并管理任务运行态、SSE 订阅与工具审批。
+- `plugin-config.ts` — Agent 插件配置契约：与 Agent 服务主体分开，供装配层与测试引用。
+- `session-modules-hook.ts` — 会话模块兼容器：装配层在运行期注入的钩子状态与注销逻辑，独立于 Agent 服务主体。
 - `stream-journal.ts` — 提供 @lfaa/agent 流式断线续传序号日志、句边界续写裁剪、脱敏日志及可观测性指标统计。
 - `types.ts` — 定义 @lfaa/agent 的运行契约：权限模式、运行输入、Think/Act/Check 流式事件与人工审批句柄。
 
@@ -1864,6 +2001,7 @@ lfaa/
 - `run-message-attachments.test.ts` — 验证 Agent 运行把用户图片附件与引用图写入用户消息，供聊天气泡还原缩略图。
 - `run-routing.test.ts` — 验证「本次运行用哪个 agent、哪份绑定」的解析优先级，以及续跑缓存不丢这两个设置。
 - `session-tools.test.ts` — 验证会话可见性工具：项目隔离、会话行格式、消息/步骤摘要与有界等待。
+- `skills-catalog.test.ts` — 验证内置技能点名策略：优先技能必须出现在名单里，其余只报数量。
 - `todo-plan.test.ts` — 验证任务清单策略：todo_write 排到工具首位，且提醒只在「没清单 + 已多步 + 没提醒过」时触发一次。
 - `tool-result.test.ts` — 验证工具结果进入模型上下文前的统一限长与续读提示。
 - `verification.test.ts` — 验证完成前自检对代码路径与构建/测试命令的识别规则。
@@ -1883,6 +2021,11 @@ lfaa/
 ### packages/core/browser/contract
 
 - `index.ts` — 定义 @lfaa/browser 的多标签快照、控制台与网络请求记录、人工接管状态及配置契约。
+
+### packages/core/browser/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/core/browser/src
 
@@ -1958,6 +2101,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/crew/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/crew/src
 
 - `crew-runner.ts` — crew 串行执行器：按任务拓扑序接力子智能体，交接前验收，结束后归档运行期记忆。
@@ -2019,6 +2167,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/jobs/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/jobs/src
 
 - `http-handler.ts` — 提供 /api/jobs* 后台任务查询、终端命令启动与终止接口。
@@ -2038,6 +2191,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 - `tsdown.config.ts` — @lfaa/llm 构建入口：主入口、方舟套餐路由与千问 Token Plan 目录三个公开子路径。
+
+### packages/core/llm/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/core/llm/src
 
@@ -2086,6 +2244,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/memory/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/memory/src
 
 - `http-handler.ts` — 为本机 Web 服务提供 /api/memory*、/api/library* 与 /api/storage* HTTP 接口，支持记忆、资产库与无损存储迁移。
@@ -2131,6 +2294,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/core/rules/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/core/rules/src
 
@@ -2210,6 +2378,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/subagent/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/subagent/src
 
 - `browser-subagent.ts` — 浏览器专属子智能体辅助：工具白名单判定、可读步骤标签映射、浏览器类型识别与专属系统指令拼装。
@@ -2232,6 +2405,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/system-prompt/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/system-prompt/src
 
 - `index.ts` — @lfaa/system-prompt：系统提示词分段注册服务。插件按需追加段落，Agent 在组装 system 时统一合并。
@@ -2248,6 +2426,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/core/tool-todo/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/core/tool-todo/src
 
 - `index.ts` — @lfaa/tool-todo 插件入口：向工具注册表贡献任务清单的写入与读取能力，清单作为会话状态落盘。
@@ -2263,6 +2446,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/core/tools/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/core/tools/src
 
@@ -2291,6 +2479,11 @@ lfaa/
 ### packages/extension/connectors/contract
 
 - `index.ts` — 定义连接器（MCP / CLI）列表、CLI 动作模板与参数 schema 的浏览器安全契约；不回流可执行文件细节以外的敏感值。
+
+### packages/extension/connectors/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/extension/connectors/src
 
@@ -2328,6 +2521,11 @@ lfaa/
 
 - `index.ts` — MCP 设置接口的浏览器安全契约。连接参数只由客户端写入，Host 不回显。
 
+### packages/extension/mcp/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/extension/mcp/src
 
 - `config-store.ts` — 用本机独立密钥加密所有连接字段，并以原子替换写入 MCP 配置。
@@ -2355,6 +2553,11 @@ lfaa/
 
 - `index.ts` — @lfaa/plugins 公开契约：定义插件清单、安装记录、运行状态与可安装目录条目，无 Node 或 DOM 依赖。
 
+### packages/extension/plugins/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/extension/plugins/src
 
 - `index.ts` — @lfaa/plugins Host 侧 Cordis 服务：管理插件安装、启停、卸载、二创与运行状态。
@@ -2363,11 +2566,18 @@ lfaa/
 
 - `install-spec.ts` — 插件安装来源解析：把用户输入的包名 / GitHub 地址 / 本地路径 / tarball 归类，供 profile 安装使用。
 - `module-aliases.ts` — 合包后的旧插件 module 名迁移表：包名合并后，旧 profile 记录与旧会话模块列表都要映射到新包名。
-- `plugin-catalog.ts` — 可安装插件目录：本仓已具备默认导出的插件包清单，以及包名到稳定记录 id 的规整规则。
+- `package-meta.ts` — 插件包显示元数据：从包目录读取 package.json 与 locale/<lang>.json 的 meta 段落，供插件清单投影使用。
 - `plugin-presets.ts` — 插件模式预设持久化：记录当前默认模式，校验可用性并提供新会话的模块组合。
+- `preset-summary.ts` — 插件模式预设的契约与摘要：预设由 bundle 提供，插件包不反向依赖 bundle。
+- `record-id.ts` — 包名到稳定记录 id 的规整规则：安装记录、目录与二创共用同一套 id。
+
+### packages/extension/plugins/src/inventory
+
+- `plugin-inventory.ts` — 插件清单只读投影：把 Cordis Loader 条目与 bundle 静态装配模块合成一份快照，不做缓存。
 
 ### packages/extension/plugins/src/manager
 
+- `builtin-state.ts` — 内置插件的启停持久化：记录被停用的模块名，启动时据此给对应 Loader 条目置 disabled。
 - `fork-plugin.ts` — 插件二创：把插件包复制到 profile/plugins/<新 id>，换成独立包名并完成依赖探测；失败即回滚。
 - `install-external.ts` — 外部插件安装：校验来源 → `pnpm add` → 识别包名 → 登记 → 自动启用；任一环节失败回滚，不留半装状态。
 - `plugin-manager.ts` — @lfaa/plugins Host 侧插件生命周期管理器：基于 Cordis Loader 实现真实装载、卸载与 profile 持久化。
@@ -2384,6 +2594,7 @@ lfaa/
 
 - `install-spec.test.ts` — 验证插件安装来源解析：npm 包名、GitHub 地址、本地目录与压缩包各自归类，非法输入明确拒绝。
 - `module-aliases.test.ts` — 验证合包后的插件 module 名迁移：旧会话模块名与旧 profile 记录都要映射到新包名。
+- `plugin-inventory.test.ts` — 验证插件清单投影：包元数据读取、Loader 条目相位、静态装配顺序与只读接口返回。
 - `plugin-routes.test.ts` — 验证插件安装流式接口：只接受 POST + JSON，SSE 逐行推送日志并以 done/failed 收尾。
 - `plugins-lifecycle.test.ts` — 验证 @lfaa/plugins 基于 Cordis Loader 的真实安装、启用、停用、卸载与 profile 持久化。
 - `pnpm-spawn.test.ts` — 验证 pnpm 子进程调用层：安装来源拒绝 shell 元字符、Windows 命令行全部引用、优先绕开 shell。
@@ -2400,6 +2611,11 @@ lfaa/
 ### packages/extension/skills/contract
 
 - `index.ts` — @lfaa/skills 公开契约：定义技能来源、摘要、详情、编辑输入与插件技能注册接口，无 Node 或 DOM 依赖。
+
+### packages/extension/skills/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/extension/skills/src
 
@@ -2420,6 +2636,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/feedback/message-feedback/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/feedback/message-feedback/src
 
 - `index.ts` — @lfaa/message-feedback：消息反馈服务。赞/踩与备注持久化在 ~/.lfaa/feedback.json，供聊天界面记录与回读。
@@ -2436,6 +2657,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/fs/fs-observation-policy/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/fs/fs-observation-policy/src
 
 - `index.ts` — @lfaa/fs-observation-policy：写前必读。写文件/改文件前，同一会话必须先读过该文件，避免盲改。
@@ -2451,6 +2677,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/goal/goal/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/goal/goal/src
 
@@ -2476,6 +2707,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/guard/timeout-policy/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/guard/timeout-policy/src
 
 - `index.ts` — @lfaa/timeout-policy：为所有工具执行套一层统一超时，超时中止 signal 并返回可读失败结果。
@@ -2491,6 +2727,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/host/terminal/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/host/terminal/src
 
@@ -2524,6 +2765,7 @@ lfaa/
 ### packages/host/web-server/src/handlers
 
 - `handlers-backgrounds.ts` — @lfaa/web-server：个人背景图接口：列表、上传、读取与删除；文件保存在本机 ~/.lfaa/backgrounds。
+- `handlers-canvas.ts` — Host 网关内的项目画布路由，所有操作先通过本机令牌及项目登记校验。
 - `handlers-chat.ts` — @lfaa/web-server：构造会话与运行相关处理器（聊天、编码会话、媒体直连生成、Agent 运行）。
 - `handlers-notifications.ts` — @lfaa/web-server：提供自定义通知提示音的上传、列表、读取与删除接口；文件保存在本机 ~/.lfaa/notification-sounds。
 - `handlers.ts` — @lfaa/web-server：构造常规能力 HTTP 处理器（工作区、技能、插件、模型、记忆、媒体文件等），并集中提供
@@ -2542,6 +2784,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/interaction/commands/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/interaction/commands/src
 
 - `index.ts` — @lfaa/commands：斜杠命令注册 seam。插件向 Host 注册命令，聊天输入栏通过 /api/commands 发现并执行。
@@ -2550,6 +2797,37 @@ lfaa/
 
 - `commands.test.ts` — 验证斜杠命令 seam：注册/注销、内置命令展开、执行异常与 HTTP 分支。
 
+### packages/media/canvas
+
+- `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
+- `README.md`
+- `README.zh.md`
+- `package.json`
+- `tsconfig.json`
+- `tsdown.config.ts` — 将画布 Host 插件打包为默认入口，公开契约保留编译后的独立入口。
+
+### packages/media/canvas/contract
+
+- `index.ts` — 无限画布公开契约，供浏览器编辑器和 Host 验证器共用。
+
+### packages/media/canvas/locale
+
+- `en.json`
+- `zh.json`
+
+### packages/media/canvas/src
+
+- `canvas-runner.ts` — 画布运行器复用现有模型服务，按节点版本记录实际提交输入与输出。
+- `canvas-service.ts` — Cordis 画布服务：串行保存同一画布及提交记录，生成操作在独立任务中运行。
+- `canvas-store.ts` — Host 持久化项目画布、素材与独立的运行记录。
+- `graph.ts` — Host 校验画布文档、端口和素材版本，拒绝跨项目引用与循环。
+- `index.ts` — 无限画布宿主插件入口，供 Cordis Loader 与 HTTP 装配使用。
+
+### packages/media/canvas/tests
+
+- `canvas-recovery.test.ts` — 验证宿主重新装配后续查已提交的厂商任务，其他镜头的已选结果保持可用。
+- `graph.test.ts` — 验证画布连线端口、版本固定和快照拒绝规则。
+
 ### packages/media/tool-media
 
 - `README.i18n.yaml` — 双语配对记录：按英文标题分段记录英文 / 中文段落哈希。
@@ -2557,6 +2835,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/media/tool-media/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/media/tool-media/src
 
@@ -2585,6 +2868,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/plan/plan-mode/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/plan/plan-mode/src
 
 - `index.ts` — @lfaa/plan-mode：计划模式。开启后写/执行类工具被中间件拦截，只留下只读探查，先给计划再动手。
@@ -2602,9 +2890,14 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/sandbox/sandbox/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/sandbox/sandbox/src
 
-- `index.ts` — @lfaa/sandbox 安全边界包入口：导出沙箱契约、执行策略与本地后端，并组合成默认插件。
+- `index.ts` — @lfaa/sandbox 安全边界包入口：导出沙箱契约、执行策略与本地后端；默认只挂策略，本地后端由装配层单独提供。
 - `policy.ts` — @lfaa/sandbox-policy：逐次沙箱策略。按工具指定本次执行使用的沙箱模式，缺省沿用调用方。
 - `seam.ts` — @lfaa/sandbox 抽象契约：文件影响模式、沙箱策略与执行前判定接口，不绑定具体后端。
 
@@ -2628,6 +2921,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/schedule/tool-schedule/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/schedule/tool-schedule/src
 
 - `index.ts` — @lfaa/tool-schedule：持久化定时任务（一次性或重复），提供创建、查看、取消与到期领取工具。
@@ -2643,6 +2941,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/session/handoff/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/session/handoff/src
 
@@ -2667,6 +2970,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/session/session-title/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/session/session-title/src
 
 - `index.ts` — @lfaa/session-title：会话标题服务。提供启发式简洁标题与可选的模型生成标题（失败自动回落）。
@@ -2682,6 +2990,11 @@ lfaa/
 - `README.zh.md`
 - `package.json`
 - `tsconfig.json`
+
+### packages/shell/shell/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/shell/shell/src
 
@@ -2711,6 +3024,11 @@ lfaa/
 - `README.zh.md` — @lfaa/spill-local
 - `package.json`
 - `tsconfig.json`
+
+### packages/spill/spill-local/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/spill/spill-local/src
 
@@ -2771,6 +3089,7 @@ lfaa/
 - `shortcut-state.ts` — 快捷键状态：动作注册表 + 用户键位覆盖，从 workbench-service 抽出，控制服务文件体量。
 - `shortcuts.ts` — 工作台快捷键基础设施：真实动作注册表元数据、键位标准化与匹配、冲突检测，以及浏览器本地键位持久化。
 - `workbench-service.ts` — 在浏览器 Cordis 上下文中注册并管理四栏工作台服务与插件贡献生命周期。
+- `workbench-snapshot.ts` — 浏览器工作台的订阅快照，集中描述四栏与插件贡献的公开读取状态。
 
 ### packages/ui/layout/client/navigation
 
@@ -3048,6 +3367,11 @@ lfaa/
 - `package.json`
 - `tsconfig.json`
 
+### packages/web/web/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/web/web/src
 
 - `index.ts` — @lfaa/web 浏览器/网页能力包入口：导出能力 seam、HTTP 抓取实现与 fetch_url 工具，并组合成默认插件。
@@ -3082,6 +3406,11 @@ lfaa/
 
 - `index.ts` — 定义自定义分区包在 Host 与 Client 间共享的无 DOM 领域数据结构。
 
+### packages/workspace/sections/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/workspace/sections/src
 
 - `http-handler.ts` — 为 Web 开发服务提供 /api/workspace/sections* HTTP RPC 路由桥接。
@@ -3101,11 +3430,18 @@ lfaa/
 
 - `index.ts` — 定义工作区 Host 侧与 RPC 共享的无 DOM 领域数据结构。
 
+### packages/workspace/workspace/locale
+
+- `en.json`
+- `zh.json`
+
 ### packages/workspace/workspace/src
 
 - `default-workspace.ts` — 内置「默认工作区」项目条目的常量与构造函数：不写入 projects.json，由列表与查询时动态合成。
+- `dir-resolvers.ts` — 默认项目目录与「项目外聊天」目录的解析器：装配层在运行期注入，可回滚。
 - `http-handler.ts` — 为仅监听本机 127.0.0.1 的 Web 开发服务提供 /api/workspace/* HTTP 中间件桥接。
 - `index.ts` — 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
+- `plugin-config.ts` — 工作区插件配置契约：与工作区服务主体分开，供装配层与测试引用。
 - `project-brief.ts` — 依据项目目录生成项目简介初稿：只读 README/清单与顶层条目，结果确定、可离线测试，不写文件也不调用模型。
 - `project-records.ts` — 项目记录归一化与路径边界：解析存储记录、去重根目录、校验目标是否落在项目授权目录内。
 - `project-store.ts` — 项目存储与默认项目目录同步：读写 ~/.lfaa/projects.json，并让项目列表跟随 <文档>/lfaa 下的真实文件夹。
@@ -3128,6 +3464,11 @@ lfaa/
 ### packages/workspace/worktree/contract
 
 - `index.ts` — 定义 Git 工作树的公开契约：记录、创建/删除输入、状态与目录检查结果，无 Node 或 DOM 依赖。
+
+### packages/workspace/worktree/locale
+
+- `en.json`
+- `zh.json`
 
 ### packages/workspace/worktree/src
 
@@ -3189,6 +3530,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 5 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 482 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 495 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
-| `packages/extension/skills/src/builtin-skills` | 637 | 151 |  |
+| `packages/extension/skills/src/builtin-skills` | 639 | 153 |  |

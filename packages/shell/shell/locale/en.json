@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Shell runtime",
+    "description": "Executes, cancels, and collects output from shell processes."
+  }
+}

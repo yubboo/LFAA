@@ -25,6 +25,28 @@ function toolName(server: string, name: string): string {
   return "mcp__" + normalize(server).slice(0, 17) + "__" + normalize(name).slice(0, 22) + "_" + digest;
 }
 
+/**
+ * 工具结果只有文本通道：图片块若原样序列化，base64 会整段进入上下文并撑爆窗口。
+ * 这里保留类型、格式与估算字节数，让模型知道「有图但不可见」，并指向可看图的工具。
+ */
+export function serializeMcpResult(raw: unknown): string {
+  // 旧版结果可能只带 toolResult 字段，这里按内容块逐一降级，其余字段原样保留。
+  const result = (raw ?? {}) as { content?: ReadonlyArray<{ type: string; data?: string; mimeType?: string } & Record<string, unknown>>; structuredContent?: unknown; isError?: boolean };
+  const blocks = Array.isArray(result.content) ? result.content : [];
+  const content = blocks.map((block) => block.type === "image"
+    ? {
+        type: "image",
+        mimeType: block.mimeType,
+        bytes: Math.ceil((block.data?.length ?? 0) * 3 / 4),
+        note: "宿主不显示图片内容；需要看图时改用 browser_visual_check 或 browser_screenshot。",
+      }
+    : block);
+  const payload: Record<string, unknown> = { content };
+  if (result.structuredContent !== undefined) payload.structuredContent = result.structuredContent;
+  if (result.isError === true) payload.isError = true;
+  return JSON.stringify(payload);
+}
+
 export class McpService extends Service {
   private readonly configs = new Map<string, ServerConfig>();
   private readonly connections = new Map<string, Connection>();
@@ -195,7 +217,7 @@ export class McpService extends Service {
         try {
           const result = await connection.client.callTool({ name: tool.name, arguments: args }, undefined, { signal, timeout: 60_000 });
           const ok = result.isError !== true;
-          return { ok, output: JSON.stringify(result), summary: ok ? title : "MCP tool reported an error." };
+          return { ok, output: serializeMcpResult(result), summary: ok ? title : "MCP tool reported an error." };
         } catch {
           return { ok: false, output: "MCP tool call failed or was cancelled.", summary: "MCP tool call failed." };
         }

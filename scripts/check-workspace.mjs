@@ -253,6 +253,34 @@ function checkFile(file, pkgDir, manifest, declared) {
 }
 
 /**
+ * 插件包必须带双语 locale 元数据：设置中心「内置插件」页的标题与描述来自
+ * `locale/zh.json` 与 `locale/en.json` 的 `meta`，缺失时清单只能回落包名。
+ * 装配包（`packages/bundle/*`）不进入清单，不需要 locale。
+ */
+function checkPluginLocaleMeta(pkgDir) {
+  if (!pkgDir.startsWith(PACKAGES_DIR)) return;
+  if (relative(PACKAGES_DIR, pkgDir).split(sep)[0] === "bundle") return;
+  const entry = join(pkgDir, "src", "index.ts");
+  if (!existsSync(entry)) return;
+  if (!/^\s*export\s+default\s+/mu.test(readFileSync(entry, "utf8"))) return;
+  for (const lang of ["zh", "en"]) {
+    const file = join(pkgDir, "locale", `${lang}.json`);
+    if (!existsSync(file)) {
+      report(LEVELS.error, "plugin-locale-meta", file, `插件包缺少 locale/${lang}.json（内置插件页的标题与描述依赖它）`);
+      continue;
+    }
+    try {
+      const meta = JSON.parse(readFileSync(file, "utf8")).meta;
+      if (typeof meta?.title !== "string" || !meta.title.trim() || typeof meta?.description !== "string" || !meta.description.trim()) {
+        report(LEVELS.error, "plugin-locale-meta", file, "locale meta 必须包含非空的 title 与 description");
+      }
+    } catch (error) {
+      report(LEVELS.error, "plugin-locale-meta", file, `locale 文件解析失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
+/**
  * 插件包必须默认导出插件本体：Cordis Loader 按 `default` 取插件，
  * 只有具名导出会导致「装得上但拿不到插件」。
  */
@@ -593,6 +621,7 @@ function main() {
     checkPackageName(pkgDir, manifest);
     checkGroup(pkgDir, manifest);
     checkReadmePair(pkgDir, manifest);
+    checkPluginLocaleMeta(pkgDir);
     for (const stray of walk(pkgDir, [".js", ".jsx", ".d.ts", ".map"])) {
       const relToPkg = relative(pkgDir, stray).split(sep).join("/");
       checkStrayEmit(stray, relToPkg);

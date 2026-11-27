@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Context compaction",
+    "description": "Provides context compaction, tool-result pruning, and the /compact command."
+  }
+}

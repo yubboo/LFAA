@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Rules",
+    "description": "Assembles system, project, and user rules into the prompt."
+  }
+}

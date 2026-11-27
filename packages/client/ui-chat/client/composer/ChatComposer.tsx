@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { ChatClientStore } from "../store/chat-store";
-import { mediaChatMessages } from "@lfaa/client-ui-tool-media/client";
+import { MediaLibraryDialog, mediaChatMessages } from "@lfaa/client-ui-tool-media/client";
 import type { ChatLocaleMessages } from "../locales";
 import type { ChatMessageItem, ChatSessionDetail } from "../store/chat-types";
 import { useComposerAttachInput, useComposerAutoGrow } from "./useComposerInput";
@@ -12,7 +12,6 @@ import { ClarificationCard } from "../conversation/Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerAttachmentChip } from "./ComposerAttachmentChip";
 import { ComposerInputRow } from "./ComposerInputRow";
-import { ComposerMediaLibrary } from "./ComposerMediaLibrary";
 import { ComposerNotice } from "./ComposerNotice";
 import { ComposerProjectChip } from "./ComposerProjectChip";
 import { ComposerFollowUpHint } from "./ComposerQueuePanel";
@@ -116,6 +115,8 @@ export function ChatComposer({
   // 仅在空会话（尚未开始对话）时展示项目胶囊；会话已进入项目后不再重复占用输入栏空间。
   const showInlineProjectChip = Boolean(activeProject && !showScopeShelf && messagesCount === 0 && !docked);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  // 素材库入口已并入「添加上下文」菜单，弹窗开关由输入栏持有。
+  const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
   useEffect(() => {
     if (openProjectSignal > 0 && !isRunning && !bindingProject) setProjectMenuOpen(true);
   }, [openProjectSignal, isRunning, bindingProject]);
@@ -200,6 +201,7 @@ export function ChatComposer({
         focusTextareaAt(nextDraft.length);
       }}
       onOpenBrowser={onOpenBrowser}
+      onOpenMedia={isWorkMode ? () => setMediaLibraryOpen(true) : undefined}
     />
   );
 
@@ -294,17 +296,7 @@ export function ChatComposer({
           <div className={composerStyles.controls}>
             {/* 空会话时模式胶囊跟项目行：工作模式在卡片头行，聊天模式才留在工具行。 */}
             {messagesCount === 0 && !showScopeShelf && <SessionModeBar store={store} isZh={locale.isZh} compact={!isWorkMode} />}
-            {isWorkMode && addMenu}
-            {isWorkMode && (
-              <ComposerMediaLibrary
-                isZh={locale.isZh}
-                onUsePrompt={(prompt) => {
-                  setDraft(prompt);
-                  focusTextareaAt(prompt.length);
-                }}
-              />
-            )}
-            {!isWorkMode && addMenu}
+            {addMenu}
             {showInlineProjectChip && activeProject && (
               <ComposerProjectChip
                 locale={locale}
@@ -370,6 +362,15 @@ export function ChatComposer({
           </div>
         </div>
       </div>
+      <MediaLibraryDialog
+        isZh={locale.isZh}
+        open={mediaLibraryOpen}
+        onClose={() => setMediaLibraryOpen(false)}
+        onUsePrompt={(prompt) => {
+          setDraft(prompt);
+          focusTextareaAt(prompt.length);
+        }}
+      />
       <ComposerStats
         locale={locale}
         messages={messages}

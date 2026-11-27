@@ -14,7 +14,7 @@
 }
 
 .liveStatus {
-  color: var(--color-ink);
+  color: var(--color-ink-soft);
 }
 
 .elapsed,
@@ -24,6 +24,20 @@
   font-size: 0.84em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* 总行标题：整轮动作摘要，过长时省略，不把用时与用量挤出去。 */
+.summaryLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-ink-soft);
+}
+
+/* 过程块容器：收起时整段隐藏，轮次之间的正文段落不在这个容器里，始终可见。 */
+.roundActivity {
+  min-width: 0;
 }
 
 /* 活动行状态标记：运行中是旋转圆环，结束后换成结果图标（对勾/错误/等待）。 */
@@ -63,7 +77,8 @@
 .disclosure {
   width: fit-content;
   max-width: 100%;
-  padding: 0.14rem 0.38rem;
+  /* 左侧不留内边距：过程汇总行与下方轮次标题都要和正文左缘同列，不能缩进一小格。 */
+  padding: 0.14rem 0.38rem 0.14rem 0;
   border: 0;
   border-radius: 0.4rem;
   background: transparent;
@@ -92,6 +107,13 @@ summary.activityRow:hover,
 .fileActivity:hover {
   color: var(--color-ink);
   background: var(--color-active);
+}
+
+/* 悬停时动词跟随行色升到墨色，让「可交互 / 当前行」比静态层级更明确。 */
+.disclosure:hover .toolVerb,
+summary.activityRow:hover .toolVerb,
+.fileActivity:hover .fileName {
+  color: inherit;
 }
 
 .disclosure:focus-visible,
@@ -143,9 +165,10 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
   white-space: nowrap;
 }
 
+/* 动作动词（已读取 / 已运行命令）用次级墨色：过程行动作比回复正文低一档，悬停再升到正文级。 */
 .toolVerb {
   flex: none;
-  color: var(--color-ink);
+  color: var(--color-ink-soft);
   font-weight: 500;
 }
 
@@ -197,7 +220,7 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
 @media (prefers-reduced-motion: no-preference) {
   :is(.disclosure, .activityRow)[data-live="true"] > .activityTitle,
   .liveStatus[data-live="true"] > .activityTitle {
-    color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
+    color: color-mix(in srgb, var(--color-accent) 48%, var(--color-ink-soft));
     animation: live-title-breathe 1.9s ease-in-out infinite;
   }
 
@@ -250,7 +273,8 @@ details[open] > summary > .chevron { transform: rotate(90deg); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-ink);
+  /* 文件名属于过程行的次级文字，与正文拉开一档；悬停由行规则升到墨色。 */
+  color: var(--color-ink-soft);
   text-decoration: underline dotted var(--color-muted);
   text-underline-offset: 3px;
 }

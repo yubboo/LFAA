@@ -4,6 +4,7 @@ import "@lfaa/ui-layout/client";
 import type { PluginRecord } from "@lfaa/plugins/contract";
 import { fetchPluginsState } from "./api/plugins-client";
 import { PluginsView } from "./components/Plugins-View";
+import { PluginInventoryView } from "./inventory/Plugin-Inventory";
 
 function detectIsZh(): boolean {
   if (typeof document !== "undefined" && document.documentElement.lang) {
@@ -73,12 +74,20 @@ export function pluginsClientPlugin(context: Context): void {
     ),
   });
 
+  // 设置中心只读清单：与插件中心分开，读 Loader 的真实状态而不写 profile。
+  const disposeInventoryView = context.workbench.registerView({
+    id: "settings:plugins",
+    title: isZh ? "内置插件" : "Plugins",
+    render: () => <PluginInventoryView isZh={detectIsZh()} />,
+  });
+
   void fetchPluginsState()
     .then((state) => syncRunningViews(state.installed))
     .catch(() => {});
 
   context.effect(() => () => {
     disposeMainView();
+    disposeInventoryView();
     for (const dispose of registeredViews.values()) dispose();
     registeredViews.clear();
   });

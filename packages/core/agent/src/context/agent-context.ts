@@ -153,6 +153,9 @@ function compactSkillDescription(description: string | undefined, maxChars = 120
   return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
 }
 
+/** 需要常驻点名的内置技能：模型很少主动检索、但一旦用到就必须命中的能力。 */
+const PRIORITY_BUILTIN_SKILLS = ["ui-measure"];
+
 /** 可用技能目录提示：优先内联个人/项目/插件技能，内置技能压缩为按需检索提示，避免 40 个无关内置技能每轮膨胀数千 Token。 */
 export function buildSkillsCatalogHint(availableSkillCatalog: RunExecutionParams["availableSkillCatalog"]): string {
   if (!availableSkillCatalog || availableSkillCatalog.length === 0) return "";
@@ -168,7 +171,13 @@ export function buildSkillsCatalogHint(availableSkillCatalog: RunExecutionParams
     lines.push(`- （另有 ${prioritySkills.length - maxShown} 个自定义/插件技能，需要时调用 list_skills 查看）`);
   }
   if (builtinSkills.length > 0) {
-    const builtinNames = builtinSkills.slice(0, 8).map((s) => s.name).join("、");
+    // 高优先级内置技能排在最前，避免被大量内置技能名挤出点名列表。
+    const rank = (id: string) => {
+      const index = PRIORITY_BUILTIN_SKILLS.indexOf(id.startsWith("builtin:") ? id.slice("builtin:".length) : id);
+      return index === -1 ? PRIORITY_BUILTIN_SKILLS.length : index;
+    };
+    const ordered = [...builtinSkills].sort((left, right) => rank(left.id) - rank(right.id));
+    const builtinNames = ordered.slice(0, 8).map((s) => s.name).join("、");
     const more = builtinSkills.length > 8 ? ` 等 ${builtinSkills.length} 个` : "";
     lines.push(`- 内置专业技能（${builtinNames}${more}）：按需先调用 list_skills 检索再用 load_skill 读取正文`);
   }

@@ -1,4 +1,4 @@
-// @lfaa/plugins 浏览器端中英文界面文案字典。
+// @lfaa/plugins 浏览器端中英文界面文案字典：插件中心只管扩展插件的安装与启停，内置插件在设置中心。
 import type { PluginRunStatus } from "@lfaa/plugins/contract";
 
 /** 放宽为 string，避免中英字典的字面量类型互相不兼容。 */
@@ -8,17 +8,9 @@ export interface PluginsMessages {
   searchPlaceholder: string;
   refresh: string;
   installedSection: string;
-  catalogSection: string;
-  sessionSection: string;
-  globalSection: string;
-  modeLabel: string;
   emptyInstalled: string;
-  emptyCatalog: string;
-  install: string;
-  installedBadge: string;
-  providedBadge: string;
+  emptyInstalledSearch: string;
   builtinBadge: string;
-  builtinUnremovable: string;
   addTitle: string;
   addHint: string;
   addPlaceholder: string;
@@ -26,7 +18,6 @@ export interface PluginsMessages {
   addWorking: string;
   addCancel: string;
   addEntry: string;
-  providedHint: string;
   enable: string;
   disable: string;
   uninstall: string;
@@ -35,7 +26,6 @@ export interface PluginsMessages {
   edit: string;
   save: string;
   cancel: string;
-  openDetail: string;
   moduleLabel: string;
   errorLabel: string;
   statusMap: Record<PluginRunStatus, string>;
@@ -46,21 +36,13 @@ export interface PluginsMessages {
 export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
   zh: {
     title: "插件中心",
-    subtitle: "插件由 Cordis Loader 真实装载与卸载，状态取自运行时而非记录。",
-    searchPlaceholder: "搜索插件名称、描述或包名…",
+    subtitle: "安装、启停与管理扩展插件。",
+    searchPlaceholder: "搜索扩展插件名称、描述或包名…",
     refresh: "刷新",
-    installedSection: "已安装",
-    catalogSection: "可安装（本仓插件包）",
-    sessionSection: "会话插件",
-    globalSection: "全局插件",
-    modeLabel: "新会话默认模式",
-    emptyInstalled: "尚未安装任何插件。从下方目录选择插件包安装后，再点击「启用」真正装载。",
-    emptyCatalog: "没有匹配的插件包。",
-    install: "安装",
-    installedBadge: "已安装",
-    providedBadge: "已装配",
+    installedSection: "已安装的插件",
+    emptyInstalled: "还没有安装扩展插件。点「添加插件」安装 npm 包、Git 仓库或本地目录。",
+    emptyInstalledSearch: "没有匹配的插件。",
     builtinBadge: "内置",
-    builtinUnremovable: "内置插件随应用发布，只能停用，不能卸载。",
     addTitle: "添加插件",
     addHint: "输入 npm 包名、GitHub 仓库地址或本地目录绝对路径；安装完成后会立即启用。",
     addPlaceholder: "例如 @scope/plugin、github:owner/repo、C:\\\\plugins\\\\my-plugin",
@@ -68,7 +50,6 @@ export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
     addWorking: "安装中…",
     addCancel: "取消安装",
     addEntry: "添加插件",
-    providedHint: "该能力已由当前应用装配，无需也无法单独安装。",
     enable: "启用",
     disable: "停用",
     uninstall: "卸载",
@@ -77,7 +58,6 @@ export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
     edit: "编辑清单",
     save: "保存",
     cancel: "取消",
-    openDetail: "打开详情页",
     moduleLabel: "包名：",
     errorLabel: "错误：",
     statusMap: {
@@ -116,21 +96,13 @@ export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
   },
   en: {
     title: "Plugins",
-    subtitle: "Plugins are mounted and unmounted by the Cordis Loader; status comes from the runtime.",
+    subtitle: "Install, toggle, and manage extension plugins.",
     searchPlaceholder: "Search by name, description, or package…",
     refresh: "Refresh",
-    installedSection: "Installed",
-    catalogSection: "Available (repository packages)",
-    sessionSection: "Session plugins",
-    globalSection: "Global plugins",
-    modeLabel: "Default for new chats",
-    emptyInstalled: "Nothing installed yet. Install a package below, then press Enable to load it.",
-    emptyCatalog: "No matching package.",
-    install: "Install",
-    installedBadge: "Installed",
-    providedBadge: "Bundled",
+    installedSection: "Installed plugins",
+    emptyInstalled: "No extension plugins yet. Use Add plugin to install an npm package, Git repository, or local directory.",
+    emptyInstalledSearch: "No matching plugins.",
     builtinBadge: "Builtin",
-    builtinUnremovable: "Builtin plugins ship with the app: disable them, do not uninstall.",
     addTitle: "Add plugin",
     addHint: "Enter an npm package name, a GitHub repository URL, or an absolute local path. It is enabled right after installing.",
     addPlaceholder: "e.g. @scope/plugin, github:owner/repo, C:\\\\plugins\\\\my-plugin",
@@ -138,7 +110,6 @@ export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
     addWorking: "Installing…",
     addCancel: "Cancel install",
     addEntry: "Add plugin",
-    providedHint: "Already mounted by the current application; it cannot be installed separately.",
     enable: "Enable",
     disable: "Disable",
     uninstall: "Uninstall",
@@ -147,7 +118,6 @@ export const pluginsMessages: Record<"zh" | "en", PluginsMessages> = {
     edit: "Edit manifest",
     save: "Save",
     cancel: "Cancel",
-    openDetail: "Open view",
     moduleLabel: "Package: ",
     errorLabel: "Error: ",
     statusMap: {

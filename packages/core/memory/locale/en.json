@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Memory",
+    "description": "Persists session transcripts, trims context, and retrieves long-term memory."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Message feedback",
+    "description": "Stores likes, dislikes, and notes on assistant replies for the chat UI."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Scheduled tasks",
+    "description": "Persists one-off and recurring tasks, with tools to create, inspect, cancel, and claim them."
+  }
+}

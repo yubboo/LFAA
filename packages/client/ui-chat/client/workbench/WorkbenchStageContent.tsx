@@ -41,6 +41,7 @@ export function WorkbenchStageContent({
   browserActivity,
   devtoolsRequest,
   showStartPage,
+  extensionShortcuts,
   activeBrowserTabId,
   jobs,
   subagents,
@@ -79,6 +80,7 @@ export function WorkbenchStageContent({
   browserActivity?: string | undefined;
   devtoolsRequest?: { tab: "console" | "network"; nonce: number } | undefined;
   showStartPage: boolean;
+  extensionShortcuts?: ReactNode;
   activeBrowserTabId: string | undefined;
   jobs: RightJobItem[];
   subagents: RightSubagentItem[];
@@ -192,6 +194,7 @@ export function WorkbenchStageContent({
             onOpenTerminal={onOpenTerminal}
             onOpenReview={onOpenReview}
             onOpenSideAsk={onOpenSideAsk}
+            extraShortcuts={extensionShortcuts}
           >
             {(jobs.length > 0 || subagents.length > 0) && (
               <WorkbenchStatusList

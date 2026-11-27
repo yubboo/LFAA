@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent 预设",
+    "description": "持久化可添加的 Agent 定义、路由组与默认模型绑定。"
+  }
+}

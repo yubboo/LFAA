@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Tool timeouts",
+    "description": "Applies a uniform timeout to every tool call and aborts with a readable result."
+  }
+}

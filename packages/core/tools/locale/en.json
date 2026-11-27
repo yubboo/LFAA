@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Tool registry",
+    "description": "Registers the built-in file, search, and command tools and dispatches their calls."
+  }
+}

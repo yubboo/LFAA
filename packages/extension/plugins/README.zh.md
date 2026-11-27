@@ -32,3 +32,7 @@ kind: "package"
 ## 开发说明
 
 插件中心设置新会话的默认模式。Host 校验选择并将模块列表快照保存到对应会话。工具还取决于全局插件的实际运行状态。
+
+`GET /api/plugins/inventory` 是只读投影：每次现读 Loader 条目，补上 bundle 静态装配的模块，并从每个包的 `locale/<lang>.json` 取显示元数据（缺失回落 `package.json`）。它不写配置、不启停插件，供设置中心「内置插件」页使用。
+
+Host 不再维护手写插件目录：安装记录的名称与描述同样取自包内 locale 元数据，`pnpm check` 的 `plugin-locale-meta` 会拦住缺少双语 meta 的插件包。

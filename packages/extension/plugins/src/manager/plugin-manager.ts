@@ -3,8 +3,12 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import "@lfaa/tools";
-import type { PluginCatalogItem, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../../contract/index";
-import { buildCatalog, INSTALLABLE_PACKAGES, toRecordId, type PluginPresetDefinition } from "../catalog/plugin-catalog";
+import type { PluginInventorySnapshot, PluginManifest, PluginRecord, PluginRunStatus, PresetSummary } from "../../contract/index";
+import { toRecordId } from "../catalog/record-id";
+import type { PluginPresetDefinition } from "../catalog/preset-summary";
+import { readPackageMeta } from "../catalog/package-meta";
+import { buildInventory, type LoaderEntryLike } from "../inventory/plugin-inventory";
+import { BuiltinStateStore } from "./builtin-state";
 import { normalizeRecords } from "./record-hygiene";
 import { PluginPresets } from "../catalog/plugin-presets";
 import { PluginRecordStore } from "./plugin-records";
@@ -12,12 +16,19 @@ import { forkPluginPackage } from "./fork-plugin";
 import { installExternalPlugin } from "./install-external";
 import { ProfilePackages } from "./profile-packages";
 
+/** 只读投影与启停共用的 Loader 条目：带稳定 id、模块名与 disabled 开关。 */
+interface LoaderEntryHandle extends LoaderEntryLike {
+  update(options: { disabled?: boolean | null }): Promise<void>;
+}
+
 /** Loader 的最小结构化契约：避免本包反向依赖内嵌 loader 的类型。 */
 interface LoaderLike {
   create(options: { id: string; name: string }): Promise<unknown>;
   remove(id: string): void;
   await(): Promise<void>;
   store: Record<string, unknown>;
+  /** 遍历条目树（含嵌套子树）。 */
+  entries?(): Iterable<LoaderEntryHandle>;
 }
 
 export type PluginSkillRegistrar = (
@@ -41,22 +52,31 @@ export class PluginManager {
   private skillRegistrar: PluginSkillRegistrar | null = null;
 
   private readonly provided: Set<string>;
+  private readonly staticModules: readonly string[];
   private readonly repoRoot: string | null;
+  private readonly loaderBaseUrl: string | null;
   private readonly presets: PluginPresets;
   private readonly packages: ProfilePackages;
   private readonly records: PluginRecordStore;
+  private readonly builtinState: BuiltinStateStore;
 
   constructor(ctx: Context, options: {
     profile?: string;
     profilesBaseDir?: string;
     storePath?: string;
     providedModules?: readonly string[];
+    /** 仍由 bundle 静态挂载的模块。 */
+    staticModules?: readonly string[];
     presets?: readonly PluginPresetDefinition[];
     repoRoot?: string;
+    /** Loader 解析基准文件：只读投影解析本仓包元数据用。 */
+    loaderBaseUrl?: string;
   } = {}) {
     this.ctx = ctx;
     this.provided = new Set(options.providedModules ?? []);
+    this.staticModules = [...(options.staticModules ?? [])];
     this.repoRoot = options.repoRoot ? resolve(options.repoRoot) : null;
+    this.loaderBaseUrl = options.loaderBaseUrl ?? null;
     this.profile = options.profile?.trim() || "web";
     const baseDir = resolve(options.profilesBaseDir ?? defaultProfilesBaseDir());
     this.profileRoot = join(baseDir, this.profile);
@@ -64,6 +84,7 @@ export class PluginManager {
     this.packages = new ProfilePackages(this.profile, this.profileRoot, this.repoRoot);
     this.presets = new PluginPresets(this.profileRoot, options.presets ?? []);
     this.records = new PluginRecordStore(this.storePath, () => this.ensureProfileLayout(), (records) => this.packages.syncCordisYml(records));
+    this.builtinState = new BuiltinStateStore(join(this.profileRoot, ".plugin-manager", "builtin-disabled.json"));
   }
 
   /** Host 侧的 Loader 服务；未装配时插件无法启停。 */
@@ -163,25 +184,79 @@ export class PluginManager {
   async listState(): Promise<{    profile: string;
     profileRoot: string;
     installed: PluginRecord[];
-    availableCatalog: PluginCatalogItem[];
     presets: PresetSummary[];
     activePreset: string;
   }> {
     await this.ensureProfileLayout();
     const records = await this.readRecords();
     const installed = records.map((record) => this.hydrateRecord(record));
-    const installedIds = new Set(records.map((record) => record.id));
-    const availableCatalog = buildCatalog(this.provided, installedIds);
     const activePreset = await this.presets.readActiveId();
     const presets = this.presets.summaries();
-    return { profile: this.profile, profileRoot: this.profileRoot, installed, availableCatalog, presets, activePreset };
+    return { profile: this.profile, profileRoot: this.profileRoot, installed, presets, activePreset };
+  }
+
+  /**
+   * 只读清单：Loader 条目按根 Fiber 相位投影，静态装配模块按装配顺序补在前面。
+   * 每次调用现读，避免出现第二份生命周期真相。
+   */
+  async readInventory(): Promise<PluginInventorySnapshot> {
+    const loader = (this.ctx as unknown as { loader?: LoaderLike }).loader;
+    const activePreset = await this.presets.readActiveId();
+    return buildInventory({
+      profile: this.profile,
+      staticModules: this.staticModules,
+      entries: loader?.entries ? loader.entries() : [],
+      presets: this.presets.summaries(),
+      activePreset,
+      metaOf: (moduleName) => readPackageMeta(moduleName, {
+        ...(this.loaderBaseUrl ? { baseUrl: this.loaderBaseUrl } : {}),
+        profileRoot: this.profileRoot,
+      }),
+      managementAvailable: Boolean(loader),
+    });
+  }
+
+  /** 找到某个模块对应的 Loader 条目；静态装配模块不在其中。 */
+  private findLoaderEntry(moduleName: string): LoaderEntryHandle | null {
+    const loader = this.loader();
+    if (!loader.entries) return null;
+    for (const entry of loader.entries()) {
+      if (!entry.options.group && entry.options.name === moduleName) return entry;
+    }
+    return null;
+  }
+
+  /**
+   * 启停一个内置插件：先写 profile 的停用清单，再让 Loader 立即装载或卸载。
+   * 静态装配的模块没有 Loader 条目，只能提示不可启停。
+   */
+  async toggleBuiltin(moduleName: string, enabled: boolean): Promise<PluginInventorySnapshot> {
+    if (!this.provided.has(moduleName)) throw new Error(`「${moduleName}」不是内置插件。`);
+    const entry = this.findLoaderEntry(moduleName);
+    if (!entry) throw new Error(`「${moduleName}」当前不是可启停的 Loader 条目。`);
+    const disabled = await this.builtinState.read();
+    if (enabled) disabled.delete(moduleName);
+    else disabled.add(moduleName);
+    await this.builtinState.write(disabled);
+    await entry.update({ disabled: enabled ? null : true });
+    await this.loader().await();
+    return this.readInventory();
+  }
+
+  /** 启动时应用已保存的停用清单；只处理存在的 Loader 条目。 */
+  async applyBuiltinDisabled(): Promise<void> {
+    const disabled = await this.builtinState.read();
+    if (disabled.size === 0) return;
+    const loader = this.loader();
+    for (const entry of loader.entries?.() ?? []) {
+      if (!entry.options.group && disabled.has(entry.options.name)) await entry.update({ disabled: true });
+    }
+    await loader.await();
   }
 
   /** 安装：只登记，不装载；真正加载发生在启用时。 */
-  async installPlugin(input: { moduleName?: string; catalogId?: string; manifest?: PluginManifest }): Promise<PluginRecord> {
-    const moduleName = input.moduleName
-      ?? INSTALLABLE_PACKAGES.find((item) => item.moduleName === input.catalogId || toRecordId(item.moduleName) === input.catalogId)?.moduleName
-      ?? "";
+  async installPlugin(input: { moduleName?: string; manifest?: PluginManifest }): Promise<PluginRecord> {
+    const moduleName = input.moduleName?.trim() ?? "";
     if (!moduleName) throw new Error("未指定要安装的插件包名。");
     if (this.provided.has(moduleName)) {
       throw new Error(`「${moduleName}」已由当前应用装配，无需单独安装。`);
@@ -193,22 +268,26 @@ export class PluginManager {
       const existing = records.find((record) => record.id === id);
       if (existing) return this.hydrateRecord(existing);
 
-      const catalogItem = INSTALLABLE_PACKAGES.find((item) => item.moduleName === moduleName);
+      // 描述来自包内 locale 元数据；读不到时回落到包名，安装流程不因缺元数据失败。
+      const meta = readPackageMeta(moduleName, {
+        ...(this.loaderBaseUrl ? { baseUrl: this.loaderBaseUrl } : {}),
+        profileRoot: this.profileRoot,
+      });
       const now = Date.now();
       const next: PluginRecord = {
         id,
         moduleName,
         manifest: input.manifest ?? {
           id,
-          name: catalogItem?.name ?? moduleName,
+          name: meta?.title.zh ?? moduleName,
           version: "0.1.0",
-          description: catalogItem?.description ?? "本地插件包。",
+          description: meta?.description.zh || moduleName,
           entryType: "builtin-local",
           compatibleLfaa: ">=0.1.0",
           capabilities: { tools: [], skills: [], views: [] },
         },
         source: input.manifest ? "local" : "builtin-catalog",
-        kind: INSTALLABLE_PACKAGES.some((item) => item.moduleName === moduleName) ? "builtin" as const : "external" as const,
+        kind: moduleName.startsWith("@lfaa/") ? "builtin" as const : "external" as const,
         enabled: false,
         status: "disabled",
         installedAt: now,

@@ -14,14 +14,16 @@
   width: fit-content;
   max-width: 100%;
   min-height: 1.7rem;
-  padding: 0.14rem 0.42rem 0.14rem 0.18rem;
+  /* 左侧不留内边距：轮次标题的图标要与正文左缘同列（图标自身的水平留白由 .iconWrap 抵消）。 */
+  padding: 0.14rem 0.42rem 0.14rem 0;
   border: 0;
   border-radius: 0.42rem;
   background: transparent;
-  color: var(--color-ink);
+  /* 过程标题只做次级文字：与正文形成一档落差，避免过程行抢走回复正文的视觉主体。 */
+  color: var(--color-ink-soft);
   font: inherit;
   font-size: 0.88em;
-  font-weight: 550;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -34,6 +36,8 @@
 
 .headerBtn:hover {
   background: var(--color-active);
+  /* 悬停才升到正文级的墨色：默认安静，交互时才强调。 */
+  color: var(--color-ink);
 }
 
 .headerBtn:focus-visible {
@@ -46,6 +50,8 @@
   align-items: center;
   justify-content: center;
   flex: none;
+  /* Tabler 图标自身左右各有约 2px 留白，往左收一点让图形左缘压到正文列上，而不是图标框对齐。 */
+  margin-inline-start: -0.1rem;
   color: var(--color-muted);
 }
 
@@ -83,7 +89,7 @@
    后者会让玻璃层内的大块区域持续重绘，长会话刷新时明显拖慢主线程。 */
 @media (prefers-reduced-motion: no-preference) {
   .title[data-live="true"] {
-    color: color-mix(in srgb, var(--color-accent) 55%, var(--color-ink));
+    color: color-mix(in srgb, var(--color-accent) 48%, var(--color-ink-soft));
     animation: think-title-breathe 1.9s ease-in-out infinite;
   }
 }

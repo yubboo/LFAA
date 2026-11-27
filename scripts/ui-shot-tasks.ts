@@ -13,6 +13,8 @@ export type ShotStep =
   | { hoverScrollbar: string }
   /** 让匹配的滚动容器滚一段（默认 160px），用于滚动条高亮与滚到长页面下方。 */
   | { scroll: string; by?: number }
+  /** 把包含指定文本的元素滚进视野，用于回到长对话中间的过程行。 */
+  | { scrollText: string }
   /** 把匹配元素的水平中线拖到视口 x 坐标，用于复现中间栏收窄后的布局。 */
   | { drag: string; toX: number }
   /** 向匹配元素派发一次带图片的粘贴事件，用于输入区附件相关状态。 */
@@ -41,12 +43,22 @@ const OPEN_SETTINGS: ShotStep[] = [
   { wait: 900 },
 ];
 
+const OPEN_CANVAS: ShotStep[] = [
+  { click: 'button[aria-label="新建浏览器标签页"]' },
+  { click: 'button:has-text("无限画布")' },
+  { wait: 500 },
+];
+
 /** 生成一条「设置中心」任务，省掉重复的打开步骤。 */
 function settingsTask(name: string, description: string, steps: ShotStep[] = [], options: Partial<ShotTask> = {}): ShotTask {
   return { name, group: "settings", description, steps: [...OPEN_SETTINGS, ...steps], ...options };
 }
 
 export const TASKS: ShotTask[] = [
+  { name: "infinite-canvas-entry-dark", group: "app", description: "右侧无限画布标签（深色）", theme: "dark", steps: OPEN_CANVAS },
+  { name: "infinite-canvas-entry-light", group: "app", description: "右侧无限画布标签（浅色）", theme: "light", steps: OPEN_CANVAS },
+  { name: "infinite-canvas-entry-mobile", group: "app", description: "窄屏右侧无限画布标签", width: 390, height: 844, theme: "dark",
+    steps: [{ click: 'button[aria-label="展开右侧菜单栏"]' }, ...OPEN_CANVAS] },
   // 应用壳层：四栏、宽屏、窄窗、手机、空白新聊天。
   { name: "app-home-light", group: "app", description: "工作区首页（浅色四栏）", theme: "light" },
   { name: "app-home-dark", group: "app", description: "工作区首页（深色四栏）", theme: "dark" },
@@ -189,6 +201,61 @@ export const TASKS: ShotTask[] = [
       { wait: 500 },
       { click: 'button[aria-label^="在该项目里开新聊天"]' },
       { wait: 1100 },
+    ],
+  },
+  // 助手回合的文字三档：正文最强、过程标题与动作动词次之、命令与元信息最弱；深色与浅色各一张。
+  // 完成后过程行默认折进总行，出图前先点开总行。
+  {
+    name: "app-chat-hierarchy-dark",
+    group: "app",
+    description: "助手回合文字三档：正文 / 过程标题 / 命令行（深色）",
+    theme: "dark",
+    steps: [
+      { clickText: "检查最近一次改动是否正确" },
+      { wait: 1500 },
+      { click: '[class*="disclosure"]' },
+      { wait: 500 },
+      { scrollText: "已运行命令" },
+      { wait: 400 },
+    ],
+  },
+  {
+    name: "app-chat-hierarchy-light",
+    group: "app",
+    description: "助手回合文字三档：正文 / 过程标题 / 命令行（浅色）",
+    theme: "light",
+    steps: [
+      { clickText: "检查最近一次改动是否正确" },
+      { wait: 1500 },
+      { click: '[class*="disclosure"]' },
+      { wait: 500 },
+      { scrollText: "已运行命令" },
+      { wait: 400 },
+    ],
+  },
+  // 完成态默认样式：整轮过程收成一行总行，正文段落留在流里（深色 / 浅色）。
+  {
+    name: "app-chat-process-summary-dark",
+    group: "app",
+    description: "完成态过程总行：一行概览整轮命令，正文照常可见（深色）",
+    theme: "dark",
+    steps: [
+      { clickText: "检查最近一次改动是否正确" },
+      { wait: 1500 },
+      { scrollText: "条命令" },
+      { wait: 400 },
+    ],
+  },
+  {
+    name: "app-chat-process-summary-light",
+    group: "app",
+    description: "完成态过程总行：一行概览整轮命令，正文照常可见（浅色）",
+    theme: "light",
+    steps: [
+      { clickText: "检查最近一次改动是否正确" },
+      { wait: 1500 },
+      { scrollText: "条命令" },
+      { wait: 400 },
     ],
   },
 
@@ -339,6 +406,14 @@ export const TASKS: ShotTask[] = [
   settingsTask("settings-connectors-cli-narrow", "设置中心 · 连接器命令行工具（760 窄屏）", [{ clickText: "连接器" }, { clickText: "命令行工具" }, { wait: 500 }], { theme: "dark", width: 760, height: 900 }),
   settingsTask("settings-connectors-cli-import", "设置中心 · 导入连接器弹窗", [{ clickText: "连接器" }, { clickText: "命令行工具" }, { clickText: "导入" }, { wait: 500 }], { theme: "light" }),
   settingsTask("settings-connectors-cli-dialog", "设置中心 · 新建命令行工具弹窗", [{ clickText: "连接器" }, { clickText: "命令行工具" }, { clickText: "添加工具" }, { wait: 600 }], { theme: "dark" }),
+  // 内置插件只读清单：默认态、浅色、窄屏与展开详情各一张。
+  settingsTask("settings-plugins-dark", "设置中心 · 内置插件（深色）", [{ clickText: "内置插件" }, { wait: 900 }], { theme: "dark" }),
+  settingsTask("settings-plugins-light", "设置中心 · 内置插件（浅色）", [{ clickText: "内置插件" }, { wait: 900 }], { theme: "light" }),
+  settingsTask("settings-plugins-narrow", "设置中心 · 内置插件（760 窄屏）", [{ clickText: "内置插件" }, { wait: 900 }], { theme: "light", width: 760, height: 960 }),
+  settingsTask("settings-plugins-expanded", "设置中心 · 内置插件展开详情", [{ clickText: "内置插件" }, { wait: 900 }, { clickText: "工具注册表" }, { wait: 500 }], { theme: "dark" }),
+  settingsTask("settings-plugins-global", "设置中心 · 内置插件全局清单展开", [{ clickText: "内置插件" }, { wait: 900 }, { clickText: "全局插件" }, { wait: 600 }], { theme: "dark" }),
+  // 插件中心：确认删除重复装配提示后卡片仍完整。
+  { name: "app-plugins-center", group: "app", description: "插件中心列表（深色）", theme: "dark", steps: [{ click: 'button[aria-label="插件"]' }, { wait: 1500 }] },
   settingsTask("settings-git", "设置中心 · Git", [{ clickText: "Git" }, { wait: 800 }], { theme: "dark" }),
   settingsTask("settings-terminal-dark", "设置中心 · 终端（深色）", [{ click: '[role="dialog"] aside button:has-text("终端")' }, { wait: 700 }], { theme: "dark" }),
   settingsTask("settings-terminal-light", "设置中心 · 终端（浅色）", [{ click: '[role="dialog"] aside button:has-text("终端")' }, { wait: 700 }], { theme: "light" }),
@@ -481,6 +556,10 @@ async function applyStep(page: Page, step: ShotStep): Promise<void> {
     if (!box) throw new Error(`找不到滚动容器：${step.hoverScrollbar}`);
     // 纵向滚动条占据内联末端 10px，取胶囊中线下缘即可命中滑块。
     await page.mouse.move(box.x + box.width - 5, box.y + box.height / 2);
+    return;
+  }
+  if ("scrollText" in step) {
+    await page.getByText(step.scrollText, { exact: false }).first().scrollIntoViewIfNeeded({ timeout: 15000 });
     return;
   }
   if ("scroll" in step) {

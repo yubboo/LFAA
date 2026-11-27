@@ -2,7 +2,7 @@
 // 从 PluginManager 拆出：这里只操作 profile 包与记录回调，不碰 Loader 与运行时状态表。
 import type { PluginRecord } from "../../contract/index";
 import { parseInstallSpec as parseSpec } from "../catalog/install-spec";
-import { toRecordId } from "../catalog/plugin-catalog";
+import { toRecordId } from "../catalog/record-id";
 import type { ProfilePackages } from "./profile-packages";
 
 /** 安装所需依赖：profile 包操作 + 记录读写 + 启用回调。 */

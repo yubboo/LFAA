@@ -87,7 +87,8 @@ export interface ShellResult {
 }
 
 export interface ShellPluginConfig {
-  resolveInvocation: (command: string, cwd: string) => Promise<ShellInvocation>;
+  /** 装配层注入的命令方言解析；缺省时由 setResolveInvocation 延迟补齐。 */
+  resolveInvocation?: (command: string, cwd: string) => Promise<ShellInvocation>;
   /** 应用级默认时限，缺省 10 分钟。 */
   timeLimitMs?: number;
 }
@@ -174,18 +175,37 @@ export async function executeShell(request: ShellRequest, invocation?: ShellInvo
 
 /** Host 装配层提供 Shell 方言，Agent 与 Tools 共用同一执行入口。 */
 export class ShellService extends Service {
-  constructor(ctx: Context, private readonly config: ShellPluginConfig) {
+  private readonly timeLimitMs: number | undefined;
+  private resolveInvocationHook: ShellPluginConfig["resolveInvocation"] | undefined;
+
+  constructor(ctx: Context, config: ShellPluginConfig = {}) {
     super(ctx, "shell");
+    this.timeLimitMs = config.timeLimitMs;
+    this.resolveInvocationHook = config.resolveInvocation;
+  }
+
+  /** 装配完成后注入或替换命令解析器；返回注销函数，卸载后恢复原值。 */
+  setResolveInvocation(hook: NonNullable<ShellPluginConfig["resolveInvocation"]>): () => void {
+    const previous = this.resolveInvocationHook;
+    this.resolveInvocationHook = hook;
+    return () => {
+      this.resolveInvocationHook = previous;
+    };
+  }
+
+  private requireResolver(): NonNullable<ShellPluginConfig["resolveInvocation"]> {
+    if (!this.resolveInvocationHook) throw new Error("Shell 命令解析器尚未装配。");
+    return this.resolveInvocationHook;
   }
 
   resolveInvocation(command: string, cwd: string): Promise<ShellInvocation> {
-    return this.config.resolveInvocation(command, cwd);
+    return this.requireResolver()(command, cwd);
   }
 
   async execute(request: ShellRequest): Promise<ShellResult> {
     request.signal.throwIfAborted();
-    const invocation = await this.config.resolveInvocation(request.command, request.cwd);
-    const timeoutMs = request.timeoutMs ?? this.config.timeLimitMs;
+    const invocation = await this.requireResolver()(request.command, request.cwd);
+    const timeoutMs = request.timeoutMs ?? this.timeLimitMs;
     return executeShell({ ...request, ...(timeoutMs === undefined ? {} : { timeoutMs }) }, invocation);
   }
 }

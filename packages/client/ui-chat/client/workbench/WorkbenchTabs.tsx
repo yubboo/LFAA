@@ -1,5 +1,5 @@
 // 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
-import type { MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import { IconCheck, IconFileDiff, IconLayoutGrid, IconLoader2, IconPlus, IconRobot, IconWorld, IconX } from "@tabler/icons-react";
 import type { BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
@@ -54,6 +54,8 @@ export function WorkbenchTabs({
   onCloseReviewRaw,
   closeBrowserTabsExcept,
   workbench,
+  extensionTabs = [],
+  onLeaveExtension,
 }: {
   isZh: boolean;
   stageKind: RightStageKind;
@@ -94,7 +96,16 @@ export function WorkbenchTabs({
   /** 关闭全部标签后的收尾（右栏收起）。 */
   /** 工作台服务：标签级快捷键注册与菜单键位提示。 */
   workbench?: WorkbenchClientService | undefined;
+  extensionTabs?: Array<{ id: string; title: string; active: boolean; select: () => void; close: () => void }>;
+  onLeaveExtension?: (() => void) | undefined;
 }) {
+  const revealed = useRef<HTMLDivElement | null>(null);
+  const activeExtension = extensionTabs.find((tab) => tab.active)?.id;
+  useEffect(() => {
+    if (!activeExtension) return;
+    revealed.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    revealed.current?.querySelector("button")?.focus({ preventScroll: true });
+  }, [activeExtension]);
   const auxTitleMap = Object.fromEntries(auxTabs.map((tab) => [tab.id, tab.title])) as Record<RightAuxTab, string>;
   // 标签栏自己拥有右键菜单与标签级动作：有序列表与关闭语义都在这里统一，父组件只提供数据与关闭入口。
   const tabMenu = useWorkbenchTabMenu({
@@ -191,7 +202,10 @@ export function WorkbenchTabs({
   };
 
   return (
-    <div className={styles.tabBar} role="tablist" aria-label={isZh ? "右侧打开标签" : "Right workbench tabs"}>
+    <div className={styles.tabBar} role="tablist" aria-label={isZh ? "右侧打开标签" : "Right workbench tabs"} onClickCapture={(event) => {
+      const target = event.target;
+      if (target instanceof Element && !target.closest("[data-extension-tab]") && target.closest('[role="tab"], [data-new-tab]')) onLeaveExtension?.();
+    }}>
       {fileTabs.map((tab) => {
         const active = stageKind === "file" && tab.id === activeFileTab?.id;
         const fileName = baseFileName(tab.path);
@@ -299,9 +313,21 @@ export function WorkbenchTabs({
         </div>
       )}
       {renderBrowserTabs()}
+      {extensionTabs.map((tab) => (
+        <div ref={tab.active ? revealed : undefined} key={tab.id} data-extension-tab="" className={`${styles.tabItem} ${tab.active ? styles.tabItemActive : ""}`}>
+          <button type="button" role="tab" aria-selected={tab.active} className={styles.tabBtn} onClick={tab.select}>
+            <IconLayoutGrid size={13} aria-hidden="true" />
+            <span>{tab.title}</span>
+          </button>
+          <button type="button" className={styles.tabClose} aria-label={isZh ? "关闭" + tab.title : "Close " + tab.title} onClick={tab.close}>
+            <IconX size={11} aria-hidden="true" />
+          </button>
+        </div>
+      ))}
       <HoverTip label={isZh ? "新建浏览器标签页" : "New browser tab"} shortcut={newTabHint}>
         <button
           type="button"
+          data-new-tab=""
           className={styles.addTabBtn}
           aria-label={isZh ? "新建浏览器标签页" : "New browser tab"}
           onClick={onNewBrowserTab}

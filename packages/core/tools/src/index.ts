@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import type { SandboxDecision, SandboxPolicy } from "./types";
 import type { ShellService } from "@lfaa/shell";
+import { executeShell } from "@lfaa/shell";
 import { createBuiltinWorkspaceTools } from "./builtin-tools";
 import { createEditTools } from "./edit-tools";
 import { createSearchTools } from "./search-tools";
@@ -66,15 +67,20 @@ export class ToolsService extends Service {
   private readonly middlewares = new Map<string, ToolExecutionMiddleware>();
   private sandboxResolver: SandboxModeResolver | null = null;
   private commandTimeoutHandler: CommandTimeoutHandler | null;
-  private readonly sandbox: ToolsPluginConfig["sandbox"];
+  private sandbox: ToolsPluginConfig["sandbox"];
+  /** 命令执行与 Shell 描述：装配完成后由 bundle 注入，避免 Loader 配置承载函数。 */
+  private commandExecutor: ToolsPluginConfig["executeCommand"];
+  private shellDescriber: ToolsPluginConfig["describeCommandShell"];
 
   constructor(ctx: Context, private readonly config: ToolsPluginConfig = {}) {
     super(ctx, "tools");
     this.commandTimeoutHandler = config.onCommandTimeout ?? null;
     this.sandbox = config.sandbox;
+    this.commandExecutor = config.executeCommand;
+    this.shellDescriber = config.describeCommandShell;
     if (config.includeBuiltins !== false) {
       const tools = [
-        ...createBuiltinWorkspaceTools(config.executeCommand, {
+        ...createBuiltinWorkspaceTools((request) => this.runCommand(request), {
           onCommandTimeout: (input) => this.handleCommandTimeout(input),
         }),
         ...createEditTools(),
@@ -84,6 +90,34 @@ export class ToolsService extends Service {
         this.registry.set(tool.name, { ...tool, moduleName: "@lfaa/tools" });
       }
     }
+  }
+
+  /** 装配完成后注入命令执行器与 Shell 描述；返回注销函数。 */
+  setCommandHooks(hooks: {
+    executeCommand?: ToolsPluginConfig["executeCommand"];
+    describeCommandShell?: ToolsPluginConfig["describeCommandShell"];
+  }): () => void {
+    const previous = { executeCommand: this.commandExecutor, describeCommandShell: this.shellDescriber };
+    if (hooks.executeCommand) this.commandExecutor = hooks.executeCommand;
+    if (hooks.describeCommandShell) this.shellDescriber = hooks.describeCommandShell;
+    return () => {
+      this.commandExecutor = previous.executeCommand;
+      this.shellDescriber = previous.describeCommandShell;
+    };
+  }
+
+  /** 装配完成后注入沙箱判定；返回注销函数。 */
+  setSandbox(sandbox: ToolsPluginConfig["sandbox"]): () => void {
+    const previous = this.sandbox;
+    this.sandbox = sandbox;
+    return () => {
+      this.sandbox = previous;
+    };
+  }
+
+  /** 执行命令：优先用注入的执行器，未注入时回落到本地 Shell。 */
+  private runCommand(request: Parameters<NonNullable<ToolsPluginConfig["executeCommand"]>>[0]) {
+    return this.commandExecutor ? this.commandExecutor(request) : executeShell(request);
   }
 
   registerTool(definition: AgentToolDefinition): () => void {
@@ -164,7 +198,7 @@ export class ToolsService extends Service {
   }
 
   describeCommandShell(): Promise<string> {
-    return this.config.describeCommandShell?.() ?? Promise.resolve("");
+    return this.shellDescriber?.() ?? Promise.resolve("");
   }
 
   listDefinitions(): PublicToolSummary[] {

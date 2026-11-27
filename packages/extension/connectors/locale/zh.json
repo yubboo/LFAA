@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "连接器",
+    "description": "MCP 服务器与声明式 CLI 工具的统一管理入口。"
+  }
+}

@@ -32,3 +32,7 @@ This package lives in `packages/extension/plugins`.
 ## Dev Note
 
 The plugin center selects the default for new chats. The Host validates the selected preset and snapshots its module list into each session. Available tools also depend on the running global plugins.
+
+`GET /api/plugins/inventory` is a read-only projection: it reads Loader entries on every call, adds the modules the bundle mounts statically, and takes display metadata from each package's `locale/<lang>.json` (falling back to `package.json`). It writes no configuration and toggles no plugin; the Settings "Plugins" page renders it.
+
+The Host keeps no hand-written plugin catalog: install records take their name and description from the same locale metadata, and the `plugin-locale-meta` check rejects plugin packages missing bilingual meta.

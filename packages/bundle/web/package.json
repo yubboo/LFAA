@@ -35,6 +35,7 @@
     "@lfaa/agent-profile": "workspace:*",
     "@lfaa/attachment-local": "workspace:*",
     "@lfaa/browser": "workspace:*",
+    "@lfaa/canvas": "workspace:*",
     "@lfaa/chat": "workspace:*",
     "@lfaa/commands": "workspace:*",
     "@lfaa/compaction": "workspace:*",

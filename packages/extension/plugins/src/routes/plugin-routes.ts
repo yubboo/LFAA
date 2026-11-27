@@ -34,11 +34,26 @@ export function createPluginsHttpHandler(service: PluginsService) {
         return true;
       }
 
+      // 只读清单：设置中心「内置插件」页一次取回条目、预设与当前模式。
+      if (method === "GET" && pathname === "/api/plugins/inventory") {
+        sendJson(res, 200, await service.listInventory());
+        return true;
+      }
+
+      // 内置插件启停：写 profile 停用清单，再让 Loader 立即装载或卸载。
+      if (method === "POST" && pathname === "/api/plugins/inventory/toggle") {
+        const body = await readJsonBody(req);
+        const moduleName = typeof body.moduleName === "string" ? body.moduleName.trim() : "";
+        if (!moduleName) throw new Error("缺少内置插件包名。");
+        if (typeof body.enabled !== "boolean") throw new Error("缺少 enabled 布尔值。");
+        sendJson(res, 200, await service.toggleBuiltin(moduleName, body.enabled));
+        return true;
+      }
+
       if (method === "POST" && pathname === "/api/plugins/install") {
         const body = await readJsonBody(req);
         const plugin = await service.installPlugin({
           ...(typeof body.moduleName === "string" && body.moduleName.trim() ? { moduleName: body.moduleName.trim() } : {}),
-          ...(typeof body.catalogId === "string" ? { catalogId: body.catalogId } : {}),
         });
         const state = await service.listState();
         sendJson(res, 200, { plugin, ...state });

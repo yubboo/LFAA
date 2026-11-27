@@ -85,6 +85,7 @@ export const zhMessages: ChatLocaleMessages = {
   addContextMenuTitle: "添加上下文",
   ctxFile: "文件",
   ctxFolder: "文件夹",
+  ctxImage: "图片",
   ctxMention: "提及",
   ctxActions: "操作",
   ctxBrowser: "浏览器",

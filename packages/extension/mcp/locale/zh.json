@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP 客户端",
+    "description": "连接 MCP 服务器并把其工具注册进当前会话。"
+  }
+}

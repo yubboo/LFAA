@@ -146,6 +146,36 @@ export function summarizeActivityGroup(steps: readonly AgentStepItem[], isZh: bo
   return isZh ? `${text} ${labels.activityEtc}` : `${text}, ${labels.activityEtc}`;
 }
 
+/** 整轮总行摘要：按动作类别计数（命令 / 读取 / 文件改动 / 其他工具），
+    不受个别工具没有登记动词影响，不会把 cli__git__status 这类内部名当标题；
+    收起后失败项必须显式带出来，不能把失败伪装成成功。 */
+export function summarizeTurnActivity(steps: readonly AgentStepItem[], isZh: boolean): string | undefined {
+  const activities = steps.filter((step) => !step.subagent && step.id !== "skills-loaded");
+  if (activities.length === 0) return undefined;
+  if (activities.length === 1) return describeStep(activities[0]!, isZh);
+  const counts = { command: 0, read: 0, file: 0, other: 0 };
+  let failed = 0;
+  for (const step of activities) {
+    if (step.status === "error") failed += 1;
+    const kind = getActivityKind(step);
+    if (kind === "command") counts.command += 1;
+    else if (kind === "read") counts.read += 1;
+    else if (kind === "file") counts.file += 1;
+    else if (kind !== "skill") counts.other += 1;
+  }
+  const parts: string[] = [];
+  if (counts.command > 0) parts.push(isZh ? `${counts.command} 条命令` : `${counts.command} ${counts.command === 1 ? "command" : "commands"}`);
+  if (counts.read > 0) parts.push(isZh ? `${counts.read} 项读取` : `${counts.read} ${counts.read === 1 ? "read" : "reads"}`);
+  if (counts.file > 0) parts.push(isZh ? `${counts.file} 个文件改动` : `${counts.file} ${counts.file === 1 ? "file change" : "file changes"}`);
+  if (counts.other > 0) parts.push(isZh ? `${counts.other} 次工具调用` : `${counts.other} ${counts.other === 1 ? "tool call" : "tool calls"}`);
+  if (parts.length === 0) return undefined;
+  const shown = parts.slice(0, 3);
+  const text = shown.join(isZh ? "、" : ", ");
+  const tail = parts.length > shown.length ? (isZh ? " 等" : " and more") : "";
+  const failedText = failed > 0 ? (isZh ? `（${failed} 项失败）` : ` (${failed} failed)`) : "";
+  return `${text}${tail}${failedText}`;
+}
+
 /** 把步骤渲染成一句有信息量的话：思考给出具体计划/判断，动作给出目标或命令。 */
 export function describeStep(step: AgentStepItem, isZh: boolean): string {
   if (step.phase === "think") {

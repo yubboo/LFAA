@@ -15,6 +15,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import mcpPlugin, { createMcpHttpHandler } from "../src/index";
+import { serializeMcpResult } from "../src/mcp-service";
 
 const echoPath = fileURLToPath(new URL("./echo-server.fixture.mjs", import.meta.url));
 
@@ -142,4 +143,17 @@ test("远程 HTTP 和 SSE 接收自定义请求头，设置 API 忽略敏感字�
     if (remote.listening) await new Promise<void>((resolve) => remote.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("图片块只保留元信息，不把 base64 带进上下文", () => {
+  const output = serializeMcpResult({
+    content: [
+      { type: "image", data: "aGVsbG8=".repeat(64), mimeType: "image/jpeg" },
+      { type: "text", text: "已截图" },
+    ],
+  });
+  assert.doesNotMatch(output, /aGVsbG8/u);
+  assert.match(output, /已截图/u);
+  assert.match(output, /"bytes":\d+/u);
+  assert.match(output, /browser_visual_check/u);
 });

@@ -1,0 +1,42 @@
+{
+  "name": "@lfaa/client-ui-canvas",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./client/index.tsx",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "client"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/canvas": "workspace:*",
+    "@lfaa/ui-layout": "workspace:*",
+    "@xyflow/react": "12.12.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/client/ui-canvas"
+  }
+}

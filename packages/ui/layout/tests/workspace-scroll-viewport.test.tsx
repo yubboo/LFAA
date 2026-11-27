@@ -24,6 +24,7 @@ const { ShellWorkspace } = await import("../client/shell/ShellWorkspace");
 const { locales } = await import("../client/locales");
 
 const snapshot: WorkbenchSnapshot = {
+  tabs: [],
   activeView: "settings:appearance",
   activeProjectId: null,
   settingsReturnView: null,

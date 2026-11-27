@@ -46,6 +46,8 @@
 - 超时：默认 60 秒，动作可配 1–300 秒；超时或取消时结束进程树（Windows `taskkill /T /F`，其余平台杀进程组）。
 - 输出：stdout / stderr 各保留末尾 256 KiB，超出标注「输出已截断」。
 - 环境变量：值支持 `${env:NAME}`，从宿主环境读取，不把密钥写进配置；配置整体用本机独立密钥加密保存在 `~/.lfaa/connectors.json`（`.key` 与 MCP 同款）。
+- MCP 配置落盘位置：`~/.lfaa/mcp-servers.json`（AES-256-GCM 加密），密钥是同目录的 `mcp-servers.json.key`。明文从不落盘，直接打开文件只有密文；设置中心「连接器 → MCP 服务器」是唯一编辑入口。
+- MCP 工具结果是纯文本通道：图片块只保留 `mimeType`、估算字节数与一句提示，不带 base64，避免截图把上下文撑爆；要看图请用 `browser_visual_check` / `browser_screenshot`。
 - 命令缺失：连接器状态为 `error`、detail 显示「未找到 xxx」，且不注册任何工具。
 - 真实探测：目录连接前会真正执行一次 `probeArgs`（Docker 用 `info` 验证守护进程、kubectl 用 `version --client`，其余默认 `--version`）；失败直接报错且不写入配置，避免「看起来连上、实际跑不动」。
 - 真实工具数：目录卡片与详情显示服务器实际声明的工具数；CLI 动作数以注册结果为准，详情里的「测试」会重新执行命令并回显路径与版本。
@@ -83,6 +85,7 @@
 
 - 27 条：17 个 MCP（filesystem、memory、sequential-thinking、everything、playwright、chrome-devtools、context7、github、gitlab、brave-search、postgres、redis、slack、google-maps、puppeteer、notion、supabase）与 10 个 CLI（git、gh、pnpm、docker、ripgrep、jq、ffmpeg、kubectl、az、uv），CLI 在前、MCP 交错排列，热门条目优先。
 - MCP 条目用 npm 上的真实包（已核对版本），`npx -y <pkg>` 首次连接即完成下载；需要令牌或连接串的条目在连接弹窗收集，写入 MCP 的加密配置。
+- 「Chrome 调试」单独取舍：固定 `chrome-devtools-mcp@1.14.0`，跑 `--isolated --headless --viewport=1440x900`，关掉输入类工具（点击 / 填表 / 按键交给内置 `browser_*`，两套浏览器状态不同步，留着只会让模型选错），保留导航、快照、元素位置测量、控制台、网络与性能 trace，工具数 32 → 23。
 - CLI 条目复用声明式动作模型（含 `gh` / `docker` / `pnpm` 的完整动作集）；缺命令时按 `winget → choco → scoop → npm` 选择可用安装器静默安装（winget 额外检查 `%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe`），安装后重新探测。
 - 安装与连接都是后台任务：`POST /catalog/:id/connect` 返回 `jobId`，客户端每 0.9 秒轮询一次；MCP 最长等 180 秒，安装最长 20 分钟。安装参数固定来自内置目录，不接受自由输入。
 - 自定义入口仍在：CLI 模板（`gh` / `docker` / `pnpm` / 空白）、MCP 手动添加与导入 JSON。

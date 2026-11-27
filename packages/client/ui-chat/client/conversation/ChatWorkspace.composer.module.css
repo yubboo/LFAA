@@ -187,25 +187,6 @@
 }
 
 /* 绝对路径附件用虚线边框区分（内容不复制字节，只把路径交给 Agent）。 */
-/* 输入框工具栏的图标按钮（生成素材库等），与 + 按钮同尺寸。 */
-.toolButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.9rem;
-  height: 1.9rem;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.toolButton:hover {
-  background: var(--color-active);
-  color: var(--color-ink);
-}
 
 /* 聊天模式：输入卡片收成「加号 + 输入框 + 发送位」一行；出现附件、排队、报错等提示行时
    由 data-chat-row 自动回落到多行。父级 class 来自 ChatWorkspace.module.css，这里用 data 属性做 :global。 */

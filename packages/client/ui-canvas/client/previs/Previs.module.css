@@ -1,0 +1,57 @@
+/* 白模预演工作区布局，以语义主题呈现编辑控件，视口内由 Three.js 渲染。 */
+.previs {
+  container-type: inline-size;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.81rem;
+  overflow: auto;
+}
+.bar, .timeline, .keyframes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.37rem;
+  align-items: center;
+  padding: 0.38rem;
+}
+.previs :is(button, select, input) {
+  border: 1px solid var(--color-line);
+  border-radius: 0.35rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 0.3rem;
+  font: inherit;
+}
+.previs button { cursor: pointer; }
+.previs button:hover { background: var(--color-active); }
+.previs button:disabled { opacity: 0.62; cursor: default; }
+.previs button[aria-pressed="true"] { border-color: var(--color-accent); color: var(--color-accent); }
+.previs :is(button, a, select, input):focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.workspace { flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, 24%); }
+.viewer { overflow: hidden; display: grid; grid-template-rows: minmax(8rem, 1fr) auto; justify-items: center; min-height: 0; background: var(--color-shell); }
+.frame { display: grid; place-items: center; container-type: size; justify-self: stretch; min-width: 0; min-height: 0; }
+.viewport { display: block; width: 100%; height: 100%; min-height: 0; touch-action: none; }
+.viewport[data-camera-preview="true"] { width: min(100cqw, 177.78cqh); height: auto; aspect-ratio: 16 / 9; }
+.viewport[data-camera-preview="true"][data-ratio="9:16"] { width: min(100cqw, 56.25cqh); aspect-ratio: 9 / 16; }
+.scene { display: grid; align-content: start; gap: 0.4rem; overflow: auto; min-width: 0; padding: 0.4rem; border-inline-start: 1px solid var(--color-line); }
+.scene .bar { padding: 0; }
+.scene video { width: 100%; max-height: 8rem; }
+.scene a { color: var(--color-link); }
+.coords { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; }
+.coords label { display: grid; gap: 0.2rem; }
+.coords input { width: 100%; box-sizing: border-box; }
+.timeline { border-top: 1px solid var(--color-line); }
+.timeline input[type="range"] { min-width: 4rem; flex: 1; accent-color: var(--color-accent); }
+.timeline input[type="number"] { width: 3.4rem; }
+.keyframes { padding: 0; }
+.error { color: var(--color-danger); padding: 0.4rem; overflow-wrap: anywhere; }
+
+@container (max-width: 35rem) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(14rem, 1fr) auto; }
+  .scene { border-inline-start: 0; border-block-start: 1px solid var(--color-line); max-height: 9rem; }
+}

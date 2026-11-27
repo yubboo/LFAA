@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Task list",
+    "description": "Lets the agent plan multi-step work as a todo list and keeps it with the session."
+  }
+}

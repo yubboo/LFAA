@@ -42,7 +42,16 @@ export const MCP_CATALOG: CatalogEntry[] = [
     publisher: "Google",
     description: "通过 DevTools 协议查看网络、性能面板与页面快照。",
     package: "chrome-devtools-mcp",
-    args: ["-y", "chrome-devtools-mcp@latest"],
+    version: "1.14.0",
+    // 固定版本并跑隔离的无头实例：不带 --isolated 会复用本机 Chrome 配置，也更容易被用户窗口干扰。
+    // 输入类工具（点击 / 填表 / 按键）交给内置 browser_*，这里只留看页面、量位置、查网络与性能所需的能力。
+    args: [
+      "-y", "chrome-devtools-mcp@1.14.0",
+      "--isolated", "--headless", "--viewport=1440x900",
+      "--screenshotFormat=jpeg", "--screenshotQuality=80",
+      "--no-usage-statistics", "--no-performance-crux",
+      "--no-category-input", "--no-category-memory",
+    ],
     examples: ["看看这个页面首屏为什么慢，给出性能面板结论", "检查登录请求的响应头与耗时"],
   }),
   mcpEntry({

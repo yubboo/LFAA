@@ -17,10 +17,17 @@ export class JobsService extends Service {
   private readonly manager: BackgroundJobManager;
   private unregisterTools: (() => void) | null = null;
   private unregisterTimeoutHandler: (() => void) | null = null;
+  /** Shell 方言解析器：装配完成后由 bundle 注入，避免 Loader 配置承载函数。 */
+  private invocationResolver: JobsPluginConfig["resolveInvocation"];
 
   constructor(ctx: Context, config: JobsPluginConfig = {}) {
     super(ctx, "jobs");
-    this.manager = new BackgroundJobManager(config);
+    this.invocationResolver = config.resolveInvocation;
+    // 未注入解析器时返回 undefined，交回本地 Shell 默认方言；注入后走预置方言。
+    this.manager = new BackgroundJobManager({
+      ...config,
+      resolveInvocation: async (command, cwd) => (this.invocationResolver ? this.invocationResolver(command, cwd) : undefined),
+    });
     this.unregisterTools = this.registerAgentTools();
     // 前台命令触发时限时由后台任务接管，长构建不再被直接判定失败。
     this.unregisterTimeoutHandler = ctx.tools.setCommandTimeoutHandler(async (input) => {
@@ -40,6 +47,15 @@ export class JobsService extends Service {
       this.unregisterTools = null;
       this.manager.disposeAll();
     });
+  }
+
+  /** 装配完成后注入命令解析器；返回注销函数。 */
+  setResolveInvocation(resolver: NonNullable<JobsPluginConfig["resolveInvocation"]>): () => void {
+    const previous = this.invocationResolver;
+    this.invocationResolver = resolver;
+    return () => {
+      this.invocationResolver = previous;
+    };
   }
 
   private registerAgentTools(): () => void {

@@ -15,6 +15,7 @@
         "@lfaa/client-ui-agent-profile": "workspace:*",
         "@lfaa/client-ui-browser": "workspace:*",
         "@lfaa/client-ui-chat": "workspace:*",
+        "@lfaa/client-ui-canvas": "workspace:*",
         "@lfaa/client-ui-connectors": "workspace:*",
         "@lfaa/client-ui-library": "workspace:*",
         "@lfaa/client-ui-plugins": "workspace:*",

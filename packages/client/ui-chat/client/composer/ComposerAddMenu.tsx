@@ -7,6 +7,7 @@ import {
   IconEdit,
   IconFolder,
   IconPaperclip,
+  IconPhoto,
   IconPlus,
 } from "@tabler/icons-react";
 import type { ComposerAttachment } from "./composer-context";
@@ -23,6 +24,7 @@ export function ComposerAddMenu({
   onTriggerMention,
   onTriggerSlash,
   onOpenBrowser,
+  onOpenMedia,
   onPickProject,
 }: {
   locale: ChatLocaleMessages;
@@ -33,6 +35,8 @@ export function ComposerAddMenu({
   onTriggerMention: (initialQuery?: string) => void;
   onTriggerSlash: () => void;
   onOpenBrowser?: (() => void) | undefined;
+  /** 生成素材库入口由本菜单承载，工具行不再单独放按钮；聊天模式不提供时该行不出现。 */
+  onOpenMedia?: (() => void) | undefined;
   /** 仅当界面当前无可见项目入口（如未绑定项目的聊天模式）时传入，提供选择项目入口。 */
   onPickProject?: (() => void) | undefined;
 }) {
@@ -175,6 +179,22 @@ export function ComposerAddMenu({
               <span>{locale.ctxFolder}</span>
             </span>
           </button>
+
+          {onOpenMedia && (
+            <button
+              type="button"
+              className={styles.menuItem}
+              onClick={() => {
+                setOpen(false);
+                onOpenMedia();
+              }}
+            >
+              <span className={styles.menuItemMain}>
+                <IconPhoto size={15} aria-hidden="true" />
+                <span>{locale.ctxImage}</span>
+              </span>
+            </button>
+          )}
 
           <button
             type="button"

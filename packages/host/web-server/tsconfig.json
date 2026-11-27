@@ -34,6 +34,7 @@
     { "path": "../../core/subagent" },
     { "path": "../terminal" },
     { "path": "../../media/tool-media" },
+    { "path": "../../media/canvas" },
     { "path": "../../workspace/workspace" },
     { "path": "../../workspace/worktree" }
   ]

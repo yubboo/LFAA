@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Slash commands",
+    "description": "Lets plugins register slash commands that the composer discovers and runs."
+  }
+}

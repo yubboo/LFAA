@@ -13,14 +13,17 @@ export interface PaneStageProps {
   rail: ReactNode;
   /** 底部终端坞；未注册工作台服务时为 null。 */
   dock: ReactNode;
+  extensionContent?: ReactNode;
 }
 
 /** 舞台主体：内容与图标轨横向分割，终端坞挂在分割区之外，保持原布局层级。 */
-export function PaneStage({ splitAreaRef, stageProps, rail, dock }: PaneStageProps) {
+export function PaneStage({ splitAreaRef, stageProps, rail, dock, extensionContent }: PaneStageProps) {
   return (
     <>
       <div ref={splitAreaRef} className={styles.bodySplit}>
-        <WorkbenchStageContent {...stageProps} />
+        {extensionContent === undefined
+          ? <WorkbenchStageContent {...stageProps} />
+          : <div className={styles.mainStage}>{extensionContent}</div>}
         {rail}
       </div>
       {dock}

@@ -1,8 +1,8 @@
 // @lfaa/plugins Host 侧 Cordis 服务：管理插件安装、启停、卸载、二创与运行状态。
 import { type Context, type Plugin, Service } from "@deepseek-ai/cordis";
-import type { PluginCatalogItem, PluginManifest, PluginRecord, PresetSummary } from "../contract/index";
+import type { PluginInventorySnapshot, PluginManifest, PluginRecord, PresetSummary } from "../contract/index";
 import { PluginManager, type PluginSkillRegistrar } from "./manager/plugin-manager";
-import type { PluginPresetDefinition } from "./catalog/plugin-catalog";
+import type { PluginPresetDefinition } from "./catalog/preset-summary";
 
 export * from "../contract/index";
 export { MODULE_ALIASES, normalizeModuleName, normalizeRecord } from "./catalog/module-aliases";
@@ -14,8 +14,12 @@ export interface PluginsPluginConfig {
   storePath?: string;
   /** 当前应用 bundle 已装配的模块；这些能力不再允许单独安装或启用。 */
   providedModules?: readonly string[];
+  /** 仍由 bundle 静态挂载的模块：只读清单里按「已装配」列出。 */
+  staticModules?: readonly string[];
   /** 仓库根目录：二创复制包与依赖软链需要。 */
   repoRoot?: string;
+  /** Loader 解析基准文件：只读清单解析本仓包元数据用。 */
+  loaderBaseUrl?: string;
   /** 模式预设（由 bundle 提供，避免插件包反向依赖 bundle）。 */
   presets?: readonly PluginPresetDefinition[];
 }
@@ -41,11 +45,26 @@ export class PluginsService extends Service {
     return this.manager.restoreEnabledPlugins();
   }
 
-  listState(): Promise<{ profile: string; profileRoot: string; installed: PluginRecord[]; availableCatalog: PluginCatalogItem[]; presets: PresetSummary[]; activePreset: string }> {
+  listState(): Promise<{ profile: string; profileRoot: string; installed: PluginRecord[]; presets: PresetSummary[]; activePreset: string }> {
     return this.manager.listState();
   }
 
-  installPlugin(input: { moduleName?: string; catalogId?: string; manifest?: PluginManifest }): Promise<PluginRecord> {
+  /** 只读插件清单：Loader 条目与静态装配模块的统一投影。 */
+  listInventory(): Promise<PluginInventorySnapshot> {
+    return this.manager.readInventory();
+  }
+
+  /** 启停内置插件：写 profile 停用清单并让 Loader 立即生效。 */
+  toggleBuiltin(moduleName: string, enabled: boolean): Promise<PluginInventorySnapshot> {
+    return this.manager.toggleBuiltin(moduleName, enabled);
+  }
+
+  /** 启动时应用已保存的内置停用清单。 */
+  applyBuiltinDisabled(): Promise<void> {
+    return this.manager.applyBuiltinDisabled();
+  }
+
+  installPlugin(input: { moduleName?: string; manifest?: PluginManifest }): Promise<PluginRecord> {
     return this.manager.installPlugin(input);
   }
 
@@ -121,3 +140,4 @@ declare module "@deepseek-ai/cordis" {
 
 /** 默认导出插件本体，供 Cordis Loader 以包名直接装载。 */
 export default pluginsPlugin;
+

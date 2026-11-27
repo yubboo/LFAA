@@ -4,6 +4,7 @@ import { agentGroupClientPlugin } from "@lfaa/client-ui-agent-group/client";
 import { agentProfileClientPlugin } from "@lfaa/client-ui-agent-profile/client";
 import { browserClientPlugin } from "@lfaa/client-ui-browser/client";
 import { chatClientPlugin } from "@lfaa/client-ui-chat/client";
+import { canvasClientPlugin } from "@lfaa/client-ui-canvas/client";
 import { libraryClientPlugin } from "@lfaa/client-ui-library/client";
 import { connectorsClientPlugin } from "@lfaa/client-ui-connectors/client";
 import { pluginsClientPlugin } from "@lfaa/client-ui-plugins/client";
@@ -35,6 +36,7 @@ const theme = context.plugin(themeClientPlugin);
 const sections = context.plugin(sectionsClientPlugin);
 const workspace = context.plugin(workspaceClientPlugin);
 const chat = context.plugin(chatClientPlugin);
+const canvas = context.plugin(canvasClientPlugin);
 // 资料库与代码审查依赖 chat 提供的 chatStore 服务，必须排在 chat 之后。
 const library = context.plugin(libraryClientPlugin);
 const review = context.plugin(reviewClientPlugin);
@@ -47,7 +49,7 @@ const agentProfile = context.plugin(agentProfileClientPlugin);
 // 群聊页只依赖 workbench 与现成接口，同样在业务插件之后挂载。
 const agentGroup = context.plugin(agentGroupClientPlugin);
 
-void Promise.allSettled([theme, sections, workspace, chat, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).then(() => markPluginsReady());
+void Promise.allSettled([theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).then(() => markPluginsReady());
 
 // 页面卸载时依次释放业务插件与 Shell 插件，确保所有贡献和 React 根节点清理。
 window.addEventListener("pagehide", () => {
@@ -60,6 +62,7 @@ window.addEventListener("pagehide", () => {
   void review.dispose();
   void library.dispose();
   void chat.dispose();
+  void canvas.dispose();
   void workspace.dispose();
   void sections.dispose();
   void theme.dispose();
@@ -67,6 +70,6 @@ window.addEventListener("pagehide", () => {
 }, { once: true });
 
 // 把插件安装失败显示在控制台，并保持页面可调试。
-void Promise.all([workbench, theme, sections, workspace, chat, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).catch((error: unknown) => {
+void Promise.all([workbench, theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).catch((error: unknown) => {
   console.error("LFAA 工作区启动失败：", error);
 });

@@ -18,6 +18,7 @@ import { createConnectorsHttpHandler } from "@lfaa/connectors";
 import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
+import { createCanvasHandler } from "./handlers/handlers-canvas";
 import { createBackgroundsHttpHandler } from "./handlers/handlers-backgrounds";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
 import { createTerminalUpgradeHandler } from "@lfaa/terminal";
@@ -137,6 +138,7 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   const gateway = createApiGateway([
     { id: "sections", handle: common.sections },
     { id: "workspace", handle: common.workspace },
+    { id: "canvas", handle: createCanvasHandler(hostContext) },
     { id: "worktrees", handle: common.worktrees },
     { id: "skills", handle: common.skills },
     { id: "mcp", handle: createMcpHttpHandler(hostContext.mcp) },

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Long output spill",
+    "description": "Writes oversized tool output to a local file and returns a head/tail window plus its path."
+  }
+}

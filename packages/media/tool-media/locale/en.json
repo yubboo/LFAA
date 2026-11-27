@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Media generation",
+    "description": "Generates images with the bundled image model and saves them into the workspace."
+  }
+}

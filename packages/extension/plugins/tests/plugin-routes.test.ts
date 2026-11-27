@@ -44,12 +44,34 @@ function fakeRequest(url: string, method: string, body?: unknown): IncomingMessa
   } as unknown as IncomingMessage;
 }
 
-function fakeService(overrides: Partial<Record<"listState" | "addExternal", unknown>> = {}): PluginsService {
+function fakeService(overrides: Partial<Record<"listState" | "addExternal" | "toggleBuiltin" | "listInventory", unknown>> = {}): PluginsService {
   return {
-    listState: overrides.listState ?? (async () => ({ profile: "web", installed: [], availableCatalog: [], presets: [], activePreset: "standard" })),
+    listState: overrides.listState ?? (async () => ({ profile: "web", installed: [], presets: [], activePreset: "standard" })),
     addExternal: overrides.addExternal ?? (async () => ({ id: "demo" })),
+    listInventory: overrides.listInventory ?? (async () => ({ profile: "web", entries: [], presets: [], activePreset: "standard", managementAvailable: true })),
+    toggleBuiltin: overrides.toggleBuiltin ?? (async () => ({ profile: "web", entries: [], presets: [], activePreset: "standard", managementAvailable: true })),
   } as unknown as PluginsService;
 }
+
+test("POST 内置插件启停返回新清单", async () => {
+  const service = fakeService({
+    toggleBuiltin: async (moduleName: string, enabled: boolean) => ({ profile: "web", entries: [], presets: [], activePreset: "standard", managementAvailable: true, echoed: `${moduleName}:${enabled}` }),
+  });
+  const handler = createPluginsHttpHandler(service);
+  const res = fakeResponse();
+  const handled = await handler(fakeRequest("/api/plugins/inventory/toggle", "POST", { moduleName: "@lfaa/browser", enabled: false }), res);
+  assert.equal(handled, true);
+  assert.equal(res.captured.statusCode, 200);
+  assert.match(res.captured.body, /@lfaa\/browser:false/u);
+});
+
+test("内置插件启停缺少 enabled 时返回 400", async () => {
+  const handler = createPluginsHttpHandler(fakeService());
+  const res = fakeResponse();
+  await handler(fakeRequest("/api/plugins/inventory/toggle", "POST", { moduleName: "@lfaa/browser" }), res);
+  assert.equal(res.captured.statusCode, 400);
+  assert.match(res.captured.body, /enabled/u);
+});
 
 test("流式安装只接受 POST，GET 返回 405 并声明 Allow", async () => {
   const handler = createPluginsHttpHandler(fakeService());

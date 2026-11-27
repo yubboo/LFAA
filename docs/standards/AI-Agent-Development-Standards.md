@@ -261,7 +261,7 @@ shell.nav.right        # 右侧：上下文菜单与操作面板
 
 1. **必须使用语义化主题变量**：所有 UI 组件（含弹窗、悬浮卡片、右键菜单、表单控件、代码块与徽章）只能消费 `@lfaa/ui-theme` 的 `client/tokens.css` 注入的变量：
    - 画布与表面：`--color-shell`、`--color-rail`、`--color-panel`、`--color-topbar`、`--color-surface`、`--color-popover`、`--color-active`、`--color-menu-hover`
-   - 边框与文字：`--color-line`、`--glass-border`、`--color-ink`、`--color-muted`
+   - 边框与文字：`--color-line`、`--glass-border`、`--color-ink`、`--color-ink-soft`、`--color-muted`（三档文字色按「正文 > 过程标题 / 动作动词 > 命令与元信息」分配，见 §3.5.2）
    - 强调色联动：`--color-accent`、`--color-accent-rgb`
    - 状态与语义：`--color-success`/`--color-success-strong`/`--color-success-rgb`、`--color-warning*`、`--color-danger`/`--color-danger-strong`/`--color-danger-rgb`、`--color-info*`、`--color-link`/`--color-link-hover`、`--color-violet*`、`--color-orange*`、`--color-teal*`、`--color-activity-positive*`、`--color-activity-negative*`
    - 代码与彩色底：`--color-code-bg`/`--color-code-bg-alt`/`--color-code-ink`/`--color-code-muted`、`--color-on-accent`、`--color-scrim`
@@ -286,6 +286,16 @@ shell.nav.right        # 右侧：上下文菜单与操作面板
 - 颜色只走强调色语义变量，不写死绿/红；不得把它放到行尾的时间/动作区。
 - **同一栏只有两列**：行首图标列（项目文件夹 / 会话图标 / 状态标记）与标题列。项目行、置顶行、最近行、项目内会话子行、展开控件行的标题左端必须是同一个 x（实测 100.58）：子行左内边距取 `2.25rem`（= 图标左内边距 0.65rem + 图标宽 1rem + 图标与标题间距 0.6rem），不得出现「子行标题比父级标题更靠左」的倒缩进。
 - 层级靠图标列与字重区分，不靠把子行标题往左挪；改缩进必须同轮复核标题列 x 与状态标记圆心 x。
+
+### 3.5.2 助手回合的文字层级（强制）
+
+- **正文独占最强一档**：助手回复正文用 `--color-ink`、字重 400，是整轮里唯一的最强文字；正文里的粗体只服务正文自身的强调，不外溢到过程行。
+- **过程标题与动作动词次之**：轮次标题、「已读取 / 已运行命令 / 已编辑」等动作动词与文件名用 `--color-ink-soft`，字重不超过 500。过程行不得用 550 以上的字重和满墨色跟正文抢视觉主体——「动作标题比正文还亮」属于 bug。
+- **目标、命令、耗时与元信息最弱**：用 `--color-muted`；命令与参数保持等宽、比所在行小一号。
+- **强调留给交互**：过程行悬停、展开或正在运行时才升到 `--color-ink` 或强调色；静态状态一律安静，不靠常亮高对比来提示可点。
+- **正文块自己带上下留白**：聊天流是网格布局，行与行只有 4–10px 间隙，正文段落贴在过程行上会发挤。正文块（`.assistantBody`）固定补 `margin-block: 0.45rem`，与网格间隙叠加后正文上下光距约 11–17px；不要靠单独加大整层 `gap` 解决，那会把过程行之间也一起撑开。
+- **过程行左缘与正文同列**：回合内的汇总行（用时 / 步数）、轮次标题、以及直接挂在正文流里的工具行，其左缘必须和正文列是同一个 x；轮次标题不留左内边距，图标的自身留白用负外边距（约 `-0.1rem`）抵消到正文列上。只有缩进在引导线里面的子级行才允许更靠右。
+- **两套主题同档落差**：浅色约 17:1 / 9:1 / 5:1，深色约 15:1 / 10:1 / 6:1，三档都必须 ≥ 4.5:1。
 
 ### 3.6 应用分层与装配下沉（强制）
 
@@ -420,7 +430,23 @@ shell.nav.right        # 右侧：上下文菜单与操作面板
 
 **Agent 自查：**在新增或重命名文件前，必须检查名称语义、长度、同目录重名/相似名与职责数量；可用路径上下文减少重复，不得未经批准全仓批量改名；违反规则时先调整职责或名称再提交交付。
 
-### 4.2 i18n
+### 4.1.8 临时排查脚本：`.lfaa-` 前缀（强制）
+
+Agent 在任务中随手写的排查脚本（Playwright 驱动、一次性数据核对、截图取样）**不是产品代码**，但也不能随便起名扔在根目录：必须带本项目自己的前缀，让任何人一眼看出「这是本次排查的临时产物」。
+
+- **命名**：`.lfaa-<用途>.mjs` —— 隐藏文件（`.` 开头）+ `.lfaa-` 前缀 + 小写 `kebab-case` 语义名，例如 `.lfaa-check-confirm-sheet.mjs`、`.lfaa-probe-mobile-menu.mjs`。运行方式不同时限 `.mjs` / `.cjs` / `.ts`，但前缀不变。
+- **位置**：仓库根目录。只有根目录能直接 `node .lfaa-xxx.mjs` 解析到 `node_modules`；不得塞进 `packages/` 与源码混放。
+- **生命周期**：任务结束（或该步验证完成）**立即删除**。`.gitignore` 已忽略 `.lfaa-*`，任何情况下都不得提交。
+- **转正路径**：确实要长期保留的脚本，改成 `scripts/` 下的正式名称（`verify-*.mts`、`ui-shot-*.mts`、`<动作>-<对象>.mjs`），补中文文件头、在 `package.json` 注册 script，并随源码一起维护。
+- **只写不改**：临时脚本可以读取、点击、截图，但不得改仓库文件；确需改文件就走正式改动流程与日志。
+
+| 避免 | 推荐 | 原因 |
+|---|---|---|
+| `.dsh-check-menu.mjs` | `.lfaa-check-add-menu.mjs` | 借用别的工具前缀，归属不清 |
+| `check.mjs` / `tmp.mjs` | `.lfaa-check-dialog-sheet.mjs` | 无前缀会与正式脚本混淆，看不懂是哪次排查的 |
+| `test1.mjs`、`scripts/tmp.mjs` | 删除，或按正式脚本转正 | 临时编号与「临时文件混进 scripts」都会变成长期债 |
+
+## 4.2 i18n
 
 - 界面文案走本包 `locales.ts` 的中英字典；包级文档走三件套 `README.md`（英文）/ `README.zh.md`（中文）/ `README.i18n.yaml`。
 - `README.i18n.yaml` 是**双语配对哈希记录**，不是翻译源：由 `pnpm readme:pair -- . --write` 按英文标题分段生成，用于检测两版是否同步。

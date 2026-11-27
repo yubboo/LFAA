@@ -1,11 +1,10 @@
 // @lfaa/plugins 浏览器端 HTTP 请求封装，与 Host /api/plugins 接口通信。
-import type { PluginCatalogItem, PluginRecord, PresetSummary } from "@lfaa/plugins/contract";
+import type { PluginInventorySnapshot, PluginRecord, PresetSummary } from "@lfaa/plugins/contract";
 
 export interface PluginsStatePayload {
   profile?: string;
   profileRoot?: string;
   installed: PluginRecord[];
-  availableCatalog: PluginCatalogItem[];
   presets?: PresetSummary[];
   activePreset?: string;
 }
@@ -23,16 +22,20 @@ export async function fetchPluginsState(): Promise<PluginsStatePayload> {
   return parseJson<PluginsStatePayload>(res);
 }
 
-/** 内置插件一步启用：不存在安装语义，Host 侧直接登记为已启用。 */
-export async function enableBuiltinRequest(moduleName: string): Promise<PluginsStatePayload & { plugin: PluginRecord }> {
-  const res = await fetch("/api/plugins/builtin/enable", {
+/** 只读插件清单：设置中心「内置插件」页的数据来源。 */
+export async function fetchPluginInventory(): Promise<PluginInventorySnapshot> {
+  const res = await fetch("/api/plugins/inventory");
+  return parseJson<PluginInventorySnapshot>(res);
+}
+
+/** 启停内置插件：Host 写 profile 停用清单并让 Loader 立即生效。 */
+export async function toggleBuiltinRequest(moduleName: string, enabled: boolean): Promise<PluginInventorySnapshot> {
+  const res = await fetch("/api/plugins/inventory/toggle", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ moduleName }),
+    body: JSON.stringify({ moduleName, enabled }),
   });
-  const payload = await parseJson<PluginsStatePayload & { plugin?: PluginRecord }>(res);
-  if (!payload.plugin) throw new Error("启用响应缺少插件记录。");
-  return { ...payload, plugin: payload.plugin };
+  return parseJson<PluginInventorySnapshot>(res);
 }
 
 /** 按模块说明符（包名或 file: URL）安装；Host 侧会拒绝已由 bundle 装配的包。 */
@@ -88,3 +91,4 @@ export async function updatePluginManifestRequest(
   });
   return parseJson<PluginsStatePayload>(res);
 }
+

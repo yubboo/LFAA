@@ -19,7 +19,7 @@
 | `attachment` | 会话附件：`attachment-local` 把附件字节存到本机并按会话提供列出/读取工具。 |
 | `session` | 会话领域扩展：`session-title` 提供启发式 + 模型会话标题服务（`core/session` 依赖其纯函数）。 |
 | `interaction` | 交互扩展：`commands` 提供斜杠命令注册 seam（`/api/commands` 发现与执行）。 |
-| `media` | 媒体生成：`tool-media` 调用套餐生图模型生成图片并落盘到工作区，同时承载浏览器端媒体 UI（素材库弹窗、生成卡片、比例/风格选择器、缩略图与素材状态）。 |
+| `media` | 媒体生成：`tool-media` 提供图像、视频与音频生成工具及落盘；`canvas` 提供项目画布契约、素材版本和节点执行。界面分别由 `client/ui-tool-media` 与 `client/ui-canvas` 提供。 |
 
 ## 1. 为什么必须先分类
 

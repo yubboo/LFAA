@@ -38,6 +38,7 @@
     "@lfaa/browser": "workspace:*",
     "@lfaa/bundle-web": "workspace:*",
     "@lfaa/chat": "workspace:*",
+    "@lfaa/canvas": "workspace:*",
     "@lfaa/commands": "workspace:*",
     "@lfaa/connectors": "workspace:*",
     "@lfaa/goal": "workspace:*",

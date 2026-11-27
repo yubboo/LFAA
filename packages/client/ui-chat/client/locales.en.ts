@@ -85,6 +85,7 @@ export const enMessages: ChatLocaleMessages = {
   addContextMenuTitle: "Add context",
   ctxFile: "Files",
   ctxFolder: "Folder",
+  ctxImage: "Image",
   ctxMention: "Mention",
   ctxActions: "Actions",
   ctxBrowser: "Browser",

@@ -22,10 +22,11 @@
   border-radius: 6px;
   border: 0;
   background: transparent;
-  color: var(--color-ink);
+  /* 子智能体派发标题同样属于过程行，取次级墨色，悬停升到正文级。 */
+  color: var(--color-ink-soft);
   font: inherit;
   font-size: 0.88em;
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
   min-width: 0;
   text-align: left;

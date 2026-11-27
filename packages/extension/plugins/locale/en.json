@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin manager",
+    "description": "Installs, enables, disables, forks, and inventories plugins."
+  }
+}

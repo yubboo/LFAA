@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plan mode",
+    "description": "Restricts a session to read-only tools so a plan comes before any write or command."
+  }
+}

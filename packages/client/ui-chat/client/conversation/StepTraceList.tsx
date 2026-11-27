@@ -42,6 +42,7 @@ export function StepTraceList({
   now: externalNow,
   durationMs,
   toolCount,
+  activitySummary,
   tokenUsage,
   isStreaming,
   expanded,
@@ -55,6 +56,8 @@ export function StepTraceList({
   durationMs: number | undefined;
   /** 本轮累计工具步数，用于总览条展示执行密度。 */
   toolCount?: number | undefined;
+  /** 整轮做了什么（命令 / 读取 / 编辑）的摘要，收起过程后仍能一眼看清。 */
+  activitySummary?: string | undefined;
   tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | undefined;
   isStreaming: boolean;
   expanded: boolean;
@@ -94,20 +97,25 @@ export function StepTraceList({
   }
 
   const usageLabel = formatTokenUsage(tokenUsage);
-  const label = durationMs === undefined ? labels.process : `${labels.elapsed} ${formatDuration(durationMs, isZh)}`;
+  const elapsedLabel = durationMs === undefined
+    ? labels.process
+    : `${labels.elapsed} ${formatDuration(durationMs, isZh)}`;
+  // 有过程摘要时以它当总行标题（如「已运行 3 个命令、已读取 2 个文件」），用时降为次级信息。
+  const primaryLabel = activitySummary ?? elapsedLabel;
   return onToggle ? (
     <button type="button" className={styles.disclosure} aria-expanded={expanded} aria-controls={processId} onClick={onToggle}>
-      <span>{label}</span>
-      {toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
+      <span className={styles.summaryLabel}>{primaryLabel}</span>
+      {activitySummary && <span className={styles.elapsed}>{elapsedLabel}</span>}
+      {!activitySummary && toolSummary && <span className={styles.elapsed}>{toolSummary}</span>}
       {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
       <IconChevronRight size={14} className={styles.chevron} aria-hidden="true" />
     </button>
   ) : durationMs !== undefined || usageLabel ? (
-    <span className={styles.elapsed}>
-      {durationMs !== undefined ? label : ""}
-      {durationMs !== undefined && usageLabel ? " · " : ""}
-      {usageLabel ?? ""}
-    </span>
+    <div className={styles.liveStatus}>
+      <span className={styles.summaryLabel}>{primaryLabel}</span>
+      {durationMs !== undefined && <span className={styles.elapsed}>{elapsedLabel}</span>}
+      {usageLabel && <span className={styles.elapsed}>{usageLabel}</span>}
+    </div>
   ) : null;
 }
 

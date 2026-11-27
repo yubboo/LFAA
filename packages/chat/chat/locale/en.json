@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Chat workspace",
+    "description": "Provides sessions, streaming output, and the chat workspace UI."
+  }
+}

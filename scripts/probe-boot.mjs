@@ -23,7 +23,7 @@ function step(name, ok, detail = "") {
 // 期望的核心路由；缺一条就说明对应服务没装配或被 inject 挡住。
 const EXPECTED_ROUTES = [
   "sections", "workspace", "worktrees", "skills", "plugins", "llm", "rules", "memory",
-  "commands", "goal", "chat", "agent", "browser", "jobs", "media",
+  "commands", "goal", "chat", "agent", "browser", "jobs", "media", "canvas",
 ];
 
 let runtime;

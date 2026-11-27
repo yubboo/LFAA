@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Model access",
+    "description": "Connects model providers with streaming inference and credential handling."
+  }
+}

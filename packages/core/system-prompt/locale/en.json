@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "System prompt",
+    "description": "Lets plugins append system-prompt sections that the agent merges in order."
+  }
+}

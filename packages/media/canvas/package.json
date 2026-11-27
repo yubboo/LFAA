@@ -1,0 +1,42 @@
+{
+  "name": "@lfaa/canvas",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/src/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./contract": {
+      "types": "./lib/types/contract/index.d.ts",
+      "default": "./lib/types/contract/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "contract",
+    "locale/*.json"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b ."
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.1.0",
+    "@lfaa/llm": "workspace:*",
+    "@lfaa/tool-media": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^5.9.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yubboo/LFAA.git",
+    "directory": "packages/media/canvas"
+  }
+}

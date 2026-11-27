@@ -26,7 +26,8 @@ export interface StartBackgroundJobInput {
 }
 
 export interface JobsPluginConfig {
-  resolveInvocation?: (command: string, cwd: string) => Promise<ShellInvocation>;
+  /** 命令方言解析；未装配或未注入时回落到本地 Shell 默认执行。 */
+  resolveInvocation?: (command: string, cwd: string) => Promise<ShellInvocation | undefined>;
   resolveSessionRoots?: (sessionId: string) => Promise<string[]>;
   defaultTimeoutMs?: number;
 }

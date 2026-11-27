@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent 循环",
+    "description": "Think → Act → Check 任务闭环，聚合模型、工具、记忆与规则。"
+  }
+}

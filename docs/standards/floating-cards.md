@@ -79,3 +79,9 @@
 - `packages/client/ui-chat/client/workbench/WorkbenchTabMenu.*`：标签页右键菜单。
 
 已符合新基线的参照实现：`UserMenu.*`（几何 + 密度 + 容器查询）、`NavigationSidebar` 的模式卡片（几何 + 密度 + 容器查询窄栏降级）与 `ThemeModeQuickSwitch.*`（60×30 三档开关、同心圆角）。
+
+## 9. 二次确认弹窗不适用本规范
+
+删除 / 移出 / 卸载这类**破坏性二次确认**用 `@lfaa/ui-primitives` 的 `ConfirmDialog`（`role="alertdialog"`），它是必须作出选择的阻断层，不属于「点外部 / Esc 关闭」的悬浮卡片：只能靠取消、确认或右上角关闭离开，Esc 在捕获阶段就被吞掉。
+
+模态弹窗（含手机端贴底弹层）的完整规则见 [弹窗规范](dialogs.md)；本页只管从入口展开的悬浮卡片。

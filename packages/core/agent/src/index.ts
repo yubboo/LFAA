@@ -7,7 +7,7 @@ import "@lfaa/rules";
 import "@lfaa/tools";
 import type { ChatSessionRecord } from "@lfaa/memory";
 import { executeAgentTaskLoop } from "./run/agent-loop";
-import { readActivitySource } from "./run/activity-file";
+import { readFileActivity } from "./file-activity";
 import { registerAgentLibraryTools } from "./tools/builtin-agent-tools";
 import { registerAgentSessionTools, type SessionGoalSnapshot } from "./tools/session-tools";
 import { SmartTrustStore } from "./tools/permission-policy";
@@ -30,11 +30,10 @@ export { createAgentHttpHandler } from "./http-handler";
 export { executeAgentTaskLoop, type RunExecutionParams, type RunLoopDeps } from "./run/agent-loop";
 
 /** 配置 Agent Host 存储及运行参数，供应用启动和隔离测试注入。 */
-export interface AgentPluginConfig {
-  smartTrustFilePath?: string;
-  /** 装配层可兼容已存会话的旧预设组合。 */
-  resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
-}
+export type { AgentPluginConfig } from "./plugin-config";
+
+import type { AgentPluginConfig } from "./plugin-config";
+import { SessionModulesHook } from "./session-modules-hook";
 
 // Host 侧 Agent 任务调度服务。
 export class AgentService extends Service {
@@ -59,6 +58,8 @@ export class AgentService extends Service {
   private skillCatalogProvider: SkillCatalogProvider | null = null;
   private projectScopeProvider: ((projectId: string) => Promise<ProjectScope | null>) | null = null;
   private sessionRootsResolver: ((session: ChatSessionRecord) => Promise<string[] | null>) | null = null;
+  /** 会话模块兼容器：装配完成后由 bundle 注入，避免 Loader 配置承载函数。 */
+  private readonly sessionModulesHook: SessionModulesHook;
   private totalRunsCount = 0;
   private totalReconnectsCount = 0;
   private replayedChunksCount = 0;
@@ -66,6 +67,7 @@ export class AgentService extends Service {
 
   constructor(ctx: Context, private readonly config: AgentPluginConfig = {}) {
     super(ctx, "agent");
+    this.sessionModulesHook = new SessionModulesHook(config.resolveSessionModules);
     this.trustStore = new SmartTrustStore(config.smartTrustFilePath);
     this.unregisterBuiltinTools = registerAgentLibraryTools(ctx);
     this.unregisterSessionTools = registerAgentSessionTools(ctx, {
@@ -268,6 +270,7 @@ export class AgentService extends Service {
       browser?.describeTakeoverHint?.(input.sessionId) ?? "",
       scope ? this.workspaceLeases.describePeers(input.sessionId, scope, this.runs) : "",
     ].filter(Boolean).join("\n\n");
+    const resolveSessionModules = this.sessionModulesHook.get();
     return beginAgentRun({
       llm: this.createRunLlm(input, session),
       tools: this.ctx.tools,
@@ -282,7 +285,7 @@ export class AgentService extends Service {
       skillCatalogProvider: this.skillCatalogProvider,
       ...(this.projectScopeProvider ? { resolveProjectScope: this.projectScopeProvider } : {}),
       ...(this.sessionRootsResolver ? { resolveSessionRoots: this.sessionRootsResolver } : {}),
-      ...(this.config.resolveSessionModules ? { resolveSessionModules: this.config.resolveSessionModules } : {}),
+      ...(resolveSessionModules ? { resolveSessionModules } : {}),
       onRunCreated: (record) => {
         this.runs.set(record.status.runId, record);
         this.totalRunsCount += 1;
@@ -291,23 +294,14 @@ export class AgentService extends Service {
     }, input, resolveRoots);
   }
 
-  /** 浏览器仅提交记录标识，文件路径取自会话的真实工具结果（支持写入/编辑与 read_file，兼容运行中未落盘步骤）。 */
+  /** 装配完成后注入会话模块兼容器；返回注销函数。 */
+  setResolveSessionModules(hook: NonNullable<AgentPluginConfig["resolveSessionModules"]>): () => void {
+    return this.sessionModulesHook.set(hook);
+  }
+
+  /** 浏览器仅提交记录标识，文件路径解析见 file-activity。 */
   async readFileActivity(sessionId: string, messageId: string, stepId: string, resolveRoots: (projectId: string | null) => Promise<string[]>) {
-    const session = await this.ctx.memory.getSession(sessionId);
-    const liveSteps = [...this.runs.values()].filter((r) => r.status.sessionId === sessionId).flatMap((r) => r.status.steps);
-    const step = session?.messages.find((m) => m.id === messageId && m.role === "assistant")?.steps?.find((s) => s.id === stepId)
-      ?? liveSteps.find((s) => s.id === stepId)
-      ?? session?.messages.filter((m) => m.role === "assistant").flatMap((m) => m.steps ?? []).find((s) => s.id === stepId);
-    if (!session || !step || step.phase !== "act" || step.status !== "done") return null;
-    const roots = await resolveRoots(session.projectId);
-    if (step.fileChange) return readActivitySource(step.fileChange, roots);
-    if (step.toolName === "read_file") {
-      const targetPath = step.readRange?.resolvedPath ?? step.toolTarget?.trim();
-      if (targetPath) {
-        return readActivitySource({ path: step.toolTarget?.trim() || targetPath, resolvedPath: targetPath }, roots);
-      }
-    }
-    return null;
+    return readFileActivity({ getSession: (id) => this.ctx.memory.getSession(id), runs: this.runs }, sessionId, messageId, stepId, resolveRoots);
   }
 
   /** 把新问题追加到正在运行的对话（插话），不打断当前生成。 */

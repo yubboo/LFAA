@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Web access",
+    "description": "Registers web fetch providers by priority and serves page text to tools and the agent."
+  }
+}

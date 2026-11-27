@@ -45,7 +45,7 @@ packages/
 ## 3. 公开契约与数据归属
 
 - **技能记录。** `SkillSummary` 包含稳定 `id`、名称、描述、来源、作用域、当前修订和启用状态。来源包含项目、个人或插件，以及可选的原始技能引用。Host 根据当前会话绑定的项目解析目录。名称相同的技能在选择器中带来源，实际调用按 ID。目录列表只输摘要，详情预览或执行时再读取正文。
-- **技能存储。** 个人（用户级）技能存放在 `~/.lfaa/skills/`，支持通过自然语言指令由 Agent 从 Git 仓库安装或在对话中创建，也可在 UI 增删改。内置（项目级）技能存放在 `packages/skills/src/builtin-skills/`，界面显式标注「内置」，不可在 UI 删除（仅随代码目录维护），支持停用与二创复制；严禁扫描 `.agent/skills/`（该目录仅供外部开发编程 Agent 使用）。Agent 运行时自动感知已启用的内置/用户技能摘要并按需加载正文，也支持用户通过 `$技能名` 显式指定。
+- **技能存储。** 个人（用户级）技能存放在 `~/.lfaa/skills/`，支持通过自然语言指令由 Agent 从 Git 仓库安装或在对话中创建，也可在 UI 增删改。内置（项目级）技能存放在 `packages/extension/skills/src/builtin-skills/`，界面显式标注「内置」，不可在 UI 删除（仅随代码目录维护），支持停用与二创复制；严禁扫描 `.agent/skills/`（该目录仅供外部开发编程 Agent 使用）。Agent 运行时自动感知已启用的内置/用户技能摘要并按需加载正文，也支持用户通过 `$技能名` 显式指定。内置 `ui-measure` 就是这种按需技能：只在「对不齐 / 差几像素 / 四栏宽度」这类问题里由 Agent 自行 `load_skill`，平时不占提示词。
 - **插件存储与隔离（对标 DSH）。** 插件按端与工作环境隔离在 `~/.lfaa/profiles/<web|desktop>/` 下（含 `cordis.yml`、`cordis.patch.yml`、`package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml`、`node_modules/`、`.plugin-manager/`），由 Host 按 Profile 维护真实 `pnpm` 安装记录与 Cordis 加载生命周期。
 - **插件清单和状态。** `PluginManifest` 包含 `id`、版本、入口类型、LFAA 兼容范围和能力声明。安装记录单独保存来源、用户启用设置和管理路径，运行状态由 Host 实时报告。建议首期状态为「已停用」「启用中」「运行中」「停用中」「加载失败」。状态按插件 ID 串行更新，同一插件的重复安装、双标签页操作和重启恢复都走同一记录。
 - **扩展贡献。** 沿用 `ToolsService.registerTool` 和 `WorkbenchClientService.registerView` 返回的注销函数。增加面向扩展的导航贡献和技能来源契约，登记统一关联插件 ID 与本次加载实例。Host 绑定工具，Client 绑定页面与菜单；插件提供的技能由 `skills` 的公开来源接口接收。两个功能包之间通过公开接口或应用装配连接，避免循环依赖。

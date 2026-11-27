@@ -75,3 +75,14 @@ Thumbs.db
 
 # UI 截图产物（本地排查用，不入库）
 shots/
+
+# Agent 临时排查脚本（.lfaa- 前缀，任务结束即删，见规范 §4.1.8）
+.lfaa-*
+
+# Python 临时脚本：只保留说明文件，其余不入库（截图统一进 shots/）
+Python/*
+!Python/README.md
+python/*
+!python/README.md
+__pycache__/
+*.pyc

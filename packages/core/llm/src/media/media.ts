@@ -17,6 +17,8 @@ export interface MediaImageInput {
   style?: string;
   /** 参考图（图生图/编辑）：本地绝对路径或 http(s) URL，最多 3 张。 */
   referenceImages?: string[];
+  /** 多参考组合使用原始构图描述，编辑则沿用聊天媒体的主体保护提示。 */
+  referenceMode?: "compose";
   size?: string;
   n?: number;
   seed?: number;
@@ -29,6 +31,8 @@ export interface MediaImageInput {
 /** 一次生视频的入参。 */
 export interface MediaVideoInput {
   prompt: string;
+  /** 仅经授权的本地素材转换出 Data URL，由图生视频适配器消费。 */
+  visualInputs?: Array<{ role: "first_frame" | "last_frame" | "reference_image" | "reference_video"; url: string }>;
   duration?: number;
   resolution?: string;
   ratio?: string;
@@ -264,7 +268,7 @@ export async function generateMediaImage(profile: LlmProfile, input: MediaImageI
   if (referenceContent.length > 0 && endpoint.style === "compatible") {
     throw new Error("当前接口未配置参考图生成，请选择支持参考图的生图模型。");
   }
-  const requestInput = referenceContent.length > 0 ? { ...input, prompt: buildImageEditPrompt(prompt) } : input;
+  const requestInput = referenceContent.length > 0 && input.referenceMode !== "compose" ? { ...input, prompt: buildImageEditPrompt(prompt) } : input;
   const body = endpoint.style === "dashscope-multimodal" && referenceContent.length
     ? buildEditImageRequestBody(profile, input, referenceContent)
     : buildImageRequestBody(profile, requestInput, endpoint.style);
@@ -291,6 +295,9 @@ export async function generateMediaImage(profile: LlmProfile, input: MediaImageI
 /** 视频接口风格：百炼异步视频合成、方舟视频任务。 */
 export type VideoEndpointStyle = "dashscope-video" | "ark-video";
 
+/** 请求可能已经抵达厂商，但没有取得可用于恢复的任务编号。 */
+export class VideoSubmissionUncertainError extends Error {}
+
 /** 解析视频端点：百炼 workspace 用原生异步视频接口，方舟用 contents 任务。 */
 export function resolveVideoEndpoint(baseUrl: string): { url: string; style: VideoEndpointStyle } {
   const parsed = new URL(baseUrl.trim().replace(/\/+$/u, ""));
@@ -307,6 +314,12 @@ export async function createMediaVideoTask(profile: LlmProfile, input: MediaVide
   const apiKey = profile.apiKey.trim();
   if (!apiKey) throw new Error(`模型配置「${profile.name}」尚未设置 API Key，无法生成视频。`);
   const endpoint = resolveVideoEndpoint(profile.baseUrl);
+  const visualModel = endpoint.style === "ark-video"
+    ? /seedance-2\.(?:0|5)/u.test(profile.model)
+    : /^wan3\.0-video(?:-prime)?$/u.test(profile.model);
+  if (input.visualInputs?.length && !visualModel) {
+    throw new Error("请选择支持画布参考输入的 Wan 3.0 或 Seedance 2.x 视频模型。");
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
@@ -318,10 +331,11 @@ export async function createMediaVideoTask(profile: LlmProfile, input: MediaVide
       method: "POST",
       headers,
       body: JSON.stringify(buildVideoTaskBody(profile, input, endpoint.style)),
+      signal: AbortSignal.timeout(60_000),
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(`视频任务请求失败：无法连接视频接口（${detail}）。请检查网络或代理后重试。`);
+    throw new VideoSubmissionUncertainError(`视频任务请求失败：无法连接视频接口（${detail}）。暂时无法确认厂商是否收到请求。`);
   }
   const text = await response.text().catch(() => "");
   if (!response.ok) {
@@ -329,16 +343,18 @@ export async function createMediaVideoTask(profile: LlmProfile, input: MediaVide
     if (endpoint.style === "ark-video" && getArkPlanKind(profile.baseUrl) === "agent" && /UnsupportedModel|does not support (?:the agent plan feature|content generation)/u.test(text)) {
       throw new Error("当前火山方舟 Agent Plan 套餐档位不支持该视频模型：Small / Medium 套餐不含视频生成，需升级到 Large / Max，或改用标准方舟 API Key（/api/v3）后再生成。");
     }
-    throw new Error(`视频任务创建失败（${response.status}）：${text.slice(0, 300) || response.statusText}`);
+    const message = `视频任务创建失败（${response.status}）：${text.slice(0, 300) || response.statusText}`;
+    if (response.status >= 500) throw new VideoSubmissionUncertainError(message);
+    throw new Error(message);
   }
   let payload: unknown;
   try {
     payload = JSON.parse(text) as unknown;
   } catch {
-    throw new Error("视频任务接口返回了无法解析的内容。");
+    throw new VideoSubmissionUncertainError("视频任务接口返回了无法解析的内容。");
   }
   const parsed = parseVideoTask(payload, endpoint.style);
-  if (!parsed.taskId) throw new Error("视频任务创建失败：没有返回任务 ID。");
+  if (!parsed.taskId) throw new VideoSubmissionUncertainError("视频任务没有返回任务 ID。");
   return { taskId: parsed.taskId, status: parsed.status, style: endpoint.style };
 }
 

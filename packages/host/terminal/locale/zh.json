@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "真实终端",
+    "description": "基于 node-pty 的会话管理与 WebSocket 双向流。"
+  }
+}

@@ -33,3 +33,5 @@ Location: `packages/client/ui-plugins`.
 ## Dev note
 
 Rendering and client-side state live under `client/`; the capability package `@lfaa/plugins` keeps the host side only.
+
+The Settings page under `client/inventory/` renders the host's read-only plugin inventory; install, enable, and disable stay in the plugin center.

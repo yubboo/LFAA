@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Sandbox policy",
+    "description": "Defines sandbox contracts and the per-call policy used before tools run."
+  }
+}

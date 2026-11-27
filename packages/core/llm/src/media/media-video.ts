@@ -20,7 +20,12 @@ export function buildVideoTaskBody(
   if (style === "ark-video") {
     return {
       model,
-      content: [{ type: "text", text: prompt }],
+      content: [
+        { type: "text", text: prompt },
+        ...(input.visualInputs ?? []).map(({ role, url }) => role === "reference_video"
+          ? { type: "video_url", role, video_url: { url } }
+          : { type: "image_url", role, image_url: { url } }),
+      ],
       ...(typeof input.duration === "number" ? { duration: /seedance-(?:2\.[05])/u.test(model) ? Math.max(4, duration) : duration } : {}),
       ...(input.ratio ? { ratio: input.ratio } : {}),
       ...(input.resolution ? { resolution: input.resolution.toLowerCase() } : {}),
@@ -36,9 +41,10 @@ export function buildVideoTaskBody(
     watermark: input.watermark ?? false,
   };
   if (typeof input.seed === "number") parameters.seed = Math.floor(input.seed);
+  const visualMedia = input.visualInputs?.map(({ role, url }) => ({ type: role, url }));
   return {
     model,
-    input: { prompt, ...(negativePrompt ? { negative_prompt: negativePrompt } : {}) },
+    input: { prompt, ...(negativePrompt ? { negative_prompt: negativePrompt } : {}), ...(visualMedia?.length ? { media: visualMedia } : {}) },
     parameters,
   };
 }

@@ -5,15 +5,12 @@ import type {
   WorkbenchAccountActionContribution,
   WorkbenchBottomPanelContribution,
   WorkbenchChatProvider,
-  WorkbenchChatSessionSummary,
   WorkbenchContextPanelContribution,
-  WorkbenchProjectItem,
   WorkbenchProjectProvider,
-  WorkbenchSectionItem,
   WorkbenchSectionProvider,
   WorkbenchShortcutContribution,
-  WorkbenchShortcutState,
   WorkbenchTitleActionContribution,
+  WorkbenchTabContribution,
   WorkbenchViewContribution,
   WorkbenchWorkspaceActionContribution,
 } from "../contract/index";
@@ -41,51 +38,17 @@ import {
 import { isSettingsView, type WorkspaceMode } from "./navigation/navigation";
 import { runPaneAnimation } from "./shell/use-pane-anim";
 import { isLibraryTabKey, type LibraryTabKey } from "./shell/library-tabs";
+import type { WorkbenchSnapshot } from "./workbench-snapshot";
 
 export type { LibraryTabKey } from "./shell/library-tabs";
-
-/** 约定视图树从工作台服务订阅的状态快照。 */
-export interface WorkbenchSnapshot {
-  activeView: string;
-  activeProjectId: string | null;
-  /** 设置中心打开时，关闭后要回到的主视图（背景视图）。 */
-  settingsReturnView: string | null;
-  activeLibraryTab: LibraryTabKey;
-  activeDomainItem: string;
-  /** 聊天中心区的「聊天 / 工作」：决定中心区形态与输入栏信息密度，由 service 统一持有。 */
-  workspaceMode: WorkspaceMode;
-  /** 页面排版：聊天区在左（默认）或预览区在左。 */
-  layoutMode: LayoutMode;
-  leftSidebarOpen: boolean;
-  rightPanelOpen: boolean;
-  /** 预览列（工作台所在列）是否展开：仅「预览区在左」下生效，收起时把宽度让给 AI 会话列。 */
-  previewPaneOpen: boolean;
-  /** 底部面板是否展开；面板内容由插件通过 registerBottomPanel 贡献。 */
-  bottomPanelOpen: boolean;
-  bottomPanels: WorkbenchBottomPanelContribution<ReactNode>[];
-  rightWorkbenchWide: boolean;
-  rightPanelMaximized: boolean;
-  views: WorkbenchViewContribution<ReactNode>[];
-  contextPanels: WorkbenchContextPanelContribution<ReactNode>[];
-  accountActions: WorkbenchAccountActionContribution<ReactNode>[];
-  titleActions: WorkbenchTitleActionContribution<ReactNode>[];
-  workspaceActions: WorkbenchWorkspaceActionContribution<ReactNode>[];
-  projectProvider: WorkbenchProjectProvider<ReactNode> | null;
-  projects: WorkbenchProjectItem[];
-  sectionProvider: WorkbenchSectionProvider<ReactNode> | null;
-  sections: WorkbenchSectionItem[];
-  chatProvider: WorkbenchChatProvider<ReactNode> | null;
-  chatSessions: WorkbenchChatSessionSummary[];
-  activeChatSessionId: string | null;
-  /** 已注册的真实快捷键动作与当前生效键位；未注册的动作不会出现在这里。 */
-  shortcuts: WorkbenchShortcutState[];
-}
+export type { WorkbenchSnapshot } from "./workbench-snapshot";
 
 // 统一持有四栏导航、折叠状态及插件注册表；注册项随返回的清理函数撤销。
 // 资料库分类与当前路由一样写入浏览器偏好，刷新后仍停在左二选中的分类。
 export class WorkbenchClientService extends Service {
   private readonly listeners = new Set<() => void>();
   private readonly viewMap = new Map<string, WorkbenchViewContribution<ReactNode>>();
+  private readonly tabMap = new Map<string, WorkbenchTabContribution<ReactNode>>();
   private readonly panelMap = new Map<string, WorkbenchContextPanelContribution<ReactNode>>();
   private readonly accountActionMap = new Map<string, WorkbenchAccountActionContribution<ReactNode>>();
   private readonly titleActionMap = new Map<string, WorkbenchTitleActionContribution<ReactNode>>();
@@ -197,6 +160,7 @@ export class WorkbenchClientService extends Service {
       rightWorkbenchWide: this.rightWorkbenchWideValue,
       rightPanelMaximized: this.rightPanelMaximizedValue,
       views: [...this.viewMap.values()],
+      tabs: [...this.tabMap.values()],
       contextPanels,
       accountActions,
       titleActions,
@@ -227,6 +191,10 @@ export class WorkbenchClientService extends Service {
 
   registerView(contribution: WorkbenchViewContribution<ReactNode>): () => void {
     return this.registerContribution(this.viewMap, contribution);
+  }
+
+  registerTab(contribution: WorkbenchTabContribution<ReactNode>): () => void {
+    return this.registerContribution(this.tabMap, contribution);
   }
 
   registerContextPanel(contribution: WorkbenchContextPanelContribution<ReactNode>): () => void {

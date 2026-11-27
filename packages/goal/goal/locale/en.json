@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Goals",
+    "description": "Persists session goals, progress, and blockers, with tools to create, update, and list them."
+  }
+}

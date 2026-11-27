@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP client",
+    "description": "Connects MCP servers and registers their tools into the session."
+  }
+}

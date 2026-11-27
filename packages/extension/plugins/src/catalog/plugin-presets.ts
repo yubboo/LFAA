@@ -2,7 +2,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { PresetSummary } from "../../contract/index";
-import { summaryOfPresets, type PluginPresetDefinition } from "./plugin-catalog";
+import { summaryOfPresets, type PluginPresetDefinition } from "./preset-summary";
 
 export class PluginPresets {
   constructor(

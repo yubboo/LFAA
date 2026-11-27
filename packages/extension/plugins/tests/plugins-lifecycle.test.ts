@@ -69,7 +69,9 @@ test("插件经 Loader 安装、启用、停用、重装与卸载，并同步 co
 
   const state = await ctx.plugins.listState();
   assert.equal(state.installed.find((record) => record.id === installed.id)?.status, "running");
-  assert.ok(state.availableCatalog.length > 0, "可安装目录应列出本仓插件包");
+  const inventory = await ctx.plugins.listInventory();
+  assert.equal(inventory.profile, "web");
+  assert.ok(Array.isArray(inventory.entries), "只读清单应返回条目数组");
 
   const cordisYml = await readFile(join(root, "web", "cordis.yml"), "utf8");
   assert.match(cordisYml, /plugins:/);

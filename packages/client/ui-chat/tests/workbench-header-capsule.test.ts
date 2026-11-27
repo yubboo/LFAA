@@ -29,5 +29,5 @@ test("右栏顶栏由 WorkbenchTopBar 套用 CapsuleBar，主壳体只装配属�
 
   const pane = await readFile(resolve(packageRoot, "client/workbench/RightWorkbenchPane.tsx"), "utf8");
   assert.match(pane, /import \{ WorkbenchTopBar \} from "\.\/WorkbenchTopBar"/u);
-  assert.match(pane, /<WorkbenchTopBar\s+tabProps=\{\{[\s\S]*?\}\}\s+actionProps=\{\{/u);
+  assert.match(pane, /<WorkbenchTopBar\s+tabProps=\{\{\s*\.\.\.buildPaneTabProps\([\s\S]*?extensionTabs:\s*extension\.tabs[\s\S]*?actionProps=\{buildPaneActionProps\(/u);
 });
