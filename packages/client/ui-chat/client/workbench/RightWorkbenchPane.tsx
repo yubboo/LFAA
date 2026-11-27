@@ -16,6 +16,8 @@ import { PaneStage, type PaneStageProps } from "./pane/PaneStage";
 import { WorkbenchAuxPane } from "./WorkbenchAuxPane";
 import { useWorkbenchBrowser } from "./useWorkbenchBrowser";
 import { TerminalDockPane } from "./TerminalDockPane";
+import { FullscreenMiniComposer } from "./FullscreenMiniComposer";
+import type { SessionMenuStore } from "../session/session-menu-store";
 import { useWorkbenchRequests } from "./useWorkbenchRequests";
 import { useWorkbenchSubagents } from "./useWorkbenchSubagents";
 import { useWorkbenchSummary } from "./useWorkbenchSummary";
@@ -33,6 +35,7 @@ import styles from "./RightWorkbenchPane.module.css";
 export function RightWorkbenchPane({
   locale,
   store,
+  sessionMenuStore,
   workbench,
   boundProjectId,
   boundProjectName,
@@ -55,6 +58,7 @@ export function RightWorkbenchPane({
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
+  sessionMenuStore?: SessionMenuStore | undefined;
   /** 工作台服务：标签级快捷键注册与菜单键位提示都从它取。测试可省略。 */
   workbench?: WorkbenchClientService | undefined;
   boundProjectId: string | null;
@@ -89,7 +93,7 @@ export function RightWorkbenchPane({
   const [reviewMessageId, setReviewMessageId] = useState(initialSaved.reviewMessageId);
   const [selectedJobId, setSelectedJobId] = useState<string>();
   const [selectedSubagentId, setSelectedSubagentId] = useState<string>();
-  const { tabs: auxTabs, active: activeAuxTab, openAuxTab, closeAuxTab, toggleAuxTab, hideAuxTab, restoreAuxTab } = useWorkbenchAuxTabs();
+  const { tabs: auxTabs, active: activeAuxTab, openAuxTab, closeAuxTab, toggleAuxTab, hideAuxTab, restoreAuxTab } = useWorkbenchAuxTabs(initialSaved.auxTabs, initialSaved.activeAux);
   const auxOpen = auxTabs.length > 0;
   const [devtoolsRequest, setDevtoolsRequest] = useState<{ tab: "console" | "network"; nonce: number }>();
   // 精确订阅右栏所需切片：流式正文与思考增量不会触发右栏重渲染与重复读盘。
@@ -166,23 +170,17 @@ export function RightWorkbenchPane({
     setManualBlankTab(false);
     handleCloseBrowserTab(activeBrowserTab?.tabId, null);
   };
-  const extension = useWorkbenchTabs(workbench, boundProjectId, locale.isZh, state.rightPanelRequest, dismissBlankTab);
+  const extension = useWorkbenchTabs(workbench, boundProjectId, locale.isZh, state.rightPanelRequest, dismissBlankTab, initialSaved.extensionTabs, initialSaved.activeExtensionTab);
+  const persistedBrowserUrl = activeBrowserTab?.url && /^https?:\/\//iu.test(activeBrowserTab.url) ? activeBrowserTab.url : browserInitialUrl;
 
   // 辅助面板只在与主舞台并列时出现；文件树已移到左二「项目工作区」，右栏不再承载它。
   const effectiveAuxTab = stageKind === "utility" ? activeAuxTab : null;
 
   // 会话切换/刷新时读回右栏状态，恢复完成后再写回；细节收在同名 hook 里。
   useWorkbenchSessionState({
-    sessionId,
-    hydratedSessionId,
-    setHydratedSessionId,
-    syncedSessionRef,
-    initialSaved,
-    restoreBrowser,
-    restoreAuxTab,
-    setReviewTabOpen,
-    setReviewMessageId,
-    persist: { browserOpen, browserUrl: browserInitialUrl, reviewTabOpen, reviewMessageId, auxOpen, activeAuxTab, auxTabs },
+    sessionId, hydratedSessionId, setHydratedSessionId, syncedSessionRef,
+    restoreBrowser, restoreAuxTab, restoreExtensionTabs: extension.restoreTabs, setReviewTabOpen, setReviewMessageId,
+    persist: { browserOpen, browserUrl: persistedBrowserUrl, reviewTabOpen, reviewMessageId, auxOpen, activeAuxTab, auxTabs, extensionTabs: extension.opened, activeExtensionTab: extension.activeId },
   });
 
   useEffect(() => {
@@ -338,9 +336,21 @@ export function RightWorkbenchPane({
     />
   );
 
+  const [fullscreenShowingChat, setFullscreenShowingChat] = useState(false);
+  useEffect(() => { if (!rightPanelMaximized) setFullscreenShowingChat(false); }, [rightPanelMaximized]);
+
+  const fullscreenSessionTitle = rightPanelMaximized && !compact
+    ? (store.getSnapshot().activeSession?.title?.trim() || boundProjectName || (locale.isZh ? "新聊天" : "New chat"))
+    : undefined;
+  const renderFullscreenChat = fullscreenShowingChat ? workbench?.getSnapshot().views.find((v) => v.id === "workspace")?.render : undefined;
+
   return (
     <div className={styles.workbench} data-layout={layoutMode}>
       <WorkbenchTopBar
+        fullscreenSessionTitle={fullscreenSessionTitle}
+        fullscreenShowingChat={fullscreenShowingChat}
+        onSelectFullscreenChat={() => setFullscreenShowingChat(true)}
+        onSelectWorkbenchTab={() => setFullscreenShowingChat(false)}
         tabProps={{ ...buildPaneTabProps({
           isZh: locale.isZh, stageKind: extension.active ? "welcome" : stageKind, auxTabs, auxTitles, activeAuxTab, fileTabs, activeFileTab,
           browserOpen, browserTabs, browserIsBlank, reviewTabOpen, reviewMessageId,
@@ -357,13 +367,27 @@ export function RightWorkbenchPane({
         })}
       />
 
-      <PaneStage
-        splitAreaRef={splitAreaRef}
-        stageProps={stageProps}
-        extensionContent={extension.content}
-        rail={rail}
-        dock={workbench && <TerminalDockPane sessionId={sessionId} isZh={locale.isZh} workbench={workbench} />}
-      />
+      {renderFullscreenChat ? (
+        <div className={styles.fullscreenChatStage}>{renderFullscreenChat()}</div>
+      ) : (
+        <PaneStage
+          splitAreaRef={splitAreaRef}
+          stageProps={stageProps}
+          extensionContent={extension.content}
+          rail={rail}
+          dock={workbench && <TerminalDockPane sessionId={sessionId} isZh={locale.isZh} workbench={workbench} />}
+        />
+      )}
+
+      {fullscreenSessionTitle && !fullscreenShowingChat && extension.activeId !== "infinite-canvas" && (
+        <FullscreenMiniComposer
+          locale={locale}
+          store={store}
+          sessionMenuStore={sessionMenuStore}
+          sessionTitle={fullscreenSessionTitle}
+          onOpenChatTab={() => setFullscreenShowingChat(true)}
+        />
+      )}
     </div>
   );
 }

@@ -2,9 +2,8 @@
 // 窗口尺寸与位置会记住（~/.lfaa/desktop-window.json），下次启动恢复。
 import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { BrowserWindow, screen, shell } from "electron";
+import { join } from "node:path";
+import { app, BrowserWindow, screen, shell } from "electron";
 import type { DesktopPaths } from "./paths";
 import { logDesktop } from "./log";
 
@@ -74,7 +73,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     backgroundColor: "#171717",
     ...(options.paths.iconPath ? { icon: options.paths.iconPath } : {}),
     webPreferences: {
-      preload: join(dirname(fileURLToPath(import.meta.url)), "preload.cjs"),
+      preload: join(app.getAppPath(), "dist", "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

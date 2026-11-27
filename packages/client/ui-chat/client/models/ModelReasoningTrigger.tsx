@@ -27,7 +27,7 @@ export function ConfigureModelTrigger({
         aria-label={configureLabel}
         onClick={onOpenSettings}
       >
-        <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
+        <IconCpu size={14} className={styles.modelIcon} aria-hidden="true" />
         {!compact && <span className={styles.modelLabel}>{configureLabel}</span>}
         {!compact && <IconChevronRight size={13} stroke={1.9} className={styles.chevronIcon} aria-hidden="true" />}
       </button>
@@ -65,7 +65,7 @@ export function ModelReasoningTrigger({
         aria-expanded={isOpen}
         onClick={onToggle}
       >
-        <IconCpu size={16} className={styles.modelIcon} aria-hidden="true" />
+        <IconCpu size={14} className={styles.modelIcon} aria-hidden="true" />
         {!compact && <span className={styles.modelLabel}>{activeModelId}</span>}
         {!compact && reasoningMode === "effort" && activeLevelLabel && (
           <span className={styles.reasoningLabel}>{activeLevelLabel}</span>

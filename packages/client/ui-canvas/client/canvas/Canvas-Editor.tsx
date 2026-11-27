@@ -26,23 +26,19 @@ const PrevisEditor = lazy(() => import("../previs/Previs-Editor"));
 type Position = CanvasNode["position"];
 
 export interface EditorProps {
-  path: string;
-  initial: BoardDetail;
-  boards: CanvasListItem[];
-  projectName: string;
-  models: CanvasModel[];
-  isZh: boolean;
-  maximized: boolean;
-  onSelectBoard: (canvasId: string) => void;
-  onCreateBoard: () => void;
-  onCreateProject?: (() => void) | undefined;
-  onRenamed: (title: string) => void;
+  path: string; initial: BoardDetail; boards: CanvasListItem[]; projectName: string;
+  models: CanvasModel[]; isZh: boolean; maximized: boolean;
+  onSelectBoard: (canvasId: string) => void; onCreateBoard: () => void;
+  onOpenInNewWindow: (canvasId: string) => void;
+  onDuplicateBoard: (canvasId: string, label: string) => void;
+  onDeleteBoard: (canvasId: string) => void;
+  onBackToProjects?: (() => void) | undefined; onRenamed: (title: string) => void;
   renderFullscreenChat?: (() => ReactNode) | undefined;
 }
 
 function Editor({
   path, initial, boards, projectName, models, isZh, maximized,
-  onSelectBoard, onCreateBoard, onCreateProject, onRenamed, renderFullscreenChat,
+  onSelectBoard, onCreateBoard, onOpenInNewWindow, onDuplicateBoard, onDeleteBoard, onBackToProjects, onRenamed, renderFullscreenChat,
 }: EditorProps) {
   const t = labels[isZh ? "zh" : "en"];
   const [selected, setSelected] = useState<string[]>([]);
@@ -255,6 +251,7 @@ function Editor({
     <div className={styles.editor}>
       <CanvasTopBar
         t={t}
+        isZh={isZh}
         projectName={projectName}
         boardId={initial.board.canvasId}
         boardTitle={initial.board.title}
@@ -263,7 +260,10 @@ function Editor({
         dirty={doc.dirty}
         onSelectBoard={onSelectBoard}
         onCreateBoard={onCreateBoard}
-        onCreateProject={onCreateProject}
+        onOpenInNewWindow={onOpenInNewWindow}
+        onDuplicateBoard={onDuplicateBoard}
+        onDeleteBoard={onDeleteBoard}
+        onBackToProjects={onBackToProjects}
         onCommitRename={async (nextTitle) => {
           try {
             const updated = await renameBoard(path, nextTitle);

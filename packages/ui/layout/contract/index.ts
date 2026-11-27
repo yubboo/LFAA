@@ -214,6 +214,14 @@ export interface WorkbenchProjectProvider<TContent = unknown> {
     onCreated: (project: WorkbenchProjectItem) => void;
     onClose: () => void;
   }) => TContent;
+  /** 一键在默认工作区下快速新建项目并同步到左二栏，供无限画布等入口零摩擦创建。 */
+  quickCreateProject?: (baseName?: string) => Promise<WorkbenchProjectItem>;
+  /** 重命名项目并同步左二栏。 */
+  renameProject?: (projectId: string, name: string) => Promise<WorkbenchProjectItem>;
+  /** 删除项目并同步左二栏。 */
+  removeProject?: (projectId: string) => Promise<boolean>;
+  /** 强制刷新项目列表（如回收站恢复项目后立即同步左二栏）。 */
+  refreshProjects?: () => Promise<void>;
   assignProjectSection?: (projectId: string, sectionId: string | null) => void | Promise<void>;
   togglePinProject?: (projectId: string) => void | Promise<void>;
   onProjectRowEnter?: (project: WorkbenchProjectItem, rowElement: HTMLElement) => void;

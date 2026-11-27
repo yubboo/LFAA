@@ -9,6 +9,12 @@
   color: var(--color-ink);
 }
 
+/* 主题背景图为图片时外层容器让出底色，空态下由外层 ContextPanel 透出壁纸；网页画面自身仍保持实底。 */
+:global(html[data-app-bg-workspace="image"]) .panel,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .panel {
+  background: transparent;
+}
+
 .tabStrip {
   display: flex;
   flex: 0 0 auto;

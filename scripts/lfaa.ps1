@@ -1016,7 +1016,7 @@ function Invoke-MenuChoice {
         Write-Host "依赖检查或安装失败，未启动桌面端。" -ForegroundColor Red
         return
       }
-      $desktopEntry = Join-Path $repoRoot "apps/desktop/dist/main.js"
+      $desktopEntry = Join-Path $repoRoot "apps/desktop/dist/main.cjs"
       $desktopPreload = Join-Path $repoRoot "apps/desktop/dist/preload.cjs"
       $desktopHostLib = Join-Path $repoRoot "apps/desktop-host/lib/index.js"
       $webDist = Join-Path $repoRoot "apps/web/dist/index.html"

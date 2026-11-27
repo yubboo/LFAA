@@ -9,6 +9,12 @@
   color: var(--color-ink);
 }
 
+/* 主题背景图为图片时让出底色，由外层 ContextPanel 统一薄纱透出壁纸。 */
+:global(html[data-app-bg-workspace="image"]) .viewer,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .viewer {
+  background: transparent;
+}
+
 .editorSplit {
   position: relative;
   display: flex;

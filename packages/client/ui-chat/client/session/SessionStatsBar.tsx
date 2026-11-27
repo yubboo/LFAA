@@ -53,10 +53,11 @@ export function SessionStatsBar({
           className={styles.trigger}
           aria-expanded={open === "context"}
           aria-label={contextLabel}
+          title={contextLabel}
           onClick={() => toggle("context")}
         >
           <IconChartPie size={12} aria-hidden="true" />
-          <span>{contextLabel}</span>
+          <span className={styles.wideOnly}>{contextLabel}</span>
         </button>
       )}
       {metrics.totalTokens > 0 && (
@@ -65,12 +66,13 @@ export function SessionStatsBar({
           className={styles.trigger}
           aria-expanded={open === "usage"}
           aria-label={isZh ? "Token 用量" : "Token usage"}
+          title={isZh ? "Token 用量" : "Token usage"}
           onClick={() => toggle("usage")}
         >
           <IconCoin size={12} aria-hidden="true" />
-          <span>{`${formatCompactTokens(metrics.totalTokens)} tok`}</span>
-          {cache !== undefined && <span>{`${isZh ? "上报缓存" : "Reported cache"} ${(cache * 100).toFixed(1)}%`}</span>}
-          {metrics.cost && <span>{`≈ ${formatCost(metrics.cost.amount)}`}</span>}
+          <span className={styles.wideOnly}>{`${formatCompactTokens(metrics.totalTokens)} tok`}</span>
+          {cache !== undefined && <span className={styles.wideOnly}>{`${isZh ? "上报缓存" : "Reported cache"} ${(cache * 100).toFixed(1)}%`}</span>}
+          {metrics.cost && <span className={styles.wideOnly}>{`≈ ${formatCost(metrics.cost.amount)}`}</span>}
         </button>
       )}
       {metrics.turns > 0 && (
@@ -79,11 +81,12 @@ export function SessionStatsBar({
           className={styles.trigger}
           aria-expanded={open === "stats"}
           aria-label={isZh ? "会话统计" : "Session statistics"}
+          title={isZh ? "会话统计" : "Session statistics"}
           onClick={() => toggle("stats")}
         >
           <IconClock size={12} aria-hidden="true" />
-          <span>{`${metrics.turns} ${locale.sessionTurns} · ${metrics.steps} ${locale.sessionSteps}`}</span>
-          {tps !== undefined && <span>{`${Math.round(tps)} tok/s`}</span>}
+          <span className={styles.wideOnly}>{`${metrics.turns} ${locale.sessionTurns} · ${metrics.steps} ${locale.sessionSteps}`}</span>
+          {tps !== undefined && <span className={styles.wideOnly}>{`${Math.round(tps)} tok/s`}</span>}
         </button>
       )}
 

@@ -269,10 +269,22 @@ export function WorkbenchTabs({
   orderRef.current = orderedKeys;
 
   return (
-    <div className={styles.tabBar} role="tablist" aria-label={isZh ? "右侧打开标签" : "Right workbench tabs"} onClickCapture={(event) => {
-      const target = event.target;
-      if (target instanceof Element && !target.closest("[data-extension-tab]") && target.closest('[role="tab"], [data-new-tab]')) onLeaveExtension?.();
-    }}>
+    <div
+      className={styles.tabBar}
+      role="tablist"
+      aria-label={isZh ? "右侧打开标签" : "Right workbench tabs"}
+      onClickCapture={(event) => {
+        const target = event.target;
+        if (target instanceof Element && !target.closest("[data-extension-tab]") && target.closest('[role="tab"], [data-new-tab]')) onLeaveExtension?.();
+      }}
+      onDoubleClick={(event) => {
+        // 双击任意右栏标签页时切换右栏最大化（收起/还原中间区域）；忽略关闭 × 与新建 + 按钮。
+        const target = event.target;
+        if (target instanceof Element && target.closest('[role="tab"]')) {
+          workbench?.toggleRightPanelMaximized();
+        }
+      }}
+    >
       {orderedKeys.map((key) => <Fragment key={key}>{tabNodes.get(key)}</Fragment>)}
       <HoverTip label={isZh ? "新建浏览器标签页" : "New browser tab"} shortcut={newTabHint}>
         <button

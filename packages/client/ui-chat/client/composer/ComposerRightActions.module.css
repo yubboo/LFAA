@@ -27,6 +27,28 @@
   transition: background-color 140ms ease, color 140ms ease, transform 120ms ease;
 }
 
+@container chat-composer (max-width: 30rem) {
+  .actions {
+    gap: 0.28rem;
+  }
+
+  .micBtn,
+  .sendBtn,
+  .pauseBtn,
+  .continueBtn {
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+
+  .micBtn svg,
+  .sendBtn svg,
+  .pauseBtn svg,
+  .continueBtn svg {
+    width: 0.88rem;
+    height: 0.88rem;
+  }
+}
+
 .micBtn {
   border: 1px solid transparent;
   background: var(--color-active);

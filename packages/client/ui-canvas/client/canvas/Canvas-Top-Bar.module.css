@@ -1,0 +1,332 @@
+/* 画布顶部多画布标签栏样式：对齐参考图「项目名 | 画布 1 | [画布 2 ···] +」布局，全量消费主题语义变量。 */
+.bar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  height: 2.55rem;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-topbar);
+  color: var(--color-ink);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.85rem;
+  padding: 0 0.55rem 0 0.3rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.backBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.projectName {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.divider {
+  width: 1px;
+  height: 0.9rem;
+  margin: 0 0.25rem;
+  background: var(--color-line);
+  flex-shrink: 0;
+}
+
+/* 可横向滚动的多画布标签组。 */
+.tabStrip {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 1.85rem;
+  padding: 0 0.62rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.tab:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.tab[data-active="true"] {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.tabTitle {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabInput {
+  width: 7rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.3rem;
+  padding: 0.08rem 0.3rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+}
+
+.tabMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 0.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.tabMoreBtn:hover {
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.addTabBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.addTabBtn:hover,
+.addTabBtn[data-active="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.tabMenuHeader {
+  padding: 0.3rem 0.55rem 0.25rem;
+  font-size: 0.74rem;
+  color: var(--color-muted);
+}
+
+.tabMenuBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-popover);
+}
+
+.tabMenu {
+  position: fixed;
+  z-index: var(--z-popover);
+  min-width: 8.5rem;
+  padding: 0.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.tabMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.38rem 0.55rem;
+  border: 0;
+  border-radius: 0.42rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tabMenuItem:hover {
+  background: var(--color-active);
+}
+
+.tabMenuDanger {
+  color: var(--color-danger);
+}
+
+.tabMenuDanger:hover {
+  background: rgb(var(--color-danger-rgb) / 0.12);
+}
+
+.tabMenuActive {
+  background: var(--color-active);
+  font-weight: 500;
+}
+
+/* 右侧节点搜索与保存态。 */
+.right {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.saveChip {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.saveChip[data-dirty="true"] {
+  color: var(--color-accent);
+}
+
+.searchPopover {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 30;
+  width: 15.5rem;
+  padding: 0.45rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.searchInput:focus {
+  border-color: var(--color-accent);
+}
+
+.searchList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.searchItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.36rem 0.5rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchItem:hover {
+  background: var(--color-active);
+}
+
+.searchItem small {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}

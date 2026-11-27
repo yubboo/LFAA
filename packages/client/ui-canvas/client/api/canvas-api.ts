@@ -1,5 +1,5 @@
 // 发起受工作台本机令牌保护的画布读写，媒体预览使用已有 URL 鉴权。
-import type { BoardDetail, CanvasAsset, CanvasBoard, CanvasGraph, CanvasRun } from "@lfaa/canvas/contract";
+import type { BoardDetail, CanvasAsset, CanvasBoard, CanvasGraph, CanvasProjectSummary, CanvasRun } from "@lfaa/canvas/contract";
 
 export class CanvasApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -26,9 +26,26 @@ export function boardsPath(projectId: string): string {
 
 export const listBoards = (projectId: string, signal: AbortSignal) => json<CanvasListItem[]>(boardsPath(projectId), { signal });
 export const createBoard = (projectId: string, title: string) => send<CanvasBoard>(boardsPath(projectId), { title });
+
+/** 批量查询已登记项目中存在画布的摘要列表（用于无限画布「我的项目」大厅，过滤纯代码项目）。 */
+export async function listProjectSummaries(
+  projectIds: readonly string[],
+  signal?: AbortSignal,
+): Promise<CanvasProjectSummary[]> {
+  if (projectIds.length === 0) return [];
+  const data = await json<{ items: CanvasProjectSummary[] }>("/api/canvas/projects/summaries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectIds }),
+    ...(signal ? { signal } : {}),
+  });
+  return data.items ?? [];
+}
 export const getBoard = (path: string, signal?: AbortSignal) => json<BoardDetail>(path, signal ? { signal } : undefined);
 export const saveBoard = (path: string, revision: number, graph: CanvasGraph) => send<CanvasBoard>(path, { revision, graph }, "PUT");
 export const renameBoard = (path: string, title: string) => send<CanvasBoard>(path, { title }, "PATCH");
+export const duplicateBoard = (path: string, title?: string) => send<CanvasBoard>(path + "/duplicate", title ? { title } : {});
+export const deleteBoard = (path: string) => json<{ ok: boolean }>(path, { method: "DELETE" });
 export const submitNode = (path: string, id: string, nodeId: string, revision: number) => send<CanvasRun>(path + "/runs", { id, nodeId, revision });
 
 /** 将统一资料库（E:\lfaa\data\.lfaa-media）已有图片/视频直接链接为当前画布资产。 */

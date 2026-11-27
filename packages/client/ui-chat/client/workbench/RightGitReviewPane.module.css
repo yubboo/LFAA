@@ -12,6 +12,12 @@
   color: var(--color-ink);
 }
 
+/* 主题背景图为图片时让出底色，由外层 ContextPanel 统一薄纱透出壁纸。 */
+:global(html[data-app-bg-workspace="image"]) .reviewRoot,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .reviewRoot {
+  background: transparent;
+}
+
 .reviewHeader {
   display: flex;
   flex-wrap: wrap;

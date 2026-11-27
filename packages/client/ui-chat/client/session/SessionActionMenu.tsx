@@ -75,8 +75,10 @@ export function SessionActionMenu({
   const vh = typeof window !== "undefined" ? window.innerHeight : 900;
   const menuWidth = 236;
   const menuHeightEst = 418;
-  const left = Math.max(10, Math.min(anchorRect.right + 6, vw - menuWidth - 12));
+  const nearBottom = anchorRect.top > vh - 160;
+  const left = Math.max(10, Math.min(nearBottom ? anchorRect.left : anchorRect.right + 6, vw - menuWidth - 12));
   const top = Math.max(10, Math.min(anchorRect.top - 8, vh - menuHeightEst - 12));
+  const bottom = Math.max(10, vh - anchorRect.top + 10);
   const subOnLeft = left + menuWidth + 190 > vw;
 
   const menuNode = (
@@ -86,7 +88,7 @@ export function SessionActionMenu({
       role="menu"
       aria-label={session.title}
       data-session-action-menu={session.id}
-      style={{ top: `${top}px`, left: `${left}px`, width: `${menuWidth}px` }}
+      style={{ ...(nearBottom ? { bottom: `${bottom}px` } : { top: `${top}px` }), left: `${left}px`, width: `${menuWidth}px` }}
     >
       <button type="button" className={styles.item} role="menuitem" onClick={() => menuStore.openRename(session.id)}>
         <IconPencil aria-hidden="true" />

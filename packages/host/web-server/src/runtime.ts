@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Context } from "@deepseek-ai/cordis";
 import { createApiGateway, type ApiGateway } from "@lfaa/api-gateway";
@@ -19,6 +19,7 @@ import { sandboxLocalPlugin } from "@lfaa/sandbox";
 import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
 import { createCanvasHandler } from "./handlers/handlers-canvas";
+import { createTrashHandler } from "./handlers/handlers-trash";
 import { createBackgroundsHttpHandler } from "./handlers/handlers-backgrounds";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
 import { createTerminalUpgradeHandler } from "@lfaa/terminal";
@@ -133,9 +134,15 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   });
   const notificationSounds = createNotificationSoundsHttpHandler();
   const backgrounds = createBackgroundsHttpHandler();
+  const trash = createTrashHandler({
+    context: hostContext,
+    trashRoot: join(options.projectRoot, "data", "trash"),
+    resolveMediaAllowedRoots: common.resolveMediaAllowedRoots,
+  });
 
   // 接口边界：所有 Host API 在此集中登记，顺序有语义（具体路由先于宽泛路由）。
   const gateway = createApiGateway([
+    { id: "trash", handle: trash },
     { id: "sections", handle: common.sections },
     { id: "workspace", handle: common.workspace },
     { id: "canvas", handle: createCanvasHandler(hostContext) },

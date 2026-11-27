@@ -1,10 +1,9 @@
-// 右栏会话状态恢复与持久化：切换会话/刷新挂载时读回浏览器、审查与辅助标签，恢复完成后再写回本地偏好。
+// 右栏会话状态恢复与持久化：切换会话/刷新挂载时读回浏览器、审查、辅助标签与插件标签（如无限画布），恢复完成后再写回本地偏好。
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import {
   patchWorkbenchSessionState,
   readWorkbenchSessionState,
-  type PersistedWorkbenchSessionState,
 } from "../store/workbench-persist";
 import type { RightAuxTab } from "./RightUtilityRail";
 
@@ -14,9 +13,9 @@ export function useWorkbenchSessionState(input: {
   hydratedSessionId: string;
   setHydratedSessionId: (sessionId: string) => void;
   syncedSessionRef: RefObject<string | null>;
-  initialSaved: PersistedWorkbenchSessionState;
   restoreBrowser: (sessionId: string, savedOpen: boolean, savedUrl: string | undefined) => () => void;
-  restoreAuxTab: (open: boolean, tab: RightAuxTab) => void;
+  restoreAuxTab: (tabs: RightAuxTab[], active: RightAuxTab | null) => void;
+  restoreExtensionTabs: (opened: string[], activeId: string | null) => void;
   setReviewTabOpen: (open: boolean) => void;
   setReviewMessageId: (id: string | undefined) => void;
   persist: {
@@ -27,6 +26,8 @@ export function useWorkbenchSessionState(input: {
     auxOpen: boolean;
     activeAuxTab: RightAuxTab | null;
     auxTabs: RightAuxTab[];
+    extensionTabs: string[];
+    activeExtensionTab: string | null;
   };
 }) {
   const {
@@ -34,17 +35,29 @@ export function useWorkbenchSessionState(input: {
     hydratedSessionId,
     setHydratedSessionId,
     syncedSessionRef,
-    initialSaved,
     restoreBrowser,
     restoreAuxTab,
+    restoreExtensionTabs,
     setReviewTabOpen,
     setReviewMessageId,
     persist,
   } = input;
 
   // 恢复效果只依赖会话与浏览器恢复函数；其余 setter 每帧都会重建，用 ref 取最新实现，避免恢复效果反复执行。
-  const latest = useRef({ restoreAuxTab, setReviewTabOpen, setReviewMessageId, setHydratedSessionId });
-  latest.current = { restoreAuxTab, setReviewTabOpen, setReviewMessageId, setHydratedSessionId };
+  const latest = useRef({
+    restoreAuxTab,
+    restoreExtensionTabs,
+    setReviewTabOpen,
+    setReviewMessageId,
+    setHydratedSessionId,
+  });
+  latest.current = {
+    restoreAuxTab,
+    restoreExtensionTabs,
+    setReviewTabOpen,
+    setReviewMessageId,
+    setHydratedSessionId,
+  };
 
   // 切换会话或刷新挂载时恢复已持久化的右侧栏状态，并拉取宿主机已开启的浏览器标签。
   useEffect(() => {
@@ -53,7 +66,8 @@ export function useWorkbenchSessionState(input: {
     const cancelBrowserRestore = restoreBrowser(sessionId, saved.browserOpen, saved.browserUrl);
     latest.current.setReviewTabOpen(saved.reviewTabOpen);
     latest.current.setReviewMessageId(saved.reviewMessageId);
-    latest.current.restoreAuxTab(saved.auxOpen, saved.activeAux);
+    latest.current.restoreAuxTab(saved.auxTabs, saved.activeAux);
+    latest.current.restoreExtensionTabs(saved.extensionTabs, saved.activeExtensionTab);
     syncedSessionRef.current = sessionId;
     latest.current.setHydratedSessionId(sessionId);
     return cancelBrowserRestore;
@@ -68,16 +82,20 @@ export function useWorkbenchSessionState(input: {
       reviewTabOpen: persist.reviewTabOpen,
       reviewMessageId: persist.reviewMessageId,
       auxOpen: persist.auxOpen,
-      activeAux: persist.activeAuxTab ?? persist.auxTabs[0] ?? initialSaved.activeAux,
+      auxTabs: persist.auxTabs,
+      activeAux: persist.activeAuxTab,
+      extensionTabs: persist.extensionTabs,
+      activeExtensionTab: persist.activeExtensionTab,
     });
   }, [
     hydratedSessionId,
-    initialSaved.activeAux,
     persist.activeAuxTab,
+    persist.activeExtensionTab,
     persist.auxOpen,
     persist.auxTabs,
     persist.browserOpen,
     persist.browserUrl,
+    persist.extensionTabs,
     persist.reviewMessageId,
     persist.reviewTabOpen,
     sessionId,

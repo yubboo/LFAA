@@ -1,0 +1,86 @@
+/* 无限画布「我的项目」卡片更多菜单样式：遵循悬浮卡片规范，消费 --popover-* 与语义变量。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-popover, 1200);
+}
+
+.menu {
+  position: fixed;
+  z-index: calc(var(--z-popover, 1200) + 1);
+  min-width: 10.5rem;
+  max-width: 15rem;
+  padding: var(--popover-pad, 0.45rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--popover-radius, 0.85rem);
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  backdrop-filter: blur(var(--glass-popover-blur, 14px));
+  -webkit-backdrop-filter: blur(var(--glass-popover-blur, 14px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  height: var(--popover-item-height, 1.9rem);
+  padding: 0 0.65rem;
+  border: 0;
+  border-radius: var(--popover-item-radius, 0.5rem);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--popover-item-font-size, 0.8rem);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.item:hover {
+  background: var(--color-active);
+}
+
+.danger {
+  color: var(--color-danger);
+}
+
+.danger:hover {
+  background: rgb(var(--color-danger-rgb) / 0.12);
+}
+
+.divider {
+  height: 1px;
+  margin: 0.2rem 0.35rem;
+  background: var(--color-line);
+}
+
+.subWrap {
+  position: relative;
+}
+
+.subMenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.35rem);
+  min-width: 9.5rem;
+  max-width: 14rem;
+  padding: var(--popover-pad, 0.45rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--popover-radius, 0.85rem);
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.subEmpty {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}

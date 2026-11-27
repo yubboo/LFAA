@@ -40,6 +40,7 @@ import {
   IconSend,
   IconUsers,
   IconSettings,
+  IconTrash,
   IconUserCircle,
   IconX,
 } from "@tabler/icons-react";
@@ -53,7 +54,7 @@ export type NavigationIconName =
   | "pin" | "map" | "gpt" | "codeReview" | "openai" | "canva" | "data"
   | "chevronDown" | "chevronRight" | "arrowLeft" | "close" | "settings" | "palette" | "keyboard"
   | "copy" | "import" | "invite" | "profile" | "help" | "signOut" | "check"
-  | "sidebarLeft" | "sidebarRight" | "working" | "agents" | "group" | "menu";
+  | "sidebarLeft" | "sidebarRight" | "working" | "agents" | "group" | "menu" | "trash";
 
 const icons: Record<NavigationIconName, IconComponent> = {
   home: IconHomeFilled,
@@ -86,6 +87,7 @@ const icons: Record<NavigationIconName, IconComponent> = {
   arrowLeft: IconArrowLeft,
   close: IconX,
   settings: IconSettings,
+  trash: IconTrash,
   keyboard: IconKeyboard,
   palette: IconPalette,
   copy: IconCopy,

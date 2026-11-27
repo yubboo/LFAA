@@ -25,6 +25,18 @@
   border-color: var(--color-line);
 }
 
+@container chat-composer (max-width: 30rem) {
+  .plusBtn {
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+
+  .plusBtn svg {
+    width: 0.9rem;
+    height: 0.9rem;
+  }
+}
+
 /* 入口提示随悬停和聚焦显露，菜单打开后避免提示遮挡选项。 */
 .tooltip {
   position: absolute;

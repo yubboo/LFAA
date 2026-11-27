@@ -1,5 +1,5 @@
-// 订阅工作台插件标签贡献；同一工作台实例管理它们的打开、切换与清理。
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+// 订阅工作台插件标签贡献；同一工作台实例管理它们的打开、切换、持久化恢复与清理。
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import { IconLayoutGrid } from "@tabler/icons-react";
 import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
 
@@ -12,23 +12,39 @@ export function useWorkbenchTabs(
   isZh: boolean,
   request: unknown,
   onOpenFromStartPage?: () => void,
+  initialOpened: string[] = [],
+  initialActive: string | null = null,
 ) {
   const snapshot = useSyncExternalStore(workbench?.subscribe ?? emptySubscribe, workbench?.getSnapshot ?? emptySnapshot, emptySnapshot);
-  const [opened, setOpened] = useState<string[]>([]);
-  const [selection, setSelection] = useState<{ id: string; request: unknown } | null>(null);
+  const [opened, setOpened] = useState<string[]>(initialOpened);
+  const [selection, setSelection] = useState<{ id: string; request: unknown } | null>(() =>
+    initialActive && initialOpened.includes(initialActive) ? { id: initialActive, request } : null,
+  );
   const contributions = snapshot?.tabs ?? [];
-  const id = selection?.request === request ? selection?.id : undefined;
-  const active = contributions.find((entry) => entry.id === id && opened.includes(entry.id));
+  const activeId = selection && selection.request === request ? selection.id : null;
+  const active = contributions.find((entry) => entry.id === activeId && opened.includes(entry.id));
+
   const show = (tabId: string) => {
-    setOpened((current) => current.includes(tabId) ? current : [...current, tabId]);
+    setOpened((current) => (current.includes(tabId) ? current : [...current, tabId]));
     setSelection({ id: tabId, request });
   };
+
   const leave = () => setSelection(null);
+
+  // 切换会话或刷新恢复：按持久化记录还原已打开插件标签及激活态，不依赖插件是否已完成注册。
+  const restoreTabs = useCallback((savedOpened: string[], savedActive: string | null) => {
+    setOpened(savedOpened);
+    setSelection(savedActive && savedOpened.includes(savedActive) ? { id: savedActive, request } : null);
+  }, [request]);
+
   const content: ReactNode = active?.render({ projectId: projectId ?? snapshot?.activeProjectId ?? null, isZh });
   return {
+    opened,
+    activeId,
     content: active ? content : undefined,
     active: Boolean(active),
     leave,
+    restoreTabs,
     shortcuts: contributions.map((entry) => (
       <button
         key={entry.id}
@@ -47,7 +63,7 @@ export function useWorkbenchTabs(
       select: () => show(entry.id),
       close: () => {
         setOpened((current) => current.filter((tabId) => tabId !== entry.id));
-        if (active?.id === entry.id) leave();
+        if (activeId === entry.id) leave();
       },
     })),
   };

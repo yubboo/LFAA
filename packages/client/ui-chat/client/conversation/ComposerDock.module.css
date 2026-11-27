@@ -1,9 +1,9 @@
-/* 输入框大盒子：独立占一行，排在会话区下方；不再叠在滚动视口上，所以没有遮罩层。 */
+/* 输入框大盒子：独立占一行，排在会话区下方；层级高于刻度条（22/26），避免输入框向上弹出的浮层被刻度胶囊遮挡。 */
 .dock {
   grid-row: 4;
   grid-column: 1;
   position: relative;
-  z-index: 2;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;

@@ -1,4 +1,4 @@
-// 管理右侧工作台标签页、当前舞台、工作区文件树显隐与目录展开状态的浏览器持久化偏好。
+// 管理右侧工作台标签页（文件/浏览器/审查/辅助面板/插件标签）、当前舞台、工作区文件树显隐与目录展开状态的浏览器持久化偏好。
 import type { FilePreviewTab } from "./chat-types";
 import type { RightAuxTab } from "../workbench/RightUtilityRail";
 
@@ -16,7 +16,12 @@ export interface PersistedWorkbenchSessionState {
   reviewMessageId?: string | undefined;
   fileTreeOpen: boolean;
   auxOpen: boolean;
-  activeAux: RightAuxTab;
+  auxTabs: RightAuxTab[];
+  activeAux: RightAuxTab | null;
+  /** 已打开的右栏插件标签 id（如无限画布 "canvas"），刷新后完整恢复。 */
+  extensionTabs: string[];
+  /** 当前选中的右栏插件标签 id；null 表示当前未激活插件标签。 */
+  activeExtensionTab: string | null;
 }
 
 export function createDefaultWorkbenchSessionState(): PersistedWorkbenchSessionState {
@@ -28,8 +33,16 @@ export function createDefaultWorkbenchSessionState(): PersistedWorkbenchSessionS
     reviewTabOpen: false,
     fileTreeOpen: false,
     auxOpen: false,
-    activeAux: "terminal",
+    auxTabs: [],
+    activeAux: null,
+    extensionTabs: [],
+    activeExtensionTab: null,
   };
+}
+
+function normalizeAuxTab(value: unknown): RightAuxTab | null {
+  if (typeof value !== "string" || value === "filesTree") return null;
+  return VALID_AUX_TABS.has(value as RightAuxTab) ? (value as RightAuxTab) : null;
 }
 
 export function readWorkbenchSessionState(sessionId: string | null | undefined): PersistedWorkbenchSessionState {
@@ -48,12 +61,20 @@ export function readWorkbenchSessionState(sessionId: string | null | undefined):
     const rightStageKind = parsed.rightStageKind === "file" || parsed.rightStageKind === "browser" || parsed.rightStageKind === "review"
       ? parsed.rightStageKind
       : null;
-    // 文件树已移到左二「项目工作区」，旧的 filesTree 记录不再恢复成右侧面板。
-    const activeAux = typeof parsed.activeAux === "string"
-      && parsed.activeAux !== "filesTree"
-      && VALID_AUX_TABS.has(parsed.activeAux as RightAuxTab)
-      ? (parsed.activeAux as RightAuxTab)
-      : "terminal";
+    // 兼容旧版单辅助面板记录：若无 auxTabs 数组但 auxOpen=true，按旧字段还原成单标签。
+    const parsedActiveAux = normalizeAuxTab(parsed.activeAux);
+    const auxTabs = Array.isArray(parsed.auxTabs)
+      ? Array.from(new Set(parsed.auxTabs.map(normalizeAuxTab).filter((item): item is RightAuxTab => item !== null)))
+      : (parsed.auxOpen && parsedActiveAux ? [parsedActiveAux] : []);
+    const activeAux = parsedActiveAux && auxTabs.includes(parsedActiveAux)
+      ? parsedActiveAux
+      : (parsed.activeAux === null ? null : (parsed.auxOpen ? (auxTabs[0] ?? null) : null));
+    const extensionTabs = Array.isArray(parsed.extensionTabs)
+      ? Array.from(new Set(parsed.extensionTabs.filter((item): item is string => typeof item === "string" && item.trim().length > 0)))
+      : [];
+    const activeExtensionTab = typeof parsed.activeExtensionTab === "string" && extensionTabs.includes(parsed.activeExtensionTab)
+      ? parsed.activeExtensionTab
+      : null;
     return {
       filePreviewTabs: tabs,
       activeFilePreviewId,
@@ -63,8 +84,11 @@ export function readWorkbenchSessionState(sessionId: string | null | undefined):
       reviewTabOpen: Boolean(parsed.reviewTabOpen),
       ...(typeof parsed.reviewMessageId === "string" ? { reviewMessageId: parsed.reviewMessageId } : {}),
       fileTreeOpen: parsed.fileTreeOpen === true,
-      auxOpen: Boolean(parsed.auxOpen),
+      auxOpen: auxTabs.length > 0,
+      auxTabs,
       activeAux,
+      extensionTabs,
+      activeExtensionTab,
     };
   } catch {
     return fallback;

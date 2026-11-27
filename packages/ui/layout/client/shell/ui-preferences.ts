@@ -18,6 +18,7 @@ export interface ActiveRoutePref {
 /** 这一组键持久化本机工作台的侧栏、路由、折叠和排序偏好。 */
 export const LEFT_SIDEBAR_STORAGE_KEY = "lfaa:left-sidebar-open";
 export const RIGHT_PANEL_STORAGE_KEY = "lfaa:right-panel-open";
+export const RIGHT_PANEL_MAXIMIZED_STORAGE_KEY = "lfaa:right-panel-maximized";
 export const BOTTOM_PANEL_STORAGE_KEY = "lfaa:bottom-panel-open";
 export const PREVIEW_PANE_STORAGE_KEY = "lfaa:preview-pane-open";
 export const LEFT_SIDEBAR_WIDTH_STORAGE_KEY = "lfaa:left-sidebar-width";

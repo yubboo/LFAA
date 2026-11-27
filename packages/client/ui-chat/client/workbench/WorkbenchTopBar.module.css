@@ -1,0 +1,51 @@
+/* 右栏全屏顶栏会话切换标签与标签承载区样式，全量消费 @lfaa/ui-theme 变量。 */
+.tabsHost {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+}
+
+.fullscreenCrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  flex-shrink: 0;
+  margin-left: -0.15rem;
+}
+
+.fullscreenCrumbBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 13.5rem;
+  height: 1.85rem;
+  padding: 0 0.5rem 0 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.fullscreenCrumbBtn:hover,
+.fullscreenCrumbBtn[data-active="true"] {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.fullscreenCrumbText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fullscreenCrumbSep {
+  color: var(--color-muted);
+  flex-shrink: 0;
+}

@@ -1,0 +1,329 @@
+/* 无限画布「我的项目」入口大厅样式：对齐双主题语义变量与窄栏自适应，严禁写死色值。 */
+.hub {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--color-shell);
+  color: var(--color-ink);
+  overflow-y: auto;
+}
+
+/* 主题背景图为图片时让出不透明底色，由外层 ContextPanel 统一薄纱透出壁纸；纯色主题仍走 --color-shell。 */
+:global(html[data-app-bg-workspace="image"]) .hub,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .hub {
+  background: transparent;
+}
+
+.inner {
+  width: 100%;
+  max-width: 78rem;
+  margin: 0 auto;
+  padding: 1.75rem clamp(1.1rem, 3.5cqi, 2.5rem) 2.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 顶栏：左侧「我的项目」标题，右侧缩放、搜索、排序、视图切换与新建主按钮。 */
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.heading {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.zoomPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+}
+
+.zoomSlider {
+  width: 4.5rem;
+  accent-color: var(--color-ink);
+  cursor: pointer;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.iconBtn:hover,
+.iconBtn[data-active="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.searchWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.searchInput {
+  width: 9rem;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.searchInput::placeholder {
+  color: var(--color-muted);
+}
+
+.clearBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.viewSwitch {
+  display: inline-flex;
+  align-items: center;
+  height: 2rem;
+  padding: 0.16rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  box-sizing: border-box;
+}
+
+.viewBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.56rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.viewBtn[data-active="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  height: 2rem;
+  padding: 0 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 120ms ease;
+}
+
+.primaryBtn:hover {
+  opacity: 0.9;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* 无边框极简列表模式：默认通透无外框，悬停柔和高亮圆角行并浮现右侧快捷操作。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  padding: 0.55rem 0.85rem;
+  border: 0;
+  border-radius: 0.72rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 150ms ease;
+}
+
+.listRow:hover,
+.listRow[data-open="true"] {
+  background: var(--color-active);
+}
+
+.listNewRow {
+  color: var(--color-muted);
+}
+
+.listNewRow:hover {
+  color: var(--color-ink);
+}
+
+.listThumb {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.65rem;
+  height: 1.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.45rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  overflow: hidden;
+}
+
+.listName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listRenameInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 18rem;
+  padding: 0.14rem 0.45rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  outline: none;
+}
+
+.listMeta {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.listActions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.listRow:hover .listActions,
+.listRow[data-open="true"] .listActions,
+.listActions:focus-within {
+  opacity: 1;
+}
+
+.listActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.listActionBtn:hover,
+.listActionBtn[data-open="true"] {
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.footerHint {
+  margin: 0.25rem 0 0;
+  text-align: center;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}
+
+.errorBanner {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.35);
+  border-radius: 0.7rem;
+  background: rgb(var(--color-danger-rgb) / 0.08);
+  color: var(--color-danger);
+  font-size: 0.82rem;
+}
+
+@container (max-width: 36rem) {
+  .zoomPill {
+    display: none;
+  }
+
+  .searchInput {
+    width: 6.5rem;
+  }
+}

@@ -16,7 +16,8 @@ function isWithinAllowedRoot(target: string, root: string): boolean {
   return b === a || b.startsWith(a + sep);
 }
 
-const pattern = /^\/api\/canvas\/projects\/([^/]+)\/boards(?:\/([^/]+)(?:\/(assets|runs)(?:\/([^/]+))?)?)?$/u;
+const pattern = /^\/api\/canvas\/projects\/([^/]+)\/boards(?:\/([^/]+)(?:\/(assets|runs|duplicate)(?:\/([^/]+))?)?)?$/u;
+const summariesPath = "/api/canvas/projects/summaries";
 
 function send(res: ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -73,7 +74,29 @@ async function serve(req: IncomingMessage, res: ServerResponse, file: string, mi
 
 export function createCanvasHandler(ctx: Context) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
-    const parsed = pattern.exec(new URL(req.url ?? "/", "http://localhost").pathname);
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (pathname === summariesPath) {
+      try {
+        if (req.method !== "POST") throw new CanvasError(405, "请求方法不受支持 / Method not allowed");
+        const canvas = ctx.get("canvas");
+        if (!canvas) throw new CanvasError(404, "画布插件未启用 / Canvas unavailable");
+        const data = await body(req);
+        if (!Array.isArray(data.projectIds)) throw new CanvasError(400, "项目列表无效 / Invalid projectIds");
+        const ids = Array.from(new Set(data.projectIds.filter((id): id is string => typeof id === "string" && id.trim() !== ""))).slice(0, 200);
+        const items = (await Promise.all(ids.map(async (projectId) => {
+          const project = await ctx.workspace.getProject(projectId);
+          if (!project) return null;
+          return canvas.store.summarizeProject(projectId);
+        }))).filter((item) => item !== null);
+        send(res, 200, { items });
+      } catch (error) {
+        if (error instanceof CanvasError) send(res, error.status, { error: error.message });
+        else send(res, 500, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return true;
+    }
+
+    const parsed = pattern.exec(pathname);
     if (!parsed) return false;
     try {
       const canvas = ctx.get("canvas");
@@ -100,6 +123,13 @@ export function createCanvasHandler(ctx: Context) {
         const data = await body(req);
         if (typeof data.title !== "string") throw new CanvasError(400, "画布名称无效 / Invalid canvas title");
         send(res, 200, await canvas.rename(dir, data.title));
+      } else if (!resource && req.method === "DELETE") {
+        await canvas.remove(projectId, canvasId);
+        send(res, 200, { ok: true });
+      } else if (resource === "duplicate" && req.method === "POST") {
+        const data = await body(req).catch(() => ({} as Record<string, unknown>));
+        const customTitle = typeof data.title === "string" ? data.title : undefined;
+        send(res, 201, await canvas.duplicate(projectId, canvasId, customTitle));
       } else if (resource === "assets") {
         await canvas.store.board(dir);
         if ((req.method === "GET" || req.method === "HEAD") && itemId) {

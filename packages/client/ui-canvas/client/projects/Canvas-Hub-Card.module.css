@@ -1,0 +1,266 @@
+/* 无限画布「我的项目」网格卡片样式：无外框极简布局（上方 16:10 满幅缩略图 + 下方独立标题与日期），保留跟随鼠标 1px 流光边框、扫光与悬停缩放。 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--hub-card-min, 12rem), 1fr));
+  gap: 1.15rem 0.9rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.card:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* 上方 16:10 满幅缩略图容器：承载 1px 跟随鼠标流光边框、柔和流体光斑与封面缩放。 */
+.thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background:
+    radial-gradient(circle at 20% 25%, rgb(var(--color-accent-rgb) / 0.14), transparent 55%),
+    radial-gradient(circle at 80% 78%, rgb(var(--color-violet-rgb) / 0.12), transparent 58%),
+    var(--color-panel);
+  color: var(--color-muted);
+  overflow: hidden;
+  transition:
+    border-color 180ms ease,
+    transform 240ms var(--motion-ease-emphasized),
+    box-shadow 240ms ease,
+    background-color 180ms ease;
+}
+
+.newThumb {
+  flex-direction: column;
+  gap: 0.38rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.newPlus {
+  color: var(--color-muted);
+  transition: transform 220ms var(--motion-ease-emphasized), color 180ms ease;
+}
+
+.card:hover .newPlus {
+  color: var(--color-ink);
+  transform: scale(1.1);
+}
+
+/* 跟随鼠标的 1px 镜面边框流光：沿圆角边缘扫过，复刻流体高光质感。 */
+.thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: radial-gradient(
+    200px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--color-accent-rgb) / 0.85),
+    rgb(var(--color-violet-rgb) / 0.35) 38%,
+    transparent 70%
+  );
+  -webkit-mask: linear-gradient(var(--color-ink) 0 0) content-box, linear-gradient(var(--color-ink) 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(var(--color-ink) 0 0) content-box, linear-gradient(var(--color-ink) 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  z-index: 2;
+}
+
+/* 跟随鼠标的柔和流体表面光斑。 */
+.thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgb(var(--color-accent-rgb) / 0.14),
+    transparent 68%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+  z-index: 1;
+}
+
+.card:hover .thumb {
+  border-color: rgb(var(--color-accent-rgb) / 0.42);
+  box-shadow: var(--color-menu-shadow);
+  transform: translateY(-2px);
+}
+
+.card:hover .newThumb {
+  background: var(--color-active);
+}
+
+.card:hover .thumb::before,
+.card:hover .thumb::after {
+  opacity: 1;
+}
+
+/* 封面微斜向扫光层，悬停时轻柔掠过。 */
+.coverSheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgb(var(--color-accent-rgb) / 0.14) 50%,
+    transparent 70%
+  );
+  transform: translateX(-110%);
+  transition: transform 620ms var(--motion-ease-emphasized);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card:hover .coverSheen {
+  transform: translateX(110%);
+}
+
+.coverImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 380ms var(--motion-ease-emphasized), filter 280ms ease;
+}
+
+.card:hover .coverImg {
+  transform: scale(1.06);
+  filter: saturate(1.08) brightness(1.04);
+}
+
+.coverPlaceholder {
+  opacity: 0.4;
+  transition: transform 300ms var(--motion-ease-emphasized), opacity 220ms ease;
+}
+
+.card:hover .coverPlaceholder {
+  transform: scale(1.08);
+  opacity: 0.65;
+}
+
+/* 独立于缩略图框下方的标题、日期与右侧更多操作行。 */
+.cardFooter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0 0.1rem;
+  min-width: 0;
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cardTitleBtn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.renameInput {
+  width: 100%;
+  padding: 0.12rem 0.35rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.35rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.moreBtn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.card:hover .moreBtn,
+.moreBtn:focus-visible,
+.moreBtn[data-open="true"] {
+  opacity: 1;
+}
+
+.moreBtn:hover,
+.moreBtn[data-open="true"] {
+  border-color: var(--color-line);
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.cardMeta {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.newHint {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb,
+  .newPlus,
+  .coverImg,
+  .coverSheen {
+    transition: none;
+  }
+}

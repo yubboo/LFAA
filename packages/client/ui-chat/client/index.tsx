@@ -201,6 +201,7 @@ export const chatClientPlugin: Plugin.Object<void> = {
           <RightWorkbenchPane
             locale={locale}
             store={store}
+            sessionMenuStore={menuStore}
             workbench={workbench}
             boundProjectId={boundId}
             boundProjectName={boundName}

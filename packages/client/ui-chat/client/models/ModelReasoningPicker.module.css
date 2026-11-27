@@ -28,6 +28,11 @@
   background: var(--color-active);
 }
 
+.triggerPill:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
 .modelLabel {
   min-width: 0;
   overflow: hidden;
@@ -79,13 +84,15 @@
 @container chat-composer (max-width: 30rem) {
   .triggerPill {
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 1.65rem;
+    height: 1.65rem;
     padding: 0;
   }
 
   .modelIcon {
     display: block;
+    width: 0.88rem;
+    height: 0.88rem;
   }
 
   .modelLabel,
@@ -306,8 +313,8 @@
 /* 聊天模式：模型胶囊也收成方形图标，模型 ID 与强度走 aria-description 与悬浮提示。
    宽屏下 .modelIcon 默认隐藏（靠模型名承担识别），紧凑形态必须把它显示出来。 */
 .triggerPill[data-compact] {
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 1.85rem;
+  height: 1.85rem;
   padding: 0;
   gap: 0;
   justify-content: center;

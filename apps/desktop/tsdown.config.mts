@@ -1,4 +1,4 @@
-// 桌面主进程与 Preload 桥构建：主进程输出 ESM，Preload 输出 CJS（供 Electron sandbox: true 安全加载）。
+// 桌面主进程与 Preload 桥构建：均输出 CJS，规避 Electron 45 Windows ESM 加载器对盘符根 lstat 报 EPERM。
 import { defineConfig } from "tsdown";
 
 export default defineConfig([
@@ -6,9 +6,9 @@ export default defineConfig([
     entry: ["src/main.ts"],
     outDir: "dist",
     platform: "node",
-    format: ["esm"],
+    format: ["cjs"],
     target: "es2022",
-    fixedExtension: false,
+    fixedExtension: true,
     dts: false,
     clean: true,
     deps: { neverBundle: ["electron", /^@lfaa\//u] },

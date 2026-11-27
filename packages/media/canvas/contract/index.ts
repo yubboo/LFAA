@@ -92,6 +92,16 @@ export interface BoardDetail {
   runs: CanvasRun[];
 }
 
+/** 项目级画布摘要：供无限画布「我的项目」大厅筛选已有画布的项目并展示封面与最近编辑时间。 */
+export interface CanvasProjectSummary {
+  projectId: string;
+  boardCount: number;
+  latestCanvasId: string;
+  latestTitle: string;
+  updatedAt: number;
+  coverAssetId?: string;
+}
+
 export type PortKind = AssetKind | "text";
 
 export interface Port {

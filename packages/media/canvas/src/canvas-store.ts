@@ -1,8 +1,8 @@
 // Host 持久化项目画布、素材与独立的运行记录。
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { CanvasAsset, CanvasBoard, CanvasRun } from "../contract/index";
+import type { CanvasAsset, CanvasBoard, CanvasProjectSummary, CanvasRun } from "../contract/index";
 import { CanvasError, uuid } from "./graph";
 
 const mediaTypes = new Map<string, CanvasAsset["kind"]>([
@@ -78,6 +78,36 @@ export class CanvasStore {
     const boards = await Promise.all(entriesInProject.filter((id) => uuid.safeParse(id).success)
       .map((id) => readOptional<CanvasBoard>(join(dir, id, "board.json"))));
     return boards.flatMap((board) => board ? [{ canvasId: board.canvasId, title: board.title }] : []);
+  }
+
+  /** 汇总单个项目的画布数量、最近编辑时间与封面图片资产；无画布时返回 null。 */
+  async summarizeProject(projectId: string): Promise<CanvasProjectSummary | null> {
+    const dir = this.projectDir(projectId);
+    const ids = (await entries(dir)).filter((id) => uuid.safeParse(id).success);
+    if (ids.length === 0) return null;
+
+    const records = (await Promise.all(ids.map(async (id) => {
+      const boardFile = join(dir, id, "board.json");
+      const board = await readOptional<CanvasBoard>(boardFile);
+      if (!board) return null;
+      const fileStat = await stat(boardFile).catch(() => null);
+      return { board, boardDir: join(dir, id), updatedAt: Math.round(fileStat?.mtimeMs ?? 0) };
+    }))).filter((item): item is { board: CanvasBoard; boardDir: string; updatedAt: number } => item !== null);
+
+    if (records.length === 0) return null;
+    records.sort((left, right) => right.updatedAt - left.updatedAt);
+    const latest = records[0]!;
+    const latestAssets = await this.assets(latest.boardDir);
+    const cover = latestAssets.find((asset) => asset.kind === "image");
+
+    return {
+      projectId,
+      boardCount: records.length,
+      latestCanvasId: latest.board.canvasId,
+      latestTitle: latest.board.title,
+      updatedAt: latest.updatedAt,
+      ...(cover ? { coverAssetId: cover.id } : {}),
+    };
   }
 
   async board(dir: string): Promise<CanvasBoard> {

@@ -20,6 +20,7 @@ import {
   LEFT_SIDEBAR_STORAGE_KEY,
   LIBRARY_TAB_STORAGE_KEY,
   PREVIEW_PANE_STORAGE_KEY,
+  RIGHT_PANEL_MAXIMIZED_STORAGE_KEY,
   RIGHT_PANEL_STORAGE_KEY,
   readActiveRoutePref,
   readBooleanPref,
@@ -72,7 +73,7 @@ export class WorkbenchClientService extends Service {
   private previewPaneOpenValue = readBooleanPref(PREVIEW_PANE_STORAGE_KEY, true);
   private readonly bottomPanel = new BottomPanelState();
   private rightWorkbenchWideValue = false;
-  private rightPanelMaximizedValue = false;
+  private rightPanelMaximizedValue = readBooleanPref(RIGHT_PANEL_MAXIMIZED_STORAGE_KEY, false) && this.rightPanelOpenValue;
   private cachedSnapshot: WorkbenchSnapshot | null = null;
 
   constructor(ctx: Context) {
@@ -397,7 +398,10 @@ export class WorkbenchClientService extends Service {
     }
     if (this.rightPanelOpenValue === open) return;
     this.rightPanelOpenValue = open;
-    if (!open) this.rightPanelMaximizedValue = false;
+    if (!open) {
+      this.rightPanelMaximizedValue = false;
+      if (persist) writeBooleanPref(RIGHT_PANEL_MAXIMIZED_STORAGE_KEY, false);
+    }
     if (persist) writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, open);
     this.emit();
   }
@@ -429,6 +433,7 @@ export class WorkbenchClientService extends Service {
     // 最大化针对的是工作台：预览列收起时先把它放出来，否则只会得到一条 0 宽的会话列。
     if (maximized && this.layoutModeValue === "preview-center" && !this.previewPaneOpenValue) this.setPreviewPaneOpen(true);
     this.rightPanelMaximizedValue = maximized;
+    writeBooleanPref(RIGHT_PANEL_MAXIMIZED_STORAGE_KEY, maximized);
     if (maximized && !this.rightPanelOpenValue) {
       this.rightPanelOpenValue = true;
       writeBooleanPref(RIGHT_PANEL_STORAGE_KEY, true);

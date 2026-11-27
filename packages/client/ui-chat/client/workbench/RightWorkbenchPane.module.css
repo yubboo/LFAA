@@ -39,6 +39,13 @@
   --capsule-padding: 0 0.25rem 0 0.2rem;
 }
 
+.fullscreenChatStage {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 .tabBar {
   display: flex;
   flex: 1 1 auto;

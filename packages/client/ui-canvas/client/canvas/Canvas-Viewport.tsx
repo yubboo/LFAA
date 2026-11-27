@@ -1,6 +1,6 @@
 // React Flow 交互视图：拖动期间只更新渲染位置，落点才交给画布文档。
-import { useMemo, useRef, useState } from "react";
-import { Background, BackgroundVariant, MiniMap, ReactFlow, type Edge, type NodeChange, type ReactFlowProps } from "@xyflow/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Background, BackgroundVariant, MiniMap, ReactFlow, type ColorMode, type Edge, type NodeChange, type ReactFlowProps } from "@xyflow/react";
 import { CanvasEdge } from "./Canvas-Edge";
 import { GraphNode, type FlowNode } from "./Graph-Node";
 import styles from "./Canvas.module.css";
@@ -19,11 +19,28 @@ type ViewportProps = Pick<ReactFlowProps<FlowNode, Edge>,
   onOpenMenu: (mode: "create" | "context", point: { x: number; y: number }, canvas: HTMLElement) => void;
 };
 
+function readDocumentColorMode(): ColorMode {
+  if (typeof document === "undefined") return "light";
+  const resolved = document.documentElement.dataset.resolvedTheme || document.documentElement.dataset.theme;
+  return resolved === "dark" ? "dark" : "light";
+}
+
 export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesChange, onMoveEnd, onOpenMenu, ...props }: ViewportProps) {
   const diagram = useRef<HTMLDivElement>(null);
   const rightPress = useRef<{ x: number; y: number } | null>(null);
+  const [colorMode, setColorMode] = useState<ColorMode>(readDocumentColorMode);
   const [dimensions, setDimensions] = useState<ReadonlyMap<string, NonNullable<FlowNode["measured"]>>>(() => new Map());
   const [movingNodes, setMovingNodes] = useState<ReadonlyMap<string, FlowNode["position"]>>(() => new Map());
+
+  // 跟随 LFAA 主题属性（data-resolved-theme），避免 React Flow 的 system 模式只认系统深浅色导致黑白割裂。
+  useEffect(() => {
+    const root = document.documentElement;
+    const sync = () => setColorMode(readDocumentColorMode());
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-resolved-theme", "data-theme"] });
+    return () => observer.disconnect();
+  }, []);
 
   // 受控节点须回传浏览器测量值，否则 React Flow 更新位置时会先隐藏节点和端口，等待重新测量。
   const measuredNodes = useMemo(() => nodes.map((node) => {
@@ -121,10 +138,10 @@ export function CanvasViewport({ nodes, showGrid, showMinimap, label, onNodesCha
         deleteKeyCode={["Delete", "Backspace"]}
         nodesConnectable
         edgesReconnectable={false}
-        colorMode="system"
+        colorMode={colorMode}
         proOptions={{ hideAttribution: true }}
       >
-        {showGrid && <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} />}
+        {showGrid && <Background variant={BackgroundVariant.Dots} gap={24} size={1.2} color="var(--color-muted)" />}
         {showMinimap && <MiniMap position="bottom-left" className={styles.minimap} pannable zoomable />}
       </ReactFlow>
     </div>

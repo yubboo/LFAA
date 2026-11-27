@@ -1,0 +1,249 @@
+/* 资料库「回收站」页面样式：卡片多选网格、分类筛选胶囊与底部批量操作条，全量使用 @lfaa/ui-theme 语义变量。 */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: 1rem;
+}
+
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pill {
+  height: 1.85rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.pill:hover,
+.pill[data-active="true"] {
+  border-color: rgb(var(--color-accent-rgb) / 0.45);
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.retentionHint {
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}
+
+.scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: 1.1rem 0.9rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  background: var(--color-panel);
+  color: var(--color-muted);
+  overflow: hidden;
+  transition: border-color 150ms ease;
+}
+
+.card[data-selected="true"] .thumb {
+  border-color: var(--color-accent);
+}
+
+.thumbImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.checkbox {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.3rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+}
+
+.checkbox[data-checked="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.kindBadge {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  background: var(--color-popover);
+  color: var(--color-muted);
+  font-size: 0.68rem;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0 0.1rem;
+  min-width: 0;
+}
+
+.title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 14rem;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.selectAllBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.selectAllBtn:hover {
+  color: var(--color-ink);
+}
+
+.checkInline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.28rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+}
+
+.checkInline[data-checked="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dangerBtn {
+  height: 2rem;
+  padding: 0 0.85rem;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.4);
+  border-radius: 0.55rem;
+  background: rgb(var(--color-danger-rgb) / 0.1);
+  color: var(--color-danger);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dangerBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.restoreBtn {
+  height: 2rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.restoreBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

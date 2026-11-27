@@ -197,3 +197,44 @@ export async function syncDefaultProjectDir(
   }
   return { projects, dismissedPaths };
 }
+
+
+/** 构造回收站恢复后的项目快照（保留原 id 与路径并清除移出标记，同名自动追加后缀）。 */
+export function buildRestoredProjectSnapshot(
+  snapshot: ProjectStoreSnapshot,
+  record: {
+    id: string;
+    name: string;
+    rootPath: string;
+    rootPaths?: string[];
+    sectionId?: string | null;
+    pinned?: boolean;
+    trusted?: boolean;
+    createdAt?: number;
+  },
+): { project: WorkspaceProjectSummary; nextSnapshot: ProjectStoreSnapshot } {
+  const existing = snapshot.projects.find((item) => item.id === record.id);
+  if (existing) return { project: existing, nextSnapshot: snapshot };
+  const rootPaths = normalizeUniquePaths(record.rootPaths?.length ? record.rootPaths : [record.rootPath]);
+  const primary = rootPaths[0] ?? resolve(record.rootPath);
+  const usedNames = new Set(snapshot.projects.map((item) => item.name.trim().toLowerCase()));
+  let finalName = record.name.trim() || basename(primary) || "未命名项目";
+  if (usedNames.has(finalName.toLowerCase())) finalName = `${finalName} (恢复)`;
+  const now = Date.now();
+  const project: WorkspaceProjectSummary = {
+    id: record.id,
+    name: finalName,
+    rootPath: primary,
+    rootPaths,
+    exists: existsSync(primary),
+    locationType: "local",
+    chatCount: 0,
+    trusted: true,
+    pinned: Boolean(record.pinned),
+    sectionId: record.sectionId ?? null,
+    createdAt: typeof record.createdAt === "number" ? record.createdAt : now,
+  };
+  const rootKeys = new Set(rootPaths.map((p) => pathKey(p)));
+  const dismissedPaths = snapshot.dismissedPaths.filter((p) => !rootKeys.has(pathKey(p)));
+  return { project, nextSnapshot: { projects: [project, ...snapshot.projects], dismissedPaths } };
+}

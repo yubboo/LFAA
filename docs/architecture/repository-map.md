@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**69 个包、3138 个文件、547 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**69 个包、3168 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -52,28 +52,30 @@ lfaa/
 ├── .githooks/  (1 个文件)
 ├── .github/  (1 个文件)
 │   └── workflows/  (1 个文件)
+├── .workbuddy/  (1 个文件)
+│   └── memory/  (1 个文件)
 ├── Python/  (1 个文件)
-├── apps/  (37 个文件)
+├── apps/  (39 个文件)
 │   ├── cli/  (3 个文件)
 │   │   └── src/  (1 个文件)
-│   ├── desktop/  (18 个文件)
+│   ├── desktop/  (20 个文件)
 │   │   ├── resources/  (1 个文件)
-│   │   ├── scripts/  (3 个文件)
+│   │   ├── scripts/  (5 个文件)
 │   │   └── src/  (9 个文件)
 │   ├── desktop-host/  (5 个文件)
 │   │   └── src/  (1 个文件)
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (583 个文件)
+├── docs/  (587 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (5 个文件)
 │   ├── features/  (34 个文件)
-│   ├── plans/  (28 个文件)
+│   ├── plans/  (30 个文件)
 │   ├── standards/  (4 个文件)
 │   ├── templates/  (2 个文件)
-│   └── updata-log/  (497 个文件)
-├── packages/  (2309 个文件)
+│   └── updata-log/  (499 个文件)
+├── packages/  (2331 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -98,7 +100,7 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (638 个文件)
+│   ├── client/  (655 个文件)
 │   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
 │   │   │   ├── client/  (7 个文件)
 │   │   │   │   ├── group/  (1 个文件)
@@ -118,14 +120,16 @@ lfaa/
 │   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (37 个文件)
-│   │   │   ├── client/  (31 个文件)
+│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (49 个文件)
+│   │   │   ├── client/  (42 个文件)
 │   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── canvas/  (21 个文件)
-│   │   │   │   └── previs/  (6 个文件)
-│   │   │   └── src/  (1 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (346 个文件)
-│   │   │   ├── client/  (277 个文件)
+│   │   │   │   ├── canvas/  (22 个文件)
+│   │   │   │   ├── previs/  (6 个文件)
+│   │   │   │   └── projects/  (10 个文件)
+│   │   │   ├── src/  (1 个文件)
+│   │   │   └── tests/  (1 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (349 个文件)
+│   │   │   ├── client/  (280 个文件)
 │   │   │   │   ├── composer/  (44 个文件)
 │   │   │   │   ├── conversation/  (76 个文件)
 │   │   │   │   ├── models/  (16 个文件)
@@ -133,7 +137,7 @@ lfaa/
 │   │   │   │   ├── settings/  (16 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
 │   │   │   │   ├── store/  (20 个文件)
-│   │   │   │   └── workbench/  (71 个文件)
+│   │   │   │   └── workbench/  (74 个文件)
 │   │   │   │       └── pane/  (4 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (63 个文件)
@@ -143,10 +147,10 @@ lfaa/
 │   │   │   │   ├── connectors/  (12 个文件)
 │   │   │   │   └── mcp/  (3 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-library/  # @lfaa/client-ui-library  (20 个文件)
-│   │   │   ├── client/  (11 个文件)
+│   │   ├── ui-library/  # @lfaa/client-ui-library  (22 个文件)
+│   │   │   ├── client/  (13 个文件)
 │   │   │   │   ├── settings/  (2 个文件)
-│   │   │   │   └── views/  (7 个文件)
+│   │   │   │   └── views/  (9 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (3 个文件)
 │   │   ├── ui-plugins/  # @lfaa/client-ui-plugins  (20 个文件)
@@ -485,26 +489,27 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── host/  (32 个文件)
+│   ├── host/  (35 个文件)
 │   │   ├── terminal/  # @lfaa/terminal  (12 个文件)
 │   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── web-server/  # @lfaa/web-server  (20 个文件)
-│   │       ├── src/  (12 个文件)
-│   │       │   └── handlers/  (5 个文件)
-│   │       └── tests/  (3 个文件)
+│   │   └── web-server/  # @lfaa/web-server  (23 个文件)
+│   │       ├── src/  (14 个文件)
+│   │       │   ├── handlers/  (6 个文件)
+│   │       │   └── trash/  (1 个文件)
+│   │       └── tests/  (4 个文件)
 │   ├── interaction/  (9 个文件)
 │   │   └── commands/  # @lfaa/commands  (9 个文件)
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── media/  (37 个文件)
-│   │   ├── canvas/  # @lfaa/canvas  (17 个文件)
+│   ├── media/  (39 个文件)
+│   │   ├── canvas/  # @lfaa/canvas  (19 个文件)
 │   │   │   ├── contract/  (1 个文件)
 │   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (5 个文件)
-│   │   │   └── tests/  (3 个文件)
+│   │   │   └── tests/  (5 个文件)
 │   │   └── tool-media/  # @lfaa/tool-media  (20 个文件)
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (6 个文件)
@@ -609,6 +614,7 @@ lfaa/
 # .editorconfig
 # .gitattributes
 # .gitignore
+# .lfaa-stats-check.mjs
 # AGENTS.md
 # README.md
 # lfaa.bat
@@ -726,7 +732,7 @@ lfaa/
 - `electron-builder.config.mjs` — 桌面安装包配置（electron-builder）：以 apps/desktop 为工程目录，staging 在 .desktop-build/。
 - `package.json`
 - `tsconfig.json`
-- `tsdown.config.ts` — 桌面主进程与 Preload 桥构建：主进程输出 ESM，Preload 输出 CJS（供 Electron sandbox: true 安全加载）。
+- `tsdown.config.mts` — 桌面主进程与 Preload 桥构建：均输出 CJS，规避 Electron 45 Windows ESM 加载器对盘符根 lstat 报 EPERM。
 
 ### apps/desktop-host
 
@@ -747,7 +753,9 @@ lfaa/
 
 - `make-icon.mjs` — 生成桌面端占位图标（256×256，32 位 ICO）：深色圆角底 + 品牌蓝字标。
 - `package.mjs` — 桌面安装包构建：全量构建 → 生成 staging（真实文件、无符号链接）→ electron-builder 出 NSIS 安装包。
-- `start.mjs` — 启动桌面端：先校验构建产物存在，再用本机 Electron 打开 apps/desktop。
+- `start-diagnostics.mjs` — 桌面端启动失败诊断：识别 Windows 低完整性级别（Low Mandatory Level）与目录 ACL 缺失，避免误走 --no-sandbox。
+- `start-diagnostics.test.mjs` — 桌面端启动失败诊断回归测试：覆盖低完整性标记识别、ACL 识别与 --no-sandbox 回退边界。
+- `start.mjs` — 启动桌面端：先校验构建产物存在，再在 Windows 下修复低完整性标记/ACL，最后用本机 Electron 打开 apps/desktop。
 
 ### apps/desktop/src
 
@@ -1078,9 +1086,10 @@ lfaa/
 - `Canvas-Menu.tsx` — 浏览器画布的指针菜单：共享节点目录，并把菜单限制在画布可见范围内。
 - `Canvas-Templates.module.css` — 空画布中央引导区与上下弹出的多张子模板卡片：全部消费 @lfaa/ui-theme 语义色变量。
 - `Canvas-Templates.tsx` — 空画布中央引导与 5 大模板分类：点击主卡片后在其上下平滑弹出多张子模板卡片，点击即生成节点流。
-- `Canvas-Top-Bar.tsx` — 画布左上角项目/画布浮层菜单（支持切换画布、重命名与调用左二栏同款新建项目）及右上角节点搜索与保存态。
+- `Canvas-Top-Bar.module.css` — 画布顶部多画布标签栏样式：对齐参考图「项目名 | 画布 1 | [画布 2 ···] +」布局，全量消费主题语义变量。
+- `Canvas-Top-Bar.tsx` — 画布顶部多画布标签栏：支持「< | 项目名 | 画布 1 | [画布 2 ···] + 列表」，··· 菜单含新窗口打开、重命名、复制与删除。
 - `Canvas-Viewport.tsx` — React Flow 交互视图：拖动期间只更新渲染位置，落点才交给画布文档。
-- `Canvas-Workspace.tsx` — 项目画布入口：自动载入或创建默认画布直达沉浸式编辑器，并复用左二栏同款创建项目弹窗与全屏对话抽屉。
+- `Canvas-Workspace.tsx` — 项目画布入口：默认展示「我的项目」创建与管理大厅，新建或选择项目后同步左二栏并自动绑定进入无限画布编辑器。
 - `Canvas.module.css` — 沉浸式无限画布主样式：浮层胶囊、精致节点卡片、流光贝塞尔连线与底部控制条，全量使用主题语义变量。
 - `Graph-Node.module.css` — 节点卡片与流光贝塞尔连线样式：外置标题栏、悬浮快捷胶囊、空态上传按钮与端口手柄，消费主题语义变量。
 - `Graph-Node.tsx` — 节点卡片：外置标题栏、选中顶部悬浮胶囊工具条、空态上传按钮、文本双击编辑与圆形端口连接手柄。
@@ -1100,9 +1109,26 @@ lfaa/
 - `stage-renderer.ts` — Three.js 简模与摄像机渲染。资源由所属视口或导出操作独占和清理。
 - `stage-scene.ts` — 纯白模场景初始化与关键帧采样，供实时视口和静帧/短片导出共用。
 
+### packages/client/ui-canvas/client/projects
+
+- `Canvas-Hub-Card-Grid.tsx` — 无限画布「我的项目」网格卡片区：无外框极简缩略图 + 下方独立标题/日期 + 右下更多操作触发按钮。
+- `Canvas-Hub-Card-Menu.module.css` — 无限画布「我的项目」卡片更多菜单样式：遵循悬浮卡片规范，消费 --popover-* 与语义变量。
+- `Canvas-Hub-Card-Menu.tsx` — 无限画布「我的项目」卡片更多操作浮层：支持打开、重命名、修改封面、创建副本、移动至分区与删除项目。
+- `Canvas-Hub-Card.module.css` — 无限画布「我的项目」网格卡片样式：无外框极简布局（上方 16:10 满幅缩略图 + 下方独立标题与日期），保留跟随鼠标 1px 流光边框、扫光与悬停缩放。
+- `Canvas-Hub-List.tsx` — 无限画布「我的项目」无边框极简列表视图：默认通透无外框，悬停高亮圆角行并浮现快捷操作与更多菜单。
+- `Canvas-Projects-Hub.module.css` — 无限画布「我的项目」入口大厅样式：对齐双主题语义变量与窄栏自适应，严禁写死色值。
+- `Canvas-Projects-Hub.tsx` — 无限画布「我的项目」入口大厅：展示已有画布的项目，支持首卡一键快建、顶栏弹窗自定义新建、缩放、搜索、排序、网格/列表切换与卡片更多操作菜单。
+- `Canvas-Trash-Modal.module.css` — 无限画布「我的项目」回收站弹窗样式：1:1 对齐参考图（顶栏说明 + 多选卡片网格 + 底栏全选/彻底删除/恢复），全量消费语义变量。
+- `Canvas-Trash-Modal.tsx` — 无限画布「我的项目」回收站弹窗：与统一回收站 /api/trash 接口联动，支持勾选恢复与二次确认彻底删除。
+- `project-hub-helpers.ts` — 无限画布「我的项目」大厅纯逻辑：合并项目与画布摘要、按关键字筛选、按时间/名称排序与相对时间格式化。
+
 ### packages/client/ui-canvas/src
 
 - `index.ts` — 无限画布浏览器包的 Host 占位入口，实际客户端通过 /client 挂载。
+
+### packages/client/ui-canvas/tests
+
+- `project-hub-helpers.test.ts` — 画布项目大厅纯逻辑回归测试：覆盖画布项目过滤、关键字搜索、排序与相对时间格式化。
 
 ### packages/client/ui-chat
 
@@ -1200,7 +1226,7 @@ lfaa/
 - `ChatWorkspace.tsx` — 渲染中央聊天工作区：空会话引导、流式回复、Agent 思考/行动/检查轨迹卡片与底部输入栏。
 - `Clarification-Card.module.css` — 输入区澄清卡：问题、选项和操作分层，窄栏时输入框独占一行。
 - `Clarification-Card.tsx` — 在输入框上方收集 Agent 的澄清答复。
-- `ComposerDock.module.css` — 输入框大盒子：独立占一行，排在会话区下方；不再叠在滚动视口上，所以没有遮罩层。
+- `ComposerDock.module.css` — 输入框大盒子：独立占一行，排在会话区下方；层级高于刻度条（22/26），避免输入框向上弹出的浮层被刻度胶囊遮挡。
 - `ComposerDock.tsx` — 输入框大盒子：提示条、回到底部、交接条、任务盒子、目标盒子与输入卡片都在这一行里，不再叠在正文上。
 - `Conversation-Trace.module.css` — 独立轨迹使用紧凑列表与可关闭详情，适配主题和窄屏。
 - `Conversation-Trace.tsx` — 独立展示当前会话的真实消息与 Agent 步骤，实时复用聊天 Store 中的快照。
@@ -1340,7 +1366,7 @@ lfaa/
 - `run-stream-handler.ts` — 运行事件归并：把 Host 推送的快照、增量、步骤、审批与结束事件写进当前会话，断流时记录降级状态。
 - `stream-client.ts` — 浏览器端高可用流式订阅器：提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助。
 - `use-chat-selector.ts` — 聊天 Store 精确切片订阅 Hook：仅在所选字段实际变化时触发组件重渲染，避免流式增量引起整页陪跑。
-- `workbench-persist.ts` — 管理右侧工作台标签页、当前舞台、工作区文件树显隐与目录展开状态的浏览器持久化偏好。
+- `workbench-persist.ts` — 管理右侧工作台标签页（文件/浏览器/审查/辅助面板/插件标签）、当前舞台、工作区文件树显隐与目录展开状态的浏览器持久化偏好。
 
 ### packages/client/ui-chat/client/workbench
 
@@ -1354,6 +1380,8 @@ lfaa/
 - `FileChangePreview.module.css` — VS Code 风格全高代码查看器、路径面包屑、行内 + 批注及 Diff 对比样式，双主题变量适配。
 - `FileChangePreview.search.module.css` — 代码查看器的内嵌搜索栏、输入框、结果计数与命中高亮样式，双主题变量适配。
 - `FileChangePreview.tsx` — VS Code 风格只读代码与 Diff 查看器：支持可点击面包屑、更多菜单 5 项、内嵌搜索、刷新、切换侧栏、精确行定位及行内 + 批注；代码区支持自动换行开关。
+- `FullscreenMiniComposer.module.css` — 全屏视图左下角可展开悬浮迷你对话栏样式，全量消费 @lfaa/ui-theme 语义变量。
+- `FullscreenMiniComposer.tsx` — 全屏视图左下角悬浮迷你对话栏：点击输入框平滑向上展开，完整复用 AssistantTimeline 流式输出（含思维链、工具活动行、审批与 Markdown），点击外部自动缩小。
 - `InlineComment.tsx` — 行内批注框：输入建议并提交到对话输入框；Esc 取消、Ctrl/Cmd+Enter 提交，挂载即聚焦。
 - `ProjectWorkspacePane.module.css` — 左二「项目工作区」容器：让文件树填满栏位并自行滚动，外壳不额外加内边距。
 - `ProjectWorkspacePane.tsx` — 左二「项目工作区」内容：复用右栏同款工作区文件树，点文件仍由聊天 store 打开到中间工作台。
@@ -1388,6 +1416,7 @@ lfaa/
 - `WorkbenchTabMenu.tsx` — 右栏标签右键菜单：关闭系列、复制路径/网址与新建标签；快捷键提示取自工作台注册表，不写死。
 - `WorkbenchTabs.tsx` — 右侧工作台顶部标签栏：辅助面板、文件预览、子智能体、变更审查与内置浏览器标签，新建按钮固定在行尾。
 - `WorkbenchTopActions.tsx` — 渲染右侧工作台顶栏控制按钮组：更多、概览、跟随 Agent、最大化与收起侧面板；提示气泡统一带快捷键徽章。
+- `WorkbenchTopBar.module.css` — 右栏全屏顶栏会话切换标签与标签承载区样式，全量消费 @lfaa/ui-theme 变量。
 - `WorkbenchTopBar.tsx` — 右栏工作台顶栏：标签区与动作组装进左二栏、中间区同款胶囊，外观只由 @lfaa/ui-primitives 的 CapsuleBar 定义。
 - `WorkspaceFileTabs.module.css` — 右栏文件页签和阅读区，沿用工作区主题与操作焦点。
 - `WorkspaceFileTabs.tsx` — 在右侧上下文区域承载可切换、可关闭的源文件标签。
@@ -1399,17 +1428,17 @@ lfaa/
 - `terminal-dock.tsx` — 底部终端面板注册：把位置偏好、Shell 底部面板与右栏「终端」标签串起来；失败不连累聊天视图。
 - `terminal-placement.ts` — 终端展示位置偏好：右侧工作台标签（默认）或 Shell 底部面板，写入 localStorage 并广播给同页组件。
 - `useAuxResize.ts` — 管理右侧辅助栏（工作区文件树 / 上下文 / 任务面板）的实时跟手拖拽调宽与本地偏好持久化。
-- `useWorkbenchAuxTabs.ts` — 右侧工作台的辅助面板标签：终端、文件树、侧边提问等各自成为可独立关闭、切换的标签。
+- `useWorkbenchAuxTabs.ts` — 右侧工作台的辅助面板标签：终端、工作区上下文、侧边提问等各自成为可独立关闭、切换与持久化恢复的标签。
 - `useWorkbenchBlankTab.ts` — 右栏空态占位标签的生命周期：面板一个标签都没有时补一个「新标签页」，出现真实内容标签后自动让位。
 - `useWorkbenchBrowser.ts` — 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
 - `useWorkbenchOpeners.ts` — 右栏打开动作：终端、侧边提问与变更审查标签的统一入口，负责替换空白标签与落位。
 - `useWorkbenchRequests.ts` — 右侧工作台面板跳转请求处理：响应聊天消息点击与 Agent 自动跟随事件，统一调度舞台、DevTools 与辅助面板。
-- `useWorkbenchSessionState.ts` — 右栏会话状态恢复与持久化：切换会话/刷新挂载时读回浏览器、审查与辅助标签，恢复完成后再写回本地偏好。
+- `useWorkbenchSessionState.ts` — 右栏会话状态恢复与持久化：切换会话/刷新挂载时读回浏览器、审查、辅助标签与插件标签（如无限画布），恢复完成后再写回本地偏好。
 - `useWorkbenchSubagents.ts` — 管理右侧工作台的子智能体多标签页状态：按需新建、切换、关闭，并与会话汇总状态实时同步。
 - `useWorkbenchSummary.ts` — 右侧工作台后台概览轮询：按会话拉取后台任务与子智能体列表；仅在运行中或用户打开对应面板时轮询，空闲零开销。
 - `useWorkbenchTabClose.ts` — 右侧工作台标签关闭：仅当关闭最后一个标签且没有任何其它标签（含插件标签如无限画布）时，才收起整个右栏。
 - `useWorkbenchTabMenu.ts` — 右栏标签右键菜单与标签级快捷键：统一有序标签列表、当前舞台识别、单个/其他/右侧/全部关闭与前后切换。
-- `useWorkbenchTabs.tsx` — 订阅工作台插件标签贡献；同一工作台实例管理它们的打开、切换与清理。
+- `useWorkbenchTabs.tsx` — 订阅工作台插件标签贡献；同一工作台实例管理它们的打开、切换、持久化恢复与清理。
 - `workbench-titles.ts` — 右侧工作台辅助面板标题字典：按语言返回文件树、上下文、终端、子智能体、侧边提问与工作详情标题。
 
 ### packages/client/ui-chat/client/workbench/pane
@@ -1557,6 +1586,8 @@ lfaa/
 - `LibraryInspector.tsx` — 资料库右栏检视器：未选中时展示存储概览，选中生成素材或资产后展示内容、提示词与操作。
 - `LibraryMediaGrid.module.css` — 资料库「图像」分类样式：类型筛选胶囊与全宽生成素材缩略图网格；详情面板见 LibraryInspector.module.css。
 - `LibraryMediaGrid.tsx` — 资料库「图像」分类：生成素材的类型筛选与缩略图网格；选中后的详情交给右栏检视器，不再占用画布宽度。
+- `LibraryTrashView.module.css` — 资料库「回收站」页面样式：卡片多选网格、分类筛选胶囊与底部批量操作条，全量使用 @lfaa/ui-theme 语义变量。
+- `LibraryTrashView.tsx` — 资料库「回收站」视图：统一管理最近 30 天内删除的素材、文档资产、无限画布与项目，支持按类型筛选、多选批量恢复与二次确认彻底删除。
 - `LibraryView.cards.module.css` — 资料库卡片与选中态样式：资产/记忆卡片网格与删除按钮；详情改由右栏检视器展示。
 - `LibraryView.module.css` — 资料库与资产库页面样式：紧凑顶部操作栏、分类标题与数量、主区容器与空态引导；卡片网格与选中态见 LibraryView.cards.module.css。
 - `LibraryView.tsx` — 渲染「资料库」中心页：按左二分类展示生成素材、资产与记忆；选中项交给右栏检视器，页面本身不再放预览列。
@@ -2791,13 +2822,19 @@ lfaa/
 - `handlers-canvas.ts` — Host 网关内的项目画布路由，所有操作先通过本机令牌及项目登记校验。
 - `handlers-chat.ts` — @lfaa/web-server：构造会话与运行相关处理器（聊天、编码会话、媒体直连生成、Agent 运行）。
 - `handlers-notifications.ts` — @lfaa/web-server：提供自定义通知提示音的上传、列表、读取与删除接口；文件保存在本机 ~/.lfaa/notification-sounds。
+- `handlers-trash.ts` — 统一回收站 HTTP 处理器：提供 /api/trash/* 列表/预览/恢复/彻底删除/清空接口，并拦截画布、项目、素材与资料库资产的默认 DELETE 请求转入 30 天回收站。
 - `handlers.ts` — @lfaa/web-server：构造常规能力 HTTP 处理器（工作区、技能、插件、模型、记忆、媒体文件等），并集中提供
+
+### packages/host/web-server/src/trash
+
+- `trash-store.ts` — 统一回收站本地存储：按 FreeDesktop 风格以 meta.json + payload/ 管理素材、资产、画布与项目的软删除、30 天自动清理、恢复与彻底删除。
 
 ### packages/host/web-server/tests
 
 - `backgrounds.test.ts` — 验证个人背景图接口：上传、列表、读图、删除；直接放进目录的文件也会被发现；非图片与超大内容被拒绝。
 - `notification-sounds.test.ts` — 验证自定义提示音接口：上传、列表、读取文件与删除，并拒绝非音频与超大内容。
 - `static-server.test.ts` — 验证生产静态托管的关键边界：令牌注入、MIME 与缓存、目录穿越、SPA 回退、Range 与只读方法限制。
+- `trash-store.test.ts` — 统一回收站 TrashStore 回归测试：覆盖软删除、30 天自动清理、预览解析、彻底删除与清空。
 
 ### packages/interaction/commands
 
@@ -2848,8 +2885,10 @@ lfaa/
 
 ### packages/media/canvas/tests
 
+- `board-actions.test.ts` — 画布复制与删除服务回归测试：验证复制画布节点与资产、以及删除画布目录。
 - `canvas-recovery.test.ts` — 验证宿主重新装配后续查已提交的厂商任务，其他镜头的已选结果保持可用。
 - `graph.test.ts` — 验证画布连线端口、版本固定和快照拒绝规则。
+- `project-summaries.test.ts` — 画布项目摘要存储回归测试：验证过滤无画布项目、统计画布数量、取最新画布与封面图片资产。
 - `unified-media-storage.test.ts` — 验证画布资产统一存放在资料库 .lfaa-media/{images,videos} 目录、写入 sidecar 元数据，并支持直接链接资料库素材。
 
 ### packages/media/tool-media
@@ -3560,6 +3599,6 @@ lfaa/
 | 目录 | 文件数 | 子目录数 | 说明 |
 | --- | --- | --- | --- |
 | `docs/dev-log` | 5 | 1 | 按每 200 条任务编号汇总的开发日志卷 |
-| `docs/updata-log` | 497 | 1 | 面向用户的单条更新说明 |
+| `docs/updata-log` | 499 | 1 | 面向用户的单条更新说明 |
 | `vendor` | 14 | 4 | 内嵌的上游运行时源码 |
 | `packages/extension/skills/src/builtin-skills` | 639 | 153 |  |

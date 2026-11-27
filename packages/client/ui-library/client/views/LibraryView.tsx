@@ -13,6 +13,7 @@ import {
   type MediaLibraryItem,
 } from "@lfaa/client-ui-tool-media/client";
 import { LibraryMediaGrid } from "./LibraryMediaGrid";
+import { LibraryTrashView } from "./LibraryTrashView";
 import styles from "./LibraryView.module.css";
 import cardStyles from "./LibraryView.cards.module.css";
 
@@ -42,6 +43,7 @@ export function LibraryView({
   const fileRef = useRef<HTMLInputElement>(null);
   const tab = activeTab;
   const isMediaTab = tab === "media";
+  const isTrashTab = tab === "trash";
 
   useEffect(() => {
     void store.refreshLibraryAndStorage(boundProjectId);
@@ -100,15 +102,18 @@ export function LibraryView({
           ? memoryCount
           : totalCount;
 
-  const category = tab === "media"
-    ? { label: locale.libraryTabImages, hint: locale.libraryCategoryHintMedia }
-    : tab === "artifact"
-      ? { label: locale.libraryTabArtifacts, hint: locale.libraryCategoryHintArtifact }
-      : tab === "asset"
-        ? { label: locale.libraryTabAssets, hint: locale.libraryCategoryHintAsset }
-        : tab === "memory"
-          ? { label: locale.libraryTabMemories, hint: locale.libraryCategoryHintMemory }
-          : { label: locale.libraryTabAll, hint: locale.libraryCategoryHintAll };
+  const isZh = locale.libraryTitle === "资料库";
+  const category = tab === "trash"
+    ? { label: isZh ? "回收站" : "Recycle Bin", hint: isZh ? "仅显示最近 30 天内删除的内容" : "Items deleted within the last 30 days" }
+    : tab === "media"
+      ? { label: locale.libraryTabImages, hint: locale.libraryCategoryHintMedia }
+      : tab === "artifact"
+        ? { label: locale.libraryTabArtifacts, hint: locale.libraryCategoryHintArtifact }
+        : tab === "asset"
+          ? { label: locale.libraryTabAssets, hint: locale.libraryCategoryHintAsset }
+          : tab === "memory"
+            ? { label: locale.libraryTabMemories, hint: locale.libraryCategoryHintMemory }
+            : { label: locale.libraryTabAll, hint: locale.libraryCategoryHintAll };
 
   const reveal = (next: Exclude<LibrarySelection, null>) => {
     librarySelectionStore.set(next);
@@ -179,7 +184,7 @@ export function LibraryView({
         <div className={styles.titleBlock}>
           <div className={styles.titleLine}>
             <h1 className={styles.title}>{category.label}</h1>
-            <span className={styles.titleCount}>{count}</span>
+            {!isTrashTab && <span className={styles.titleCount}>{count}</span>}
             <button
               type="button"
               className={styles.pathBadge}
@@ -222,6 +227,17 @@ export function LibraryView({
       </header>
 
       <div className={styles.mainBody}>
+        {isTrashTab ? (
+          <LibraryTrashView
+            isZh={isZh}
+            query={query}
+            onRestored={() => {
+              void store.refreshLibraryAndStorage(boundProjectId);
+              void libraryMediaStore.reload();
+            }}
+          />
+        ) : (
+          <>
         {/* 图像面板保持挂载、仅切显隐：来回切分类时不再重建 30+ 张卡片与已解码缩略图。 */}
         <div className={isMediaTab ? styles.mediaPanel : styles.mediaPanelHidden}>
           <LibraryMediaGrid
@@ -312,6 +328,8 @@ export function LibraryView({
             ))}
           </div>
         ))}
+          </>
+        )}
       </div>
     </section>
   );

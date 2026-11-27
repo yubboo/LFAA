@@ -77,6 +77,13 @@ export function DomainSidebarMenu({
               active: activeLibraryTab === "memory",
               onClick: () => onSelectLibraryTab("memory"),
             },
+            {
+              id: "lib-trash",
+              label: isZh ? "回收站" : "Recycle Bin",
+              icon: "trash",
+              active: activeLibraryTab === "trash",
+              onClick: () => onSelectLibraryTab("trash"),
+            },
           ],
         },
         {

@@ -17,6 +17,23 @@
   min-height: 0;
 }
 
+/* React Flow 默认背景用自带的 #141414 / #fff，强制回落到主题语义变量，与壳层和预设色调完全融合。 */
+.diagram :global(.react-flow) {
+  background: var(--color-shell);
+}
+
+/* 主题背景图为图片时画布舞台与空态让出底色，由外层 ContextPanel 薄纱统一透出壁纸。 */
+:global(html[data-app-bg-workspace="image"]) :is(.editor, .start),
+:global(html[data-app-bg-workspace="image"]) .diagram :global(.react-flow),
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) :is(.editor, .start),
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .diagram :global(.react-flow) {
+  background: transparent;
+}
+
+.diagram :global(.react-flow__background) {
+  opacity: 0.35;
+}
+
 /* 手势期间只暂停流光，曲线和节点继续跟随 React Flow 的位置。 */
 .diagram:is([data-viewport-moving="true"], [data-node-drag="true"]) [data-canvas-edge-pulse] {
   visibility: hidden;
@@ -65,20 +82,26 @@
   top: 0.8rem;
   left: 0.9rem;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .brandChip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.36rem 0.7rem 0.36rem 0.45rem;
+  height: 2rem;
+  padding: 0 0.72rem;
   border: 1px solid var(--color-line);
   border-radius: 999px;
   background: var(--color-popover);
   color: var(--color-ink);
   font-size: 0.82rem;
+  line-height: 1;
   cursor: pointer;
   box-shadow: var(--color-menu-shadow);
+  box-sizing: border-box;
 }
 
 .brandChip:hover {

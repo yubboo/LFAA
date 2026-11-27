@@ -49,7 +49,26 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
           onCreated={onCreated}
         />
       ),
+      quickCreateProject: async (baseName) => {
+        const prefix = baseName?.trim() || "未命名项目";
+        const existing = new Set(store.getProjects().map((item) => item.name.trim().toLowerCase()));
+        let candidate = prefix;
+        let suffix = 2;
+        while (existing.has(candidate.toLowerCase())) {
+          candidate = `${prefix} ${suffix}`;
+          suffix += 1;
+        }
+        const resolved = await store.resolveDefaultPath(candidate);
+        return store.createProject({
+          name: candidate,
+          trusted: true,
+          confirmedDefaultPath: resolved.targetPath,
+        });
+      },
       assignProjectSection: (projectId, sectionId) => store.assignSection(projectId, sectionId),
+      renameProject: (projectId, name) => store.updateProject(projectId, { name }),
+      removeProject: (projectId) => store.removeProject(projectId),
+      refreshProjects: async () => { await store.refreshProjects(); },
       togglePinProject: (projectId) => store.togglePinProject(projectId),
       onProjectRowEnter: (project, element) => menuStore.onRowEnter(project.id, element),
       onProjectRowLeave: (project) => menuStore.onRowLeave(project.id),

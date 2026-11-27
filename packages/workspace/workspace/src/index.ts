@@ -6,20 +6,10 @@ import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { draftProjectBrief as buildProjectBriefDraft } from "./project-brief";
+import { isWithinRoot, normalizeProjectDescription, normalizeUniquePaths, resolveWithinProjectRoots } from "./project-records";
 import {
-  isWithinRoot,
-  normalizeProjectDescription,
-  normalizeUniquePaths,
-  resolveWithinProjectRoots,
-} from "./project-records";
-import {
-  assertDefaultFolderAvailable,
-  isManagedProjectPath,
-  pathKey,
-  readProjectStore,
-  syncDefaultProjectDir,
-  writeProjectStore,
-  type ProjectStoreSnapshot,
+  assertDefaultFolderAvailable, buildRestoredProjectSnapshot, isManagedProjectPath,
+  pathKey, readProjectStore, syncDefaultProjectDir, writeProjectStore, type ProjectStoreSnapshot,
 } from "./project-store";
 import { openFolderInExplorer, openNativeFolderPicker, resolveNamedSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
 import { buildDefaultWorkspaceProject, DEFAULT_OUTSIDE_SUBDIR, DEFAULT_WORKSPACE_SUBDIR, fallbackDefaultWorkspacePath } from "./default-workspace";
@@ -339,6 +329,13 @@ export class WorkspaceService extends Service {
 
     await this.writeStore({ projects: next, dismissedPaths });
     return true;
+  }
+
+  /** 从回收站按原 ID 还原项目注册记录并清除移出标记，保证原画布自动重新关联。 */
+  async restoreProject(record: Parameters<typeof buildRestoredProjectSnapshot>[1]): Promise<WorkspaceProjectSummary> {
+    const { project, nextSnapshot } = buildRestoredProjectSnapshot(await this.readStore(), record);
+    await this.writeStore(nextSnapshot);
+    return project;
   }
 
   async openProjectFolderInExplorer(projectId: string): Promise<{ opened: boolean; path?: string; error?: string }> {

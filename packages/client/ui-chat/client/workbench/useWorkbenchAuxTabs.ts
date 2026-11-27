@@ -1,10 +1,10 @@
-// 右侧工作台的辅助面板标签：终端、文件树、侧边提问等各自成为可独立关闭、切换的标签。
+// 右侧工作台的辅助面板标签：终端、工作区上下文、侧边提问等各自成为可独立关闭、切换与持久化恢复的标签。
 import { useState } from "react";
 import type { RightAuxTab } from "./RightUtilityRail";
 
-export function useWorkbenchAuxTabs() {
-  const [tabs, setTabs] = useState<RightAuxTab[]>([]);
-  const [active, setActive] = useState<RightAuxTab | null>(null);
+export function useWorkbenchAuxTabs(initialTabs: RightAuxTab[] = [], initialActive: RightAuxTab | null = null) {
+  const [tabs, setTabs] = useState<RightAuxTab[]>(initialTabs);
+  const [active, setActive] = useState<RightAuxTab | null>(initialActive);
 
   // 打开或聚焦某个辅助标签，重复打开同一个不会产生重复标签。
   const openAuxTab = (tab: RightAuxTab) => {
@@ -23,13 +23,13 @@ export function useWorkbenchAuxTabs() {
     else openAuxTab(tab);
   };
 
-  // 切到浏览器/文件等标签时只隐藏辅助面板，不销毁标签。
+  // 切到浏览器/文件/画布等标签时只隐藏辅助面板，不销毁标签。
   const hideAuxTab = () => setActive(null);
 
-  // 会话恢复：持久化仍是单面板语义，恢复成一个标签。
-  const restoreAuxTab = (isOpen: boolean, tab: RightAuxTab) => {
-    setTabs(isOpen ? [tab] : []);
-    setActive(isOpen ? tab : null);
+  // 会话恢复：完整还原多个辅助标签以及当前是否激活某个辅助标签。
+  const restoreAuxTab = (savedTabs: RightAuxTab[], savedActive: RightAuxTab | null) => {
+    setTabs(savedTabs);
+    setActive(savedActive && savedTabs.includes(savedActive) ? savedActive : null);
   };
 
   return { tabs, active, openAuxTab, closeAuxTab, toggleAuxTab, hideAuxTab, restoreAuxTab };

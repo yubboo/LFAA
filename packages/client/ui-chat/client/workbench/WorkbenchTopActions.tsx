@@ -91,20 +91,25 @@ export function WorkbenchTopActions({
       )}
 
       {showPanelControls && !compact && onToggleMaximize && (
-        <HoverTip label={rightPanelMaximized ? (isZh ? "还原窗格" : "Restore pane") : (isZh ? "最大化窗格" : "Maximize pane")} shortcut={maximizeHint}>
+        <HoverTip label={rightPanelMaximized ? (isZh ? "退出全屏视图" : "Exit fullscreen") : (isZh ? "最大化窗格" : "Maximize pane")} shortcut={maximizeHint}>
           <button
             type="button"
-            className={`${styles.topIconBtn} ${rightPanelMaximized ? styles.topIconBtnActive : ""}`}
-            aria-label={`${rightPanelMaximized ? (isZh ? "还原窗格" : "Restore pane") : (isZh ? "最大化窗格" : "Maximize pane")}${maximizeHint ? ` ${maximizeHint}` : ""}`}
+            className={rightPanelMaximized ? styles.exitFullscreenBtn : styles.topIconBtn}
+            aria-label={`${rightPanelMaximized ? (isZh ? "退出全屏视图" : "Exit fullscreen") : (isZh ? "最大化窗格" : "Maximize pane")}${maximizeHint ? ` ${maximizeHint}` : ""}`}
             aria-pressed={rightPanelMaximized}
             onClick={onToggleMaximize}
           >
-            {rightPanelMaximized ? <IconMinimize size={15} /> : <IconMaximize size={15} />}
+            {rightPanelMaximized ? (
+              <>
+                <IconMinimize size={14} />
+                <span>{isZh ? "退出全屏视图" : "Exit fullscreen"}</span>
+              </>
+            ) : <IconMaximize size={15} />}
           </button>
         </HoverTip>
       )}
 
-      {showPanelControls && onCollapsePanel && (
+      {showPanelControls && !rightPanelMaximized && onCollapsePanel && (
         <HoverTip
           label={compact ? (isZh ? "关闭右侧工作台" : "Close right workbench") : (isZh ? "切换侧面板" : "Toggle right panel")}
           shortcut={compact ? undefined : panelHint}

@@ -1,5 +1,6 @@
 // Cordis 画布服务：串行保存同一画布及提交记录，生成操作在独立任务中运行。
 import { randomUUID } from "node:crypto";
+import { cp, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
@@ -41,6 +42,32 @@ export class CanvasService extends Service {
     };
     await this.store.saveBoard(this.store.boardDir(projectId, board.canvasId), board);
     return board;
+  }
+
+  /** 复制已有画布及其素材资产到新画布 ID，不拷贝历史运行记录。 */
+  async duplicate(projectId: string, sourceCanvasId: string, title?: string): Promise<CanvasBoard> {
+    const sourceDir = this.store.boardDir(projectId, sourceCanvasId);
+    const source = await this.store.board(sourceDir);
+    const nextTitle = title?.trim() || `${source.title} 副本`;
+    const copied: CanvasBoard = {
+      ...source,
+      canvasId: randomUUID(),
+      title: nextTitle.slice(0, 120),
+      revision: 0,
+    };
+    const targetDir = this.store.boardDir(projectId, copied.canvasId);
+    await this.store.saveBoard(targetDir, copied);
+    await cp(join(sourceDir, "assets"), join(targetDir, "assets"), { recursive: true }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    return copied;
+  }
+
+  /** 删除指定画布及其目录。 */
+  async remove(projectId: string, canvasId: string): Promise<void> {
+    const dir = this.store.boardDir(projectId, canvasId);
+    await this.store.board(dir);
+    await rm(dir, { recursive: true, force: true });
   }
 
   async detail(dir: string): Promise<BoardDetail> {
