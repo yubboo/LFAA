@@ -19,6 +19,22 @@ function formatDate(ts: number): string {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function withApiToken(url: string): string {
+  if (typeof document === "undefined") return url;
+  const token = document.querySelector<HTMLMetaElement>('meta[name="lfaa-api-token"]')?.content?.trim();
+  if (!token) return url;
+  return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+}
+
+async function readErrorText(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json() as { error?: string };
+    return data.error?.trim() || `${fallback} (HTTP ${res.status})`;
+  } catch {
+    return `${fallback} (HTTP ${res.status})`;
+  }
+}
+
 export function CanvasTrashModal({
   isZh,
   onClose,
@@ -26,27 +42,37 @@ export function CanvasTrashModal({
 }: {
   isZh: boolean;
   onClose: () => void;
-  onRestored: () => void;
+  onRestored: (info?: { restoredDefaultCanvas?: boolean }) => void;
 }) {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [error, setError] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/trash?kind=all&projectKind=canvas");
+      if (!res.ok) {
+        setItems([]);
+        setError(await readErrorText(res, isZh ? "读取回收站失败" : "Failed to load recycle bin"));
+        return;
+      }
       const data = await res.json() as { items?: TrashItem[] };
       const all = Array.isArray(data.items) ? data.items : [];
       setItems(all.filter((item) => item.kind === "canvas" || item.kind === "project"));
       setSelected(new Set());
       setConfirmPurge(false);
+    } catch (cause) {
+      setItems([]);
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isZh]);
 
   useEffect(() => {
     void reload();
@@ -81,14 +107,25 @@ export function CanvasTrashModal({
   async function handleRestore() {
     if (!someSelected || busy) return;
     setBusy(true);
+    setError("");
     try {
-      await fetch("/api/trash/restore", {
+      const res = await fetch("/api/trash/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
+      if (!res.ok) {
+        setError(await readErrorText(res, isZh ? "恢复失败" : "Restore failed"));
+        return;
+      }
+      const data = await res.json() as { restoredDefaultCanvas?: boolean; failed?: Array<{ reason?: string }> };
       await reload();
-      onRestored();
+      if (Array.isArray(data.failed) && data.failed.length > 0) {
+        setError(data.failed[0]?.reason || (isZh ? "部分条目恢复失败" : "Some items failed to restore"));
+      }
+      onRestored({ restoredDefaultCanvas: data.restoredDefaultCanvas === true });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
@@ -101,13 +138,20 @@ export function CanvasTrashModal({
       return;
     }
     setBusy(true);
+    setError("");
     try {
-      await fetch("/api/trash/purge", {
+      const res = await fetch("/api/trash/purge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
+      if (!res.ok) {
+        setError(await readErrorText(res, isZh ? "彻底删除失败" : "Delete failed"));
+        return;
+      }
       await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
@@ -140,6 +184,7 @@ export function CanvasTrashModal({
         </header>
 
         <div className={styles.body}>
+          {error && <div role="alert" className={styles.errorBanner}>{error}</div>}
           {loading ? (
             <div className={styles.empty}>{isZh ? "正在加载…" : "Loading…"}</div>
           ) : items.length === 0 ? (
@@ -160,7 +205,7 @@ export function CanvasTrashModal({
                   >
                     <div className={styles.thumb}>
                       {item.previewUrl ? (
-                        <img src={item.previewUrl} alt={item.title} className={styles.thumbImg} loading="lazy" />
+                        <img src={withApiToken(item.previewUrl)} alt={item.title} className={styles.thumbImg} loading="lazy" />
                       ) : (
                         <IconPhoto size={24} stroke={1.5} aria-hidden="true" />
                       )}

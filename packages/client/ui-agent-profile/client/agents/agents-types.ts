@@ -12,8 +12,28 @@ export interface AgentItem {
   icon?: string;
   instructions?: string;
   bindingId?: string;
+  /** 可选：绑定本机官方 CLI 运行时 id（如 claude / codex / agy）。 */
+  cliAgentId?: string;
   /** 工具边界：deny 永远剔除，allow 非空时只放行名单内。 */
   toolPolicy?: { allow?: string[]; deny?: string[] };
+}
+
+/** 本机官方 CLI 运行时摘要（来自 /api/cli-agents）。 */
+export interface CliRuntimeItem {
+  id: string;
+  name: string;
+  vendor: string;
+  binary: string;
+  descriptionZh: string;
+  descriptionEn: string;
+  supportsChat: boolean;
+  loginCommand: string;
+  installHint: string;
+  docsUrl: string;
+  installed: boolean;
+  version: string | null;
+  systemLoginDetected: boolean;
+  enabled: boolean;
 }
 
 /** 绑定里的一个目标。 */

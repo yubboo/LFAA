@@ -23,6 +23,22 @@ function formatDate(ts: number): string {
   return `${y}/${m}/${day}`;
 }
 
+function withApiToken(url: string): string {
+  if (typeof document === "undefined") return url;
+  const token = document.querySelector<HTMLMetaElement>('meta[name="lfaa-api-token"]')?.content?.trim();
+  if (!token) return url;
+  return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+}
+
+async function readTrashError(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json() as { error?: string };
+    return data.error?.trim() || `${fallback} (HTTP ${res.status})`;
+  } catch {
+    return `${fallback} (HTTP ${res.status})`;
+  }
+}
+
 export function LibraryTrashView({
   isZh,
   query,
@@ -38,19 +54,29 @@ export function LibraryTrashView({
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [error, setError] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const res = await fetch(`/api/trash?kind=${encodeURIComponent(kind)}`);
+      if (!res.ok) {
+        setItems([]);
+        setError(await readTrashError(res, isZh ? "读取回收站失败" : "Failed to load recycle bin"));
+        return;
+      }
       const data = await res.json() as { items?: TrashItem[] };
       setItems(Array.isArray(data.items) ? data.items : []);
       setSelected(new Set());
       setConfirmPurge(false);
+    } catch (cause) {
+      setItems([]);
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
-  }, [kind]);
+  }, [isZh, kind]);
 
   useEffect(() => {
     void reload();
@@ -89,14 +115,25 @@ export function LibraryTrashView({
   async function handleRestore() {
     if (!someSelected || busy) return;
     setBusy(true);
+    setError("");
     try {
-      await fetch("/api/trash/restore", {
+      const res = await fetch("/api/trash/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
+      if (!res.ok) {
+        setError(await readTrashError(res, isZh ? "恢复失败" : "Restore failed"));
+        return;
+      }
+      const data = await res.json() as { failed?: Array<{ reason?: string }> };
       await reload();
+      if (Array.isArray(data.failed) && data.failed.length > 0) {
+        setError(data.failed[0]?.reason || (isZh ? "部分条目恢复失败" : "Some items failed to restore"));
+      }
       onRestored?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
@@ -109,13 +146,20 @@ export function LibraryTrashView({
       return;
     }
     setBusy(true);
+    setError("");
     try {
-      await fetch("/api/trash/purge", {
+      const res = await fetch("/api/trash/purge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
+      if (!res.ok) {
+        setError(await readTrashError(res, isZh ? "彻底删除失败" : "Delete failed"));
+        return;
+      }
       await reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
@@ -155,6 +199,7 @@ export function LibraryTrashView({
       </div>
 
       <div className={styles.scroll}>
+        {error && <div role="alert" className={styles.errorBanner}>{error}</div>}
         {loading ? (
           <div className={styles.empty}>{isZh ? "正在加载回收站…" : "Loading recycle bin…"}</div>
         ) : visible.length === 0 ? (
@@ -175,7 +220,7 @@ export function LibraryTrashView({
                 >
                   <div className={styles.thumb}>
                     {item.previewUrl ? (
-                      <img src={item.previewUrl} alt={item.title} className={styles.thumbImg} loading="lazy" />
+                      <img src={withApiToken(item.previewUrl)} alt={item.title} className={styles.thumbImg} loading="lazy" />
                     ) : (
                       <IconPhoto size={24} stroke={1.5} aria-hidden="true" />
                     )}

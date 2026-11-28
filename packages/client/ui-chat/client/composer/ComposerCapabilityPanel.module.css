@@ -156,12 +156,32 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  max-width: 18rem;
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: left center;
+  transition:
+    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .overflowWrap {
   position: relative;
-  display: none;
+  display: inline-flex;
   align-items: center;
+  max-width: 0;
+  margin-inline-start: -0.45rem;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: scale(0.88);
+  transition:
+    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    margin 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .overflowBtn {
@@ -265,12 +285,22 @@
   color: var(--color-danger);
 }
 
-@container chat-composer (max-width: 30rem) {
+@container chat-composer (max-width: 36rem) {
   .wideTools {
-    display: none;
+    max-width: 0;
+    margin-inline-end: -0.28rem;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: scale(0.92);
   }
 
   .overflowWrap {
-    display: inline-flex;
+    max-width: 2rem;
+    margin-inline-start: 0;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+    transform: scale(1);
   }
 }

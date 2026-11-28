@@ -82,7 +82,7 @@ export function CanvasProjectsHub({
   onMoveProjectFolder?: (projectId: string, folderId: string | null) => void;
   onDeleteProject?: (projectId: string) => void;
   onDeleteWorkspace?: (projectId: string) => void;
-  onTrashRestored?: () => void;
+  onTrashRestored?: (info?: { restoredDefaultCanvas?: boolean }) => void;
 }) {
   const [zoomRem, setZoomRem] = useState<number>(readInitialZoom);
   const [viewMode, setViewMode] = useState<ProjectHubViewMode>(readInitialView);
@@ -327,7 +327,7 @@ export function CanvasProjectsHub({
         <CanvasTrashModal
           isZh={isZh}
           onClose={() => setTrashOpen(false)}
-          onRestored={() => onTrashRestored?.()}
+          onRestored={(info) => onTrashRestored?.(info)}
         />
       )}
     </div>

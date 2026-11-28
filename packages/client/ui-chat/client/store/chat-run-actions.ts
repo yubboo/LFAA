@@ -15,9 +15,11 @@ import { enqueueMessage, moveQueuedAt, removeQueuedAt, updateQueuedAt } from "./
 import type { ChatStorePort } from "./chat-store-port";
 import type { MediaGenerationInput, MediaSource } from "@lfaa/client-ui-tool-media/client";
 import { generateMedia, type MediaGenerationResult } from "./run-media-actions";
+import { extractGroupMentions, startGroupTurnStream, type GroupTurnStreamHandle } from "./group-turn-stream";
 
 export class ChatRunActions {
   private streamClient: AgentStreamClient | null = null;
+  private groupStream: GroupTurnStreamHandle | null = null;
   private readonly settledTimers = new Set<ReturnType<typeof setTimeout>>();
   private permissionUpdate = Promise.resolve();
 
@@ -171,6 +173,8 @@ export class ChatRunActions {
     const session = this.port.getState().activeSession;
     if (session) return session;
     const draftSession = this.port.getState().draftSession;
+    const draftTeam = this.port.getState().draftTeam;
+    const isDraftGroup = Boolean(draftTeam && draftTeam.agentIds.length >= 2);
     const created = await fetchJson<{ session: ChatSessionDetail }>("/api/chat/sessions", {
       method: "POST",
       body: JSON.stringify({
@@ -178,6 +182,18 @@ export class ChatRunActions {
         sectionId: this.port.getState().draftSectionId,
         sessionPreset: this.port.getState().draftSessionPreset,
         ...(this.port.getState().draftWorktree ? { worktreeId: this.port.getState().draftWorktree?.id } : {}),
+        ...(isDraftGroup && draftTeam
+          ? {
+              kind: "group",
+              group: {
+                agentIds: draftTeam.agentIds,
+                hostAgentId: draftTeam.agentIds[0],
+                ...(draftTeam.memberRoles ? { memberRoles: draftTeam.memberRoles } : {}),
+              },
+            }
+          : draftTeam?.agentIds[0]
+            ? { agentId: draftTeam.agentIds[0] }
+            : {}),
       }),
     });
     // 新会话首次落库后立即持久化活动会话 ID，避免 Vite HMR 或 F5 刷新后被踢回空白「新聊天」。
@@ -194,6 +210,7 @@ export class ChatRunActions {
       ...(exitingDraft ? { exitingDraftSession: exitingDraft } : {}),
       draftSessionPreset: undefined,
       draftWorktree: undefined,
+      draftTeam: undefined,
       sessions: [created.session, ...this.port.getState().sessions],
     });
     return created.session;
@@ -205,6 +222,23 @@ export class ChatRunActions {
     const session = await this.ensureActiveSession();
     // 用户已经用新消息回应，之前那条会话的「待回答」徽标立即撤下。
     this.port.markAttentionResolved(session.id);
+
+    // 同一主聊天会话有 ≥2 位协作 Agent 时，自动走多 Agent 流式编排通道，界面与单聊完全统一。
+    if (!continuation && session.kind === "group" && session.group && session.group.agentIds.length >= 2) {
+      this.groupStream?.dispose();
+      const mentions = extractGroupMentions(trimmed, session.group.agentIds);
+      const handle = await startGroupTurnStream({
+        port: this.port,
+        sessionId: session.id,
+        userMessage: trimmed,
+        mentions,
+        onClosed: () => {
+          if (this.groupStream === handle) this.groupStream = null;
+        },
+      });
+      this.groupStream = handle;
+      return;
+    }
 
     const startingMode = this.port.getState().permissionMode;
     const runOptions = {
@@ -322,6 +356,10 @@ export class ChatRunActions {
   async abortActiveRun(): Promise<void> {
     const runId = this.port.getState().runningRunId;
     if (!runId) return;
+    if (this.groupStream && this.groupStream.turnId === runId) {
+      await fetchJson(`/api/group/turns/${encodeURIComponent(runId)}/abort`, { method: "POST" });
+      return;
+    }
     await fetchJson(`/api/agent/runs/${encodeURIComponent(runId)}/abort`, { method: "POST" });
   }
 
@@ -351,6 +389,8 @@ export class ChatRunActions {
   detachActiveStream(): void {
     this.streamClient?.dispose();
     this.streamClient = null;
+    this.groupStream?.dispose();
+    this.groupStream = null;
     for (const timer of this.settledTimers) clearTimeout(timer);
     this.settledTimers.clear();
   }

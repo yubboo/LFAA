@@ -5,6 +5,17 @@ import type { CanvasProjectSummary } from "@lfaa/canvas/contract";
 export type ProjectHubSort = "recent" | "name";
 export type ProjectHubViewMode = "grid" | "list";
 
+/** 解析不重名的画布项目名称：若与已有项目同名则无空格递增后缀（短剧 → 短剧1 → 短剧2）。 */
+export function resolveUniqueCanvasProjectName(rawName: string, existingNames: readonly string[]): string {
+  const base = rawName.trim();
+  if (!base) return "";
+  const taken = new Set(existingNames.map((item) => item.trim().toLowerCase()).filter(Boolean));
+  if (!taken.has(base.toLowerCase())) return base;
+  let index = 1;
+  while (taken.has(`${base}${index}`.toLowerCase())) index += 1;
+  return `${base}${index}`;
+}
+
 export interface HubProjectCardItem {
   id: string;
   name: string;

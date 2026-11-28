@@ -13,6 +13,7 @@ import {
   type TrashItemKind,
 } from "../trash/trash-store";
 
+const CANVAS_PROJECT_DELETE_RE = /^\/api\/canvas\/projects\/([^/]+)$/u;
 const CANVAS_DELETE_RE = /^\/api\/canvas\/projects\/([^/]+)\/boards\/([^/]+)$/u;
 const PROJECT_DELETE_RE = /^\/api\/workspace\/projects\/([^/]+)$/u;
 const LIBRARY_DELETE_RE = /^\/api\/library\/([^/]+)$/u;
@@ -55,7 +56,7 @@ export function createTrashHandler(deps: {
   const store = new TrashStore(deps.trashRoot);
 
   /** 按条目类型执行恢复并清理对应回收站目录。 */
-  async function restoreOne(id: string): Promise<void> {
+  async function restoreOne(id: string): Promise<{ id: string; kind: TrashItemKind; isDefaultCanvas?: boolean }> {
     const meta = await store.getMeta(id);
     if (!meta) throw new Error("回收站条目不存在或已过期。");
 
@@ -75,17 +76,18 @@ export function createTrashHandler(deps: {
       if (!project?.id || !project.rootPath) throw new Error("项目元数据缺失。");
       await deps.context.workspace.restoreProject(project);
       await store.purge(id);
-      return;
+      return { id, kind: "project", isDefaultCanvas: false };
     }
 
     if (meta.kind === "canvas") {
       const canvas = deps.context.get("canvas");
       if (!canvas) throw new Error("画布服务未启用。");
       const projectId = typeof meta.origin.projectId === "string" ? meta.origin.projectId : "";
+      const isDefaultCanvasGroup = meta.origin.isDefaultCanvas === true;
       const canvasId = typeof meta.origin.canvasId === "string" ? meta.origin.canvasId : "";
-      if (!projectId || !canvasId) throw new Error("画布元数据缺失。");
+      if (!projectId || (!isDefaultCanvasGroup && !canvasId)) throw new Error("画布元数据缺失。");
       // 若原项目当前不在活跃列表，尝试从回收站先一并还原原项目。
-      const existingProject = await deps.context.workspace.getProject(projectId);
+      let existingProject = await deps.context.workspace.getProject(projectId);
       if (!existingProject) {
         const trashedProjects = await store.list("project");
         const matched = trashedProjects.find((item) => {
@@ -94,9 +96,26 @@ export function createTrashHandler(deps: {
         });
         if (matched) {
           await restoreOne(matched.id);
+          existingProject = await deps.context.workspace.getProject(projectId);
         } else {
           throw new Error("原所属项目不存在，请先恢复原项目。");
         }
+      }
+      if (isDefaultCanvasGroup) {
+        const boardIds = Array.isArray(meta.origin.boardIds)
+          ? meta.origin.boardIds.filter((v): v is string => typeof v === "string" && v.trim() !== "")
+          : [];
+        for (const cid of boardIds) {
+          const srcBoard = join(store.payloadDir(id), "boards", cid);
+          if (!existsSync(srcBoard)) continue;
+          const destDir = canvas.store.boardDir(projectId, cid);
+          const finalDest = existsSync(destDir)
+            ? canvas.store.boardDir(projectId, `${cid}-${Date.now().toString(36)}`)
+            : destDir;
+          await moveEntrySafe(srcBoard, finalDest);
+        }
+        await store.purge(id);
+        return { id, kind: "canvas", isDefaultCanvas: true };
       }
       const srcBoard = join(store.payloadDir(id), "board");
       const destDir = canvas.store.boardDir(projectId, canvasId);
@@ -105,7 +124,7 @@ export function createTrashHandler(deps: {
         : destDir;
       await moveEntrySafe(srcBoard, finalDest);
       await store.purge(id);
-      return;
+      return { id, kind: "canvas", isDefaultCanvas: Boolean(existingProject?.isDefault) };
     }
 
     if (meta.kind === "media") {
@@ -124,7 +143,7 @@ export function createTrashHandler(deps: {
         }
       }
       await store.purge(id);
-      return;
+      return { id, kind: "media" };
     }
 
     if (meta.kind === "asset") {
@@ -150,7 +169,31 @@ export function createTrashHandler(deps: {
         projectId: asset.projectId ?? null,
       });
       await store.purge(id);
+      return { id, kind: "asset" };
     }
+    return { id, kind: meta.kind };
+  }
+
+  /** 彻底删除回收站条目；若为画布项目则同步清理默认项目目录下对应文件夹及孤立画布数据。 */
+  async function purgeOne(id: string): Promise<boolean> {
+    const meta = await store.getMeta(id);
+    if (!meta) return false;
+    if (meta.kind === "project") {
+      const project = meta.origin.project as { id?: string; kind?: string; rootPath?: string } | undefined;
+      if (project?.kind === "canvas") {
+        if (typeof project.rootPath === "string" && project.rootPath.trim()) {
+          await deps.context.workspace.purgeManagedCanvasProjectDir(project.rootPath).catch(() => false);
+        }
+        if (typeof project.id === "string" && project.id.trim()) {
+          const stillExists = await deps.context.workspace.getProject(project.id).catch(() => null);
+          const canvas = deps.context.get("canvas");
+          if (!stillExists && canvas) {
+            await rm(canvas.store.projectDir(project.id), { recursive: true, force: true }).catch(() => undefined);
+          }
+        }
+      }
+    }
+    return store.purge(id);
   }
 
   return async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
@@ -200,16 +243,19 @@ export function createTrashHandler(deps: {
       const body = await readJsonBody(req);
       const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === "string") : [];
       const restored: string[] = [];
+      const restoredItems: Array<{ id: string; kind: TrashItemKind; isDefaultCanvas?: boolean }> = [];
       const failed: Array<{ id: string; reason: string }> = [];
       for (const id of ids) {
         try {
-          await restoreOne(id);
+          const item = await restoreOne(id);
           restored.push(id);
+          restoredItems.push(item);
         } catch (error) {
           failed.push({ id, reason: error instanceof Error ? error.message : String(error) });
         }
       }
-      sendJson(res, 200, { restored, failed });
+      const restoredDefaultCanvas = restoredItems.some((item) => item.isDefaultCanvas === true);
+      sendJson(res, 200, { restored, restoredItems, restoredDefaultCanvas, failed });
       return true;
     }
 
@@ -218,7 +264,7 @@ export function createTrashHandler(deps: {
       const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === "string") : [];
       const purged: string[] = [];
       for (const id of ids) {
-        if (await store.purge(id)) purged.push(id);
+        if (await purgeOne(id)) purged.push(id);
       }
       sendJson(res, 200, { purged });
       return true;
@@ -227,13 +273,47 @@ export function createTrashHandler(deps: {
     if (pathname === "/api/trash/empty" && method === "DELETE") {
       const rawKind = urlObj.searchParams.get("kind") ?? "all";
       const kind = (VALID_KINDS.has(rawKind) ? rawKind : "all") as TrashItemKind | "all";
-      const count = await store.empty(kind);
+      const items = await store.list(kind);
+      let count = 0;
+      for (const item of items) {
+        if (await purgeOne(item.id)) count += 1;
+      }
       sendJson(res, 200, { purged: count });
       return true;
     }
 
     // 2) 软删除拦截：除非显式 ?permanent=1，否则将四类删除先移入统一回收站。
     if (method !== "DELETE" || permanent) return false;
+
+    const canvasProjectMatch = CANVAS_PROJECT_DELETE_RE.exec(pathname);
+    if (canvasProjectMatch?.[1]) {
+      const canvas = deps.context.get("canvas");
+      if (!canvas) return false;
+      const projectId = decodeURIComponent(canvasProjectMatch[1]);
+      const project = await deps.context.workspace.getProject(projectId);
+      if (!project || !project.isDefault) return false;
+      const boardList = await canvas.store.list(projectId).catch(() => []);
+      const boards: Array<{ canvasId: string; boardDir: string; coverRelPath?: string; coverMime?: string }> = [];
+      for (const item of boardList) {
+        const boardDir = canvas.store.boardDir(projectId, item.canvasId);
+        const detail = await canvas.detail(boardDir).catch(() => null);
+        const firstImage = detail?.assets.find((asset) => asset.mime.startsWith("image/"));
+        const coverInfo = firstImage ? await canvas.store.asset(boardDir, firstImage.id).catch(() => null) : null;
+        const coverRelPath = coverInfo ? relative(boardDir, coverInfo.file) : undefined;
+        boards.push({
+          canvasId: item.canvasId,
+          boardDir,
+          ...(coverRelPath && firstImage ? { coverRelPath, coverMime: firstImage.mime } : {}),
+        });
+      }
+      const trashed = await store.trashDefaultWorkspaceCanvas({
+        projectId,
+        projectName: project.name,
+        boards,
+      });
+      sendJson(res, 200, { ok: true, trashedId: trashed.id });
+      return true;
+    }
 
     const canvasMatch = CANVAS_DELETE_RE.exec(pathname);
     if (canvasMatch?.[1] && canvasMatch[2]) {

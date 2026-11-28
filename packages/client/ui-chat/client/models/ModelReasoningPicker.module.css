@@ -22,6 +22,14 @@
   font: inherit;
   font-size: 0.8em;
   cursor: pointer;
+  overflow: hidden;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    border-color 180ms ease;
 }
 
 .triggerPill:hover {
@@ -35,30 +43,45 @@
 
 .modelLabel {
   min-width: 0;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-ink);
   font-weight: 500;
+  opacity: 1;
+  transition: max-width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
 }
 
 .reasoningLabel {
   flex-shrink: 0;
+  max-width: 4rem;
+  overflow: hidden;
   white-space: nowrap;
   color: var(--color-muted);
+  opacity: 1;
+  transition: max-width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
 }
 
 .chevronIcon {
   color: var(--color-muted);
   flex-shrink: 0;
+  max-width: 1rem;
+  opacity: 1;
+  transition: max-width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
 }
 
 .modelIcon {
-  display: none;
+  flex-shrink: 0;
+  width: 0;
+  height: 0.88rem;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
 }
 
 /* 紧凑布局先让长模型名省略。三种弹层共用工具栏的右边缘，避免触发器过窄时裁切。 */
-@container chat-composer (max-width: 30rem) {
+@container chat-composer (max-width: 36rem) {
   .anchor {
     position: static;
   }
@@ -80,10 +103,11 @@
 }
 
 /* 窄输入卡片用处理器图标打开模型选择，完整名称与档位仍可在浮层中阅读；
-   与权限胶囊同阈值收起，避免模型名把整条工具栏撑出卡片。 */
-@container chat-composer (max-width: 30rem) {
+   与权限胶囊同阈值（36rem）平滑收起，避免模型名把整条工具栏撑出卡片。 */
+@container chat-composer (max-width: 36rem) {
   .triggerPill {
     justify-content: center;
+    gap: 0;
     width: 1.65rem;
     height: 1.65rem;
     padding: 0;
@@ -97,15 +121,16 @@
   }
 
   .modelIcon {
-    display: block;
     width: 0.88rem;
-    height: 0.88rem;
+    opacity: 1;
   }
 
   .modelLabel,
   .reasoningLabel,
   .chevronIcon {
-    display: none;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 }
 

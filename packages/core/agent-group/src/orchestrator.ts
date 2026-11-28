@@ -56,7 +56,7 @@ export interface GroupTurnDeps {
 const HOST_AGENT_ID = "xiaoyu";
 
 /** 解析本轮发言者：@ 优先；否则请代理人出计划；都不可用时由代理人单答。 */
-async function resolveSpeakers(
+export async function resolveSpeakers(
   deps: GroupTurnDeps,
   session: ChatSessionRecord,
   userMessage: string,
@@ -64,19 +64,29 @@ async function resolveSpeakers(
 ): Promise<{ speakers: Array<{ agentId: string; task?: string }>; plan?: SpeakingPlan; planIssues?: PlanIssue[] }> {
   const group = session.group!;
   const members = group.agentIds;
+  const memberRoles = group.memberRoles ?? {};
   const limit = Math.max(1, group.maxSpeakersPerRound ?? 3);
+  const withRole = (agentId: string, task?: string): { agentId: string; task?: string } => {
+    const resolvedTask = task?.trim() || memberRoles[agentId]?.trim() || "";
+    return resolvedTask ? { agentId, task: resolvedTask } : { agentId };
+  };
 
   if (mentions.length > 0) {
     const ordered = [...new Set(mentions.filter((id) => members.includes(id)))];
     if (ordered.length === 0) throw new Error("被 @ 的 agent 不在群里。");
-    return { speakers: ordered.slice(0, limit).map((agentId) => ({ agentId })) };
+    return { speakers: ordered.slice(0, limit).map((agentId) => withRole(agentId)) };
   }
 
   const hostAgentId = group.hostAgentId ?? HOST_AGENT_ID;
+  const sequentialFallback = members.slice(0, limit).map((agentId) => withRole(agentId));
   if (deps.plan) {
-    const roster = deps.describeMembers
+    const baseRoster: Array<{ id: string; name: string; description?: string }> = deps.describeMembers
       ? await deps.describeMembers(members)
       : members.map((id) => ({ id, name: id }));
+    const roster = baseRoster.map((item) => {
+      const role = memberRoles[item.id];
+      return role ? { ...item, description: [role, item.description].filter(Boolean).join(" · ") } : item;
+    });
     try {
       const raw = await deps.plan({
         hostAgentId,
@@ -87,17 +97,18 @@ async function resolveSpeakers(
       const validation = validateSpeakingPlan(extractPlanJson(raw), { members, maxSpeakers: limit });
       if (validation.ok && validation.plan) {
         return {
-          speakers: validation.plan.speakers.map((speaker) => ({ agentId: speaker.agentId, task: speaker.task })),
+          speakers: validation.plan.speakers.map((speaker) => withRole(speaker.agentId, speaker.task)),
           plan: validation.plan,
         };
       }
-      // 计划作废：降级为代理人单答，并把原因带回结果，界面据此提示「没按计划来」。
-      return { speakers: [{ agentId: hostAgentId }], planIssues: validation.issues };
+      // 计划作废：降级为按群成员顺序（携带分工）依次协作，保证多 Agent 协作不卡死。
+      return { speakers: sequentialFallback.length > 0 ? sequentialFallback : [withRole(hostAgentId)], planIssues: validation.issues };
     } catch {
-      return { speakers: [{ agentId: hostAgentId }], planIssues: ["not-json"] };
+      return { speakers: sequentialFallback.length > 0 ? sequentialFallback : [withRole(hostAgentId)], planIssues: ["not-json"] };
     }
   }
-  return { speakers: [{ agentId: hostAgentId }] };
+  const hasExplicitRoles = Object.keys(memberRoles).length > 0;
+  return { speakers: hasExplicitRoles && sequentialFallback.length > 0 ? sequentialFallback : [withRole(hostAgentId)] };
 }
 
 /**

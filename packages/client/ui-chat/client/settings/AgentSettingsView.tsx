@@ -16,10 +16,11 @@ import { getProviderPlans } from "../models/provider-plans";
 import { ModelProviderGrid } from "../models/ModelProviderGrid";
 import { ModelProviderModal } from "../models/ModelProviderModal";
 import { ProviderAccess } from "../models/Provider-Access";
+import { CliAgentsPanel } from "./CliAgentsPanel";
 import { MemoryPanel } from "./MemoryPanel";
 import styles from "./AgentSettingsView.module.css";
 
-type SettingsTab = "models" | "rules" | "memory";
+type SettingsTab = "models" | "cli-agents" | "rules" | "memory";
 // 选择接入和编辑配置互斥。返回目标保存品牌和刚选过的接入方式。
 type ModelDialog =
   | { step: "access"; provider: ModelProviderPreset; previousPresetId?: string }
@@ -36,12 +37,39 @@ export function AgentSettingsView({
   boundProjectId: string | null;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-  const [tab, setTab] = useState<SettingsTab>("models");
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    try {
+      const requested = sessionStorage.getItem("lfaa:settings-config-tab");
+      if (requested === "cli-agents" || requested === "models" || requested === "rules" || requested === "memory") {
+        sessionStorage.removeItem("lfaa:settings-config-tab");
+        return requested;
+      }
+    } catch {
+      // 忽略存储读取异常
+    }
+    return "models";
+  });
   const [statusNote, setStatusNote] = useState("");
   const [modelDialog, setModelDialog] = useState<ModelDialog | null>(null);
   const modalProvider = modelDialog?.step === "configure" ? modelDialog.provider : null;
   const modalProfile = modalProvider ? findProfileForProvider(state.profiles, modalProvider) : undefined;
   const parentProvider = modelDialog?.step === "configure" ? modelDialog.parentProvider : undefined;
+
+  useEffect(() => {
+    const onSwitchTab = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next === "cli-agents" || next === "models" || next === "rules" || next === "memory") {
+        setTab(next);
+        try {
+          sessionStorage.removeItem("lfaa:settings-config-tab");
+        } catch {
+          // 忽略
+        }
+      }
+    };
+    window.addEventListener("lfaa:settings-config-tab", onSwitchTab);
+    return () => window.removeEventListener("lfaa:settings-config-tab", onSwitchTab);
+  }, []);
 
   // 规则与记忆表单
   const userRuleDoc = state.rules.find((r) => r.layer === "user");
@@ -58,6 +86,7 @@ export function AgentSettingsView({
         {(
           [
             ["models", locale.tabModels],
+            ["cli-agents", locale.tabCliAgents],
             ["rules", locale.tabRules],
             ["memory", locale.tabMemory],
           ] as Array<[SettingsTab, string]>
@@ -80,6 +109,10 @@ export function AgentSettingsView({
 
       {statusNote && (
         <StatusBanner tone="success" message={statusNote} onDismiss={() => setStatusNote("")} />
+      )}
+
+      {tab === "cli-agents" && (
+        <CliAgentsPanel isZh={locale.isZh} onNotify={(msg) => setStatusNote(msg)} />
       )}
 
       {/* 根据当前品牌是否提供套餐，直接配置或先选择独立的接入方式。 */}

@@ -10,6 +10,7 @@ export function selectWorkspaceSlice(s: ChatStoreSnapshot) {
     loaded: s.loaded,
     draftProjectId: s.draftProjectId,
     draftWorktree: s.draftWorktree,
+    draftTeam: s.draftTeam,
     // 快照里 submittingMessage 声明为可选；切片收窄成布尔，供只接受 boolean 的输入栏切片复用。
     submittingMessage: s.submittingMessage === true,
     runningRunId: s.runningRunId,

@@ -1,6 +1,6 @@
 // @lfaa/agent-profile 浏览器端接口封装：读写 agent 定义、模型绑定与可选模型清单。
 // 只做 HTTP 与类型转换。界面视图模型在这里单独声明，不导入 Host 内部模块（client 边界规则）。
-import type { AgentItem, BindingItem, BindingTargetItem } from "./agents-types";
+import type { AgentItem, BindingItem, BindingTargetItem, CliRuntimeItem } from "./agents-types";
 
 /** 新建 agent 的提交体。 */
 export interface CreateAgentPayload {
@@ -8,6 +8,7 @@ export interface CreateAgentPayload {
   kind: "assistant" | "worker";
   instructions?: string;
   bindingId?: string;
+  cliAgentId?: string;
   toolPolicy?: { allow?: string[]; deny?: string[] };
 }
 
@@ -17,6 +18,7 @@ export interface UpdateAgentPayload {
   kind?: "assistant" | "worker";
   instructions?: string;
   bindingId?: string | null;
+  cliAgentId?: string;
   enabled?: boolean;
   /** 传 null 表示清空工具策略。 */
   toolPolicy?: { allow?: string[]; deny?: string[] } | null;
@@ -137,4 +139,18 @@ export async function importAgents(snapshot: unknown): Promise<{
 export async function fetchWriteToolNames(): Promise<string[]> {
   const { tools } = await readJson<{ tools: Array<{ name: string; write?: boolean }> }>(await fetch("/api/tools"));
   return tools.filter((tool) => tool.write === true).map((tool) => tool.name);
+}
+
+
+export async function fetchCliRuntimes(refresh = false): Promise<CliRuntimeItem[]> {
+  const data = refresh
+    ? await send<{ agents: CliRuntimeItem[] }>("/api/cli-agents/refresh", "POST")
+    : await readJson<{ agents: CliRuntimeItem[] }>(await fetch("/api/cli-agents"));
+  return data.agents ?? [];
+}
+
+export async function toggleCliRuntimeEnabled(id: string, enabled: boolean): Promise<CliRuntimeItem[]> {
+  const data = await send<{ agents: CliRuntimeItem[] }>(`/api/cli-agents/${encodeURIComponent(id)}`, "PATCH", { enabled });
+  window.dispatchEvent(new CustomEvent("lfaa:cli-agents-changed", { detail: data }));
+  return data.agents ?? [];
 }

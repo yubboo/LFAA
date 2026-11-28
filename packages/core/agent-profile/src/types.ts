@@ -45,6 +45,8 @@ export interface AgentDefinition {
   toolPolicy?: AgentToolPolicy;
   /** 默认模型绑定 id；缺省回落到内置 default 绑定。 */
   bindingId?: string;
+  /** 可选：绑定本机官方 CLI 代理 id（如 claude / codex / agy）；填写后优先走外部 CLI 执行。 */
+  cliAgentId?: string;
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
@@ -79,6 +81,7 @@ export interface AgentCreateInput {
   skillIds?: string[];
   toolPolicy?: AgentToolPolicy;
   bindingId?: string;
+  cliAgentId?: string;
   enabled?: boolean;
   source?: AgentSource;
 }
@@ -94,6 +97,7 @@ export interface AgentUpdateInput {
   skillIds?: string[];
   toolPolicy?: AgentToolPolicy;
   bindingId?: string;
+  cliAgentId?: string;
   enabled?: boolean;
 }
 

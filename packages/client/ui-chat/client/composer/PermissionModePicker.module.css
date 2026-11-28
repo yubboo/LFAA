@@ -19,7 +19,30 @@
   line-height: 1.25;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  overflow: hidden;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    min-height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.trigger svg {
+  flex: 0 0 auto;
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.triggerLabel {
+  display: inline-block;
+  max-width: 10rem;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transition: max-width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
 }
 
 .trigger:hover,
@@ -72,17 +95,18 @@
   color: var(--color-ink);
 }
 
-/* 收起按钮文案后仍保留当前权限的图标，让菜单沿工具栏左侧展开。 */
-@container chat-composer (max-width: 30rem) {
+/* 收起按钮文案后仍保留当前权限的图标，让菜单沿工具栏左侧展开；用 max-width + opacity 平滑收拢而非瞬间隐藏。 */
+@container chat-composer (max-width: 36rem) {
   .root {
     position: static;
   }
 
   .trigger {
     justify-content: center;
+    gap: 0;
     width: 1.65rem;
     height: 1.65rem;
-    min-height: 0;
+    min-height: 1.65rem;
     padding: 0;
     border-color: transparent;
     background: transparent;
@@ -113,7 +137,9 @@
   }
 
   .triggerLabel {
-    display: none;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .popover {

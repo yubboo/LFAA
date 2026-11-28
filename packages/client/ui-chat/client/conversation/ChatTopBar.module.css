@@ -1,9 +1,20 @@
-/* 中间区域顶栏盒子：对话 / 轨迹切换条。只负责自己这一行的排版，不参与会话区与输入区的布局。 */
+/* 中间区域顶栏盒子：对话 / 轨迹切换条与右侧协作 Agent 成员入口。 */
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem var(--chat-side-padding) 0;
+}
+
+.barBordered {
+  padding-top: 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
 .tabs {
   display: flex;
   gap: 1.4rem;
-  padding: 0 var(--chat-side-padding);
-  border-bottom: 1px solid var(--color-line);
 }
 
 .tabs button {

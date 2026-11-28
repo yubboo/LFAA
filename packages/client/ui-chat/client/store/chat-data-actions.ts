@@ -111,6 +111,10 @@ export class ChatDataActions {
   }
 
   async setActiveProfile(profileId: string): Promise<void> {
+    if (profileId.startsWith("cli:")) {
+      this.port.patchState({ activeProfileId: profileId });
+      return;
+    }
     await fetchJson("/api/llm/active", { method: "POST", body: JSON.stringify({ profileId }) });
     this.port.patchState({ activeProfileId: profileId });
   }

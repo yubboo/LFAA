@@ -53,18 +53,23 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
         const prefix = baseName?.trim() || "未命名项目";
         const existing = new Set(store.getProjects().map((item) => item.name.trim().toLowerCase()));
         let candidate = prefix;
-        let suffix = 2;
-        while (existing.has(candidate.toLowerCase())) {
-          candidate = `${prefix} ${suffix}`;
-          suffix += 1;
-        }
         if (options?.kind === "canvas") {
+          let suffix = 1;
+          while (existing.has(candidate.toLowerCase())) {
+            candidate = `${prefix}${suffix}`;
+            suffix += 1;
+          }
           return store.createProject({
             name: candidate,
             trusted: true,
             kind: "canvas",
             canvasFolderId: options.canvasFolderId ?? null,
           });
+        }
+        let suffix = 2;
+        while (existing.has(candidate.toLowerCase())) {
+          candidate = `${prefix} ${suffix}`;
+          suffix += 1;
         }
         const resolved = await store.resolveDefaultPath(candidate);
         return store.createProject({

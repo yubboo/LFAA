@@ -1,6 +1,6 @@
 // 项目选择浮层：输入栏项目挂载条与引导区标题里的项目变量共用同一份搜索、项目列表与新建/解绑入口。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { IconCheck, IconFolder, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
+import { IconCheck, IconFolder, IconLayoutGrid, IconPlus, IconSearch, IconX } from "@tabler/icons-react";
 import type { WorkbenchProjectItem } from "@lfaa/ui-layout";
 import type { ChatLocaleMessages } from "../locales";
 import { filterComposerProjects } from "./composer-project-filter";
@@ -38,7 +38,9 @@ export function ComposerProjectMenu({
   }, []);
 
   const choose = (projectId: string | null) => {
-    onSelectProject(projectId);
+    if (projectId !== selectedProjectId) {
+      onSelectProject(projectId);
+    }
     onClose();
   };
 
@@ -74,7 +76,9 @@ export function ComposerProjectMenu({
                 onClick={() => choose(project.id)}
               >
                 <span className={styles.menuItemMain}>
-                  <IconFolder size={15} aria-hidden="true" />
+                  {project.kind === "canvas"
+                    ? <IconLayoutGrid size={15} aria-hidden="true" />
+                    : <IconFolder size={15} aria-hidden="true" />}
                   <span className={styles.menuItemText}>{project.name}</span>
                 </span>
                 {isSelected && <IconCheck size={14} className={styles.menuCheck} aria-hidden="true" />}

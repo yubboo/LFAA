@@ -101,7 +101,8 @@ export function readActiveRoutePref(): ActiveRoutePref {
     return { activeView: "workspace", activeProjectId: null };
   }
   return {
-    activeView: stored.activeView,
+    // 旧版独立「群聊」已并入主聊天工作区，历史记忆命中 group 时自动回到 workspace。
+    activeView: stored.activeView === "group" ? "workspace" : stored.activeView,
     activeProjectId: typeof stored.activeProjectId === "string" && stored.activeProjectId
       ? stored.activeProjectId
       : null,

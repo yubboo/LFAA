@@ -103,22 +103,24 @@
   color: var(--color-muted);
 }
 
-/* 两组工具在宽栏显示完整标签，窄栏规则由输入卡片的内容宽度触发。 */
+/* 两组工具在宽栏显示完整标签，窄栏规则由输入卡片的内容宽度触发；始终单行对齐，避免中间宽度折成两行错位。 */
 .composerBar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .controls {
   display: flex;
-  flex: 1 1 max-content;
+  flex: 1 1 auto;
   min-width: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.45rem;
+  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .rightCluster {
@@ -128,7 +130,8 @@
   margin-inline-start: auto;
   align-items: center;
   gap: 0.45rem;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .selectPill {
@@ -152,6 +155,13 @@
   color: var(--color-muted);
   font-size: 0.82em;
   cursor: pointer;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
 }
 
 .toolBtn:hover {
@@ -159,16 +169,16 @@
   color: var(--color-ink);
 }
 
-/* 窄栏缩短次要控件；确实放不下时整组换行，绝不把发送位顶出卡片。 */
-@container chat-composer (max-width: 30rem) {
+/* 统一在 36rem 阈值切入紧凑图标态，消除 30–36rem 区间文字胶囊与模型选择器折成两行错位。 */
+@container chat-composer (max-width: 36rem) {
   .composerBar {
     position: relative;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.3rem;
   }
 
   .controls {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     flex-wrap: nowrap;
     gap: 0.28rem;
   }
@@ -303,7 +313,7 @@
   white-space: nowrap;
 }
 
-@container chat-composer (max-width: 30rem) {
+@container chat-composer (max-width: 36rem) {
   .projectChip {
     max-width: 7.5rem;
     padding: 0 0.5rem;

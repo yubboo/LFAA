@@ -8,6 +8,7 @@ import { isWithinChatWindow } from "./chat-time-buckets";
 /** 定义一级导航可选择的业务域。 */
 export type WorkbenchDomainId =
   | "workspace"
+  | "agents"
   | "settings"
   | "library"
   | "scheduled"
@@ -45,6 +46,14 @@ export function resolveWorkbenchDomain(view: string, locale: LocaleMessages): Wo
         backLabel: locale.backToWorkspace,
         backView: "workspace",
       },
+    };
+  }
+  if (view === "agents") {
+    return {
+      id: "agents",
+      columns: 3,
+      sidebarAriaLabel: locale.agents,
+      sidebarHeader: { kind: "sectionTitle", title: locale.agents },
     };
   }
   if (view === "library") {
@@ -140,6 +149,7 @@ export function resolveViewLabel(view: string, locale: LocaleMessages, registere
   }
   const labels: Record<string, string> = {
     workspace: locale.home,
+    agents: locale.agents,
     appearance: locale.appearance,
     scheduled: locale.scheduled,
     library: locale.library,

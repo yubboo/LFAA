@@ -2,4 +2,5 @@
 // 本包是纯能力库 + 接口处理器（同 @lfaa/api-gateway），不需要挂 Cordis 服务。
 export * from "./orchestrator";
 export * from "./speaking-plan";
+export * from "./turn-stream";
 export { createGroupHttpHandler } from "./http-handler";

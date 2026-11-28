@@ -1,0 +1,225 @@
+/* 设置中心「CLI 代理」面板样式：遵循 docs/standards/settings-ui.md，纯主题语义变量，不套外层卡片框。 */
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  border-bottom: 1px solid var(--color-line);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.72rem 0;
+}
+
+.main {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.titleLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.badgeAccent {
+  background: rgb(var(--color-accent-rgb) / 0.14);
+  color: var(--color-accent);
+}
+
+.badgeSuccess {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: var(--color-success);
+}
+
+.cmdLine {
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.76rem;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.smallBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.85rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.smallBtn:hover {
+  background: var(--color-active);
+}
+
+.smallBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.detail {
+  padding: 0.4rem 0 0.95rem 0.9rem;
+  margin-bottom: 0.25rem;
+  border-left: 2px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.subSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.subHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.subTitle {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-ink-soft);
+}
+
+.accountList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.65rem;
+  background: transparent;
+}
+
+.accountRowActive {
+  border-color: rgb(var(--color-accent-rgb) / 0.45);
+  background: rgb(var(--color-accent-rgb) / 0.06);
+}
+
+.accountMeta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.accountLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-ink);
+}
+
+.accountPath {
+  font-family: var(--code-font-family, monospace);
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inlineForm {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1.9rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.55rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.dangerBtn {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+}
+
+.dangerBtn:hover {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+.emptyText {
+  margin: 0.4rem 0;
+  font-size: 0.84rem;
+  color: var(--color-muted);
+}

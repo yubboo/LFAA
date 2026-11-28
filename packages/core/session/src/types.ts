@@ -208,6 +208,8 @@ export type SessionKind = "single" | "group";
 export interface GroupSessionConfig {
   /** 群成员 agent id，顺序即默认发言顺序。 */
   agentIds: string[];
+  /** 可选：每位成员的分工说明（如「策划」「写后端」「代码审查」）。 */
+  memberRoles?: Record<string, string>;
   /** 代理人（群主）：负责决定本轮谁发言；缺省为内置小鱼。 */
   hostAgentId?: string;
   /** 自动续轮数（一轮结束后是否继续互审），默认 1。 */

@@ -11,6 +11,7 @@ import { useChatGutterReclaim } from "./useChatLayoutInsets";
 import { useChatScroll } from "./useChatScroll";
 import { ChatAnchorBar, buildTurnAnchors } from "./ChatAnchorBar";
 import { ChatTopBar } from "./ChatTopBar";
+import { SessionMembersPicker, resolveSessionTeam } from "./SessionMembersPicker";
 import { ChatFlowArea } from "./ChatFlowArea";
 import { ComposerDock } from "./ComposerDock";
 import { selectWorkspaceSlice } from "./workspace-slice";
@@ -65,6 +66,7 @@ export function ChatWorkspace({
   const [activeTurnIndex, setActiveTurnIndex] = useState(0);
 
   const activeSession = state.activeSession;
+  const team = resolveSessionTeam(activeSession, state.draftTeam);
   const messages = activeSession?.messages ?? [];
   // 没有消息时不存在可用轨迹：视图立即按「对话」渲染，避免先闪一帧空轨迹再被 effect 收回。
   const currentView = messages.length === 0 ? "chat" : view;
@@ -154,15 +156,7 @@ export function ChatWorkspace({
   }, [activeSession, pendingJump, state.activeSessionId, store]);
 
   const composer = useChatComposer({
-    store,
-    locale,
-    state,
-    activeSession,
-    activeProjectId,
-    isRunning,
-    needsApiKey,
-    onOpenSettings,
-    projectBindingPending,
+    store, locale, state, activeSession, activeProjectId, isRunning, needsApiKey, onOpenSettings, projectBindingPending,
   });
 
   // 项目列表加载完后若记忆的草稿项目已不存在，自动清理，避免残留失效绑定。
@@ -247,8 +241,13 @@ export function ChatWorkspace({
 
   return (
     <section ref={rootRef} className={styles.root} aria-label={locale.workspaceTitle}>
-      {/* 新会话保持简洁：没有消息时不显示「对话 / 轨迹」切换条。 */}
-      {messages.length > 0 && <ChatTopBar view={currentView} onChange={setView} isZh={locale.isZh} />}
+      <ChatTopBar
+        view={currentView}
+        onChange={setView}
+        isZh={locale.isZh}
+        showTabs={messages.length > 0}
+        rightSlot={<SessionMembersPicker isZh={locale.isZh} selectedIds={team.agentIds} memberRoles={team.memberRoles} disabled={isRunning} onApply={(next) => void store.setSessionTeam(next)} />}
+      />
       {currentView === "trace" && (
         <div className={styles.traceBox}>
           <ConversationTrace key={activeSession?.id ?? "draft"} messages={messages} locale={locale} target={traceTarget} pendingApproval={state.pendingApproval} onResolveApproval={(approved) => void store.resolveApproval(approved)} />
@@ -330,7 +329,6 @@ export function ChatWorkspace({
           });
         }}
       />}
-
 
       {/* 输入框大盒子：空会话时输入卡片并入引导区，这里只保留提示条，不留空行。 */}
       {(composerInHero === false || dockHasNotices) && <ComposerDock

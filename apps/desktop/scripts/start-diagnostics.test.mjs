@@ -1,11 +1,15 @@
 // 桌面端启动失败诊断回归测试：覆盖低完整性标记识别、ACL 识别与 --no-sandbox 回退边界。
 // 关联：apps/desktop/scripts/start-diagnostics.mjs；运行环境：Node.js（node:test）。
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, rm, utimes, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   ALL_APP_PACKAGES_GRANT,
   MEDIUM_INTEGRITY_LEVEL,
   classifyLaunchFailure,
+  findStaleArtifacts,
   formatAclGrantCommand,
   formatIntegrityRepairCommand,
   hasAllApplicationPackagesAcl,
@@ -114,5 +118,43 @@ describe("start-diagnostics", () => {
       }),
       { kind: "exit" },
     );
+  });
+
+  it("detects missing and stale build artifacts against source directories", async () => {
+    const root = await mkdtemp(join(tmpdir(), "lfaa-stale-check-"));
+    try {
+      const srcDir = join(root, "src");
+      const outFile = join(root, "lib", "index.js");
+      await mkdir(srcDir, { recursive: true });
+      await writeFile(join(srcDir, "index.ts"), "export const v = 1;", "utf8");
+
+      // 产物不存在时标记为 missing
+      const missing = findStaleArtifacts([
+        { name: "pkg", outputPath: outFile, sourceDirs: [srcDir], rebuildKind: "workspace" },
+      ]);
+      assert.equal(missing.length, 1);
+      assert.equal(missing[0]?.reason, "missing");
+
+      // 产物比源码新时为空
+      await mkdir(join(root, "lib"), { recursive: true });
+      await writeFile(outFile, "export const v = 1;", "utf8");
+      const past = new Date(Date.now() - 10_000);
+      await utimes(join(srcDir, "index.ts"), past, past);
+      assert.deepEqual(
+        findStaleArtifacts([{ name: "pkg", outputPath: outFile, sourceDirs: [srcDir], rebuildKind: "workspace" }]),
+        [],
+      );
+
+      // 源码更新后标记为 stale
+      const future = new Date(Date.now() + 10_000);
+      await utimes(join(srcDir, "index.ts"), future, future);
+      const stale = findStaleArtifacts([
+        { name: "pkg", outputPath: outFile, sourceDirs: [srcDir], rebuildKind: "workspace" },
+      ]);
+      assert.equal(stale.length, 1);
+      assert.equal(stale[0]?.reason, "stale");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

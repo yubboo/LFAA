@@ -207,17 +207,17 @@ try {
   await page.locator('button[aria-label="首页"]').first().click();
   await page.waitForTimeout(1400);
 
-  // 群聊页：入口、空态与「新建群聊」按钮。
-  await page.locator('button[aria-label="群聊"]').first().click();
-  await page.waitForTimeout(1800);
-  const groupText = await text();
+  // 统一主聊天顶栏「协作 Agent 成员」弹窗：支持拉成员协作与填写分工，不再有独立群聊页。
+  await page.locator('button[aria-label="协作 Agent 成员"]').first().click();
+  await page.waitForTimeout(800);
+  const teamText = await text();
   steps.push({
-    step: "群聊页（空态与新建入口）",
-    ok: groupText.includes("群聊") && groupText.includes("新建群聊"),
-    screenshot: await shot("group"),
+    step: "主聊天-协作 Agent 成员选择器",
+    ok: teamText.includes("会话协作 Agent") && teamText.includes("小鱼"),
+    screenshot: await shot("chat-team-picker"),
   });
-  await page.locator('button[aria-label="首页"]').first().click();
-  await page.waitForTimeout(1200);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
 
   await page.locator('button[aria-label="资料库"]').first().click();
   await page.waitForTimeout(2000);
@@ -375,13 +375,14 @@ try {
     screenshot: await shot("agents-mobile"),
   });
 
-  // 窄屏群聊页：单列布局，群列表与窗口不溢出。
-  await page.locator('button[aria-label="群聊"]').first().click();
-  await page.waitForTimeout(1500);
+  // 窄屏切回首页确认顶栏「协作 Agent 成员」按钮可见且不溢出。
+  await page.locator('button[aria-label="首页"]').first().click();
+  await page.waitForTimeout(1000);
+  const mobileTeamVisible = await page.locator('button[aria-label="协作 Agent 成员"]').first().isVisible();
   steps.push({
-    step: "窄屏-群聊页",
-    ok: (await text()).includes("群聊"),
-    screenshot: await shot("group-mobile"),
+    step: "窄屏-主聊天协作成员入口",
+    ok: mobileTeamVisible,
+    screenshot: await shot("chat-team-mobile"),
   });
 
   // 平板宽度（768–1023px）左二栏是抽屉：展开后必须渲染出会话列表，不能白屏。
@@ -404,9 +405,9 @@ try {
   await page.waitForTimeout(2600);
   await page.locator('button[aria-label="Agents"]').first().click();
   await page.waitForTimeout(1500);
-  // 左二头部现在也显示「小鱼」，点列表行改用行按钮的结构类名，避免点到侧栏标题或时序抖动。
+  // Agents 卡片 + 弹窗：点「设置 小鱼」弹出居中配置弹窗。
   await page.locator("main").getByText("Agent 与模型").first().waitFor({ timeout: 10000 }).catch(() => {});
-  await page.locator('main button[class*="rowMain"]').first().click();
+  await page.locator('main button[aria-label="设置 小鱼"]').first().click();
   // 等待编辑卡真正挂载再断言，避免视口切换后的重排把点击挤到渲染之前。
   await page.getByText("人设指令").first().waitFor({ timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(600);

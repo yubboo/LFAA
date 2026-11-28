@@ -67,6 +67,8 @@ export const saveBoard = (path: string, revision: number, graph: CanvasGraph) =>
 export const renameBoard = (path: string, title: string) => send<CanvasBoard>(path, { title }, "PATCH");
 export const duplicateBoard = (path: string, title?: string) => send<CanvasBoard>(path + "/duplicate", title ? { title } : {});
 export const deleteBoard = (path: string) => json<{ ok: boolean }>(path, { method: "DELETE" });
+export const deleteProjectCanvas = (projectId: string) =>
+  json<{ ok: boolean; trashedId?: string }>(`/api/canvas/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
 export const submitNode = (path: string, id: string, nodeId: string, revision: number) => send<CanvasRun>(path + "/runs", { id, nodeId, revision });
 
 /** 将统一资料库（E:\lfaa\data\.lfaa-media）已有图片/视频直接链接为当前画布资产。 */

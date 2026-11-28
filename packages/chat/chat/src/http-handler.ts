@@ -107,6 +107,30 @@ export function createChatHttpHandler(service: ChatService, options: {
           sendJson(res, 400, { error: "工作树不属于当前项目，无法绑定会话。" });
           return true;
         }
+        const rawGroup = typeof body.group === "object" && body.group !== null ? (body.group as Record<string, unknown>) : null;
+        const groupAgentIds = Array.isArray(rawGroup?.agentIds)
+          ? [...new Set(rawGroup.agentIds.filter((id): id is string => typeof id === "string" && id.trim().length > 0).map((id) => id.trim()))]
+          : [];
+        const rawRoles = rawGroup?.memberRoles && typeof rawGroup.memberRoles === "object"
+          ? (rawGroup.memberRoles as Record<string, unknown>)
+          : null;
+        const memberRoles: Record<string, string> = {};
+        if (rawRoles) {
+          for (const [k, v] of Object.entries(rawRoles)) {
+            if (groupAgentIds.includes(k) && typeof v === "string" && v.trim()) {
+              memberRoles[k] = v.trim().slice(0, 120);
+            }
+          }
+        }
+        const groupMeta = body.kind === "group" && groupAgentIds.length >= 2
+          ? {
+              agentIds: groupAgentIds,
+              ...(Object.keys(memberRoles).length > 0 ? { memberRoles } : {}),
+              ...(typeof rawGroup?.hostAgentId === "string" && rawGroup.hostAgentId.trim() ? { hostAgentId: rawGroup.hostAgentId.trim() } : {}),
+              ...(typeof rawGroup?.maxSpeakersPerRound === "number" && rawGroup.maxSpeakersPerRound >= 1 ? { maxSpeakersPerRound: Math.floor(rawGroup.maxSpeakersPerRound) } : {}),
+              ...(typeof rawGroup?.memberMaxSteps === "number" && rawGroup.memberMaxSteps >= 1 ? { memberMaxSteps: Math.floor(rawGroup.memberMaxSteps) } : {}),
+            }
+          : undefined;
         const session = await service.createSession({
           ...preset,
           ...(typeof body.title === "string" ? { title: body.title } : {}),
@@ -114,6 +138,7 @@ export function createChatHttpHandler(service: ChatService, options: {
           ...(typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()
             ? { bindingOverrideId: body.bindingOverrideId.trim() }
             : {}),
+          ...(groupMeta ? { kind: "group", group: groupMeta } : {}),
           projectId,
           sectionId: typeof body.sectionId === "string" ? body.sectionId : null,
           ...(worktree ? { worktree } : {}),
@@ -223,6 +248,14 @@ export function createChatHttpHandler(service: ChatService, options: {
               ...(body.agentId !== undefined
                 ? { agentId: typeof body.agentId === "string" && body.agentId.trim() ? body.agentId.trim() : null }
                 : {}),
+              ...(body.kind === "single"
+                ? { kind: "single" as const, group: null }
+                : body.kind === "group" && typeof body.group === "object" && body.group !== null
+                  ? {
+                      kind: "group" as const,
+                      group: body.group as Exclude<Parameters<typeof service.updateSession>[1]["group"], undefined>,
+                    }
+                  : {}),
               ...(body.bindingOverrideId !== undefined
                 ? {
                     bindingOverrideId: typeof body.bindingOverrideId === "string" && body.bindingOverrideId.trim()

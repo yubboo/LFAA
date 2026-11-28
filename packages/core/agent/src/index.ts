@@ -12,6 +12,7 @@ import { registerAgentLibraryTools } from "./tools/builtin-agent-tools";
 import { registerAgentSessionTools, type SessionGoalSnapshot } from "./tools/session-tools";
 import { SmartTrustStore } from "./tools/permission-policy";
 import { beginAgentRun, type SkillCatalogProvider, type SkillResolver } from "./run/run-begin";
+import { assertChatModelAvailable, resolveExternalCliInput } from "./run/resolve-external-cli";
 import { GoalContinuationScheduler, type GoalServicePort } from "./run/goal-scheduler";
 import { pickRunOptions, resolveRunRouting, type RunOptionCache } from "./run/run-options";
 import { RunWaiterRegistry } from "./run/run-waiters";
@@ -58,6 +59,7 @@ export class AgentService extends Service {
   private skillCatalogProvider: SkillCatalogProvider | null = null;
   private projectScopeProvider: ((projectId: string) => Promise<ProjectScope | null>) | null = null;
   private sessionRootsResolver: ((session: ChatSessionRecord) => Promise<string[] | null>) | null = null;
+  private externalBackendRunner: import("./types").ExternalBackendRunner | null = null;
   /** 会话模块兼容器：装配完成后由 bundle 注入，避免 Loader 配置承载函数。 */
   private readonly sessionModulesHook: SessionModulesHook;
   private totalRunsCount = 0;
@@ -101,6 +103,7 @@ export class AgentService extends Service {
     this.skillCatalogProvider = null;
     this.projectScopeProvider = null;
     this.sessionRootsResolver = null;
+    this.externalBackendRunner = null;
     for (const run of this.runs.values()) {
       run.controller.abort();
       for (const pending of run.pendingApprovals.values()) pending.resolve(false);
@@ -227,23 +230,6 @@ export class AgentService extends Service {
   }
 
   /**
-   * 拒绝用生图/生视频/语音模型发起对话运行。走 agent 绑定时目标由派发层决定，
-   * 这里不做全局推断——配了媒体模型会在模型调用阶段得到「请使用相应的生成入口」的明确报错。
-   */
-  private async assertChatModel(input: StartAgentRunInput, session?: ChatSessionRecord | null): Promise<void> {
-    const agentProfile = this.ctx.get("agentProfile") as AgentProfileService | undefined;
-    const bound = Boolean(agentProfile
-      && (input.agentId ?? session?.agentId ?? input.bindingId ?? session?.bindingOverrideId));
-    if (bound) return;
-    const catalog = await this.ctx.llm.listPublicProfiles().catch(() => ({ activeProfileId: "", profiles: [] }));
-    const profile = catalog.profiles.find((item) => item.id === (input.profileId ?? catalog.activeProfileId)) ?? catalog.profiles[0];
-    const kind = profile?.availableModels?.find((model) => model.id === profile.model)?.modelKind;
-    if (!kind || kind === "chat") return;
-    const label = kind === "image" ? "生图" : kind === "video" ? "生视频" : "语音";
-    throw new Error(`当前选中的是${label}模型，不能用于对话。请直接在输入框发送生成描述，或切换回对话模型后重试。`);
-  }
-
-  /**
    * 本次运行使用的模型入口：装配了 agent 定义与绑定服务时按绑定派发；
    * 未装配（隔离测试、旧装配）时原样返回 LlmService，行为与改造前完全一致。
    */
@@ -262,7 +248,9 @@ export class AgentService extends Service {
 
   private async beginRun(input: StartAgentRunInput, resolveRoots?: (projectId: string | null) => Promise<string[]>, scope?: string) {
     const session = await this.ctx.memory.getSession(input.sessionId);
-    await this.assertChatModel(input, session);
+    const agentProfile = this.ctx.get("agentProfile") as AgentProfileService | undefined;
+    const effectiveInput = await resolveExternalCliInput(input, session, agentProfile);
+    await assertChatModelAvailable(effectiveInput, session, this.ctx.llm, agentProfile);
     const compaction = this.ctx.get("compaction") as CompactionHook | undefined;
     const prompt = this.ctx.get("prompt") as { compose(): Promise<string> } | undefined;
     const browser = this.ctx.get("browser") as { describeTakeoverHint?(sessionId: string): string } | undefined;
@@ -285,18 +273,24 @@ export class AgentService extends Service {
       skillCatalogProvider: this.skillCatalogProvider,
       ...(this.projectScopeProvider ? { resolveProjectScope: this.projectScopeProvider } : {}),
       ...(this.sessionRootsResolver ? { resolveSessionRoots: this.sessionRootsResolver } : {}),
+      ...(this.externalBackendRunner ? { externalBackendRunner: this.externalBackendRunner } : {}),
       ...(resolveSessionModules ? { resolveSessionModules } : {}),
       onRunCreated: (record) => {
         this.runs.set(record.status.runId, record);
         this.totalRunsCount += 1;
       },
       onRunFinished: (record) => this.handleRunFinished(record),
-    }, input, resolveRoots);
+    }, effectiveInput, resolveRoots);
   }
 
   /** 装配完成后注入会话模块兼容器；返回注销函数。 */
   setResolveSessionModules(hook: NonNullable<AgentPluginConfig["resolveSessionModules"]>): () => void {
     return this.sessionModulesHook.set(hook);
+  }
+
+  /** 注册外部 CLI 代理执行器（当 profileId 以 cli: 开头时接管聊天运行）。 */
+  setExternalBackendRunner(runner: import("./types").ExternalBackendRunner | null): void {
+    this.externalBackendRunner = runner;
   }
 
   /** 浏览器仅提交记录标识，文件路径解析见 file-activity。 */

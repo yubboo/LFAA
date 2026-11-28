@@ -2,6 +2,7 @@
 // dev（Vite）与生产（静态托管）都复用同一个运行时，保证两边的接口面与行为完全一致。
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage } from "node:http";
+import { homedir } from "node:os";
 import type { Duplex } from "node:stream";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -20,6 +21,9 @@ import { createAgentHandlers } from "./handlers/handlers-chat";
 import { createCommonHandlers } from "./handlers/handlers";
 import { createCanvasHandler } from "./handlers/handlers-canvas";
 import { createTrashHandler } from "./handlers/handlers-trash";
+import { createCliAgentsHandler } from "./handlers/handlers-cli-agents";
+import { CliAgentsStore } from "./cli-agents/store";
+import { createCliAgentBackendRunner } from "./cli-agents/runner";
 import { createBackgroundsHttpHandler } from "./handlers/handlers-backgrounds";
 import { createNotificationSoundsHttpHandler } from "./handlers/handlers-notifications";
 import { createTerminalUpgradeHandler } from "@lfaa/terminal";
@@ -33,6 +37,8 @@ export interface HostRuntimeOptions {
   loaderBaseUrl?: string;
   /** 插件 profile 名称，默认 web。 */
   profile?: string;
+  /** 统一回收站根目录，缺省 ~/.lfaa/trash。 */
+  trashRoot?: string;
   desktopDownloadDirectory?: string;
 }
 
@@ -93,14 +99,32 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   // 代理人调度走 agentProfile 的绑定派发，用一次小请求出「本轮发言计划」。
   const agentService = hostContext.get("agent");
   const llmService = hostContext.get("llm");
+  const cliAgentsStore = new CliAgentsStore();
+  if (agentService) {
+    agentService.setExternalBackendRunner(createCliAgentBackendRunner(cliAgentsStore));
+  }
+  const cliAgents = createCliAgentsHandler(cliAgentsStore);
   const groupHandler = agentService && memoryService
     ? createGroupHttpHandler({
         memory: memoryService,
         agent: agentService,
+        resolveWorkspaceRoots: common.resolveWorkspaceRoots,
         ...(agentProfileService ? {
           describeMembers: async (ids) => {
-            const agents = await agentProfileService.listAgents();
+            const [agents, cliOverview] = await Promise.all([
+              agentProfileService.listAgents(),
+              cliAgentsStore.getOverview().catch(() => ({ agents: [] })),
+            ]);
             return ids.map((id) => {
+              if (id.startsWith("cli:")) {
+                const cliId = id.slice(4);
+                const cli = cliOverview.agents.find((c) => c.id === cliId);
+                return {
+                  id,
+                  name: cli ? `${cli.name} (CLI)` : id,
+                  ...(cli ? { description: cli.descriptionZh } : {}),
+                };
+              }
               const agent = agents.find((item) => item.id === id);
               return {
                 id,
@@ -136,13 +160,14 @@ export async function createHostRuntime(options: HostRuntimeOptions): Promise<Ho
   const backgrounds = createBackgroundsHttpHandler();
   const trash = createTrashHandler({
     context: hostContext,
-    trashRoot: join(options.projectRoot, "data", "trash"),
+    trashRoot: options.trashRoot ?? join(homedir(), ".lfaa", "trash"),
     resolveMediaAllowedRoots: common.resolveMediaAllowedRoots,
   });
 
   // 接口边界：所有 Host API 在此集中登记，顺序有语义（具体路由先于宽泛路由）。
   const gateway = createApiGateway([
     { id: "trash", handle: trash },
+    { id: "cli-agents", handle: cliAgents },
     { id: "sections", handle: common.sections },
     { id: "workspace", handle: common.workspace },
     { id: "canvas", handle: createCanvasHandler(hostContext) },

@@ -49,4 +49,6 @@ test("HoverTip 悬停显示不改变纵向位置", async () => {
   assert.doesNotMatch(baseRule, /transition:[^;]*transform/u);
   // 合成层必须提前持有，否则气泡出现那一帧会在滚动容器里新建图层并重栅格化消息区。
   assert.match(baseRule, /will-change:\s*opacity/u);
+  // 提示层必须基于 --z-popover，确保在设置中心/弹窗（--z-dialog）内部触发时不会被遮挡。
+  assert.match(baseRule, /z-index:[^;]*var\(--z-popover\)/u);
 });

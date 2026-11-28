@@ -12,6 +12,7 @@ import {
 } from "./MessageActionBars";
 import { SuggestionChips } from "./SuggestionChips";
 import { dedupeSuggestions, splitSuggestionBlock } from "./suggestion-block";
+import { formatSpeakerLabel } from "./SessionMembersPicker";
 import styles from "./ChatWorkspace.module.css";
 
 const EMPTY_STEPS: AgentStepItem[] = [];
@@ -123,8 +124,19 @@ export const ChatMessageRow = memo(function ChatMessageRow({
     );
   }
 
+  const speaker = msg.authorAgentId ? formatSpeakerLabel(msg.authorAgentId) : null;
+
   return (
     <article id={`chat-message-${msg.id}`} className={styles.assistantRow}>
+      {speaker && (
+        <div className={styles.speakerHeader}>
+          <span className={`${styles.speakerName} ${speaker.isCli ? styles.speakerCli : ""}`}>
+            {speaker.name}
+            {speaker.isCli ? " · CLI" : ""}
+          </span>
+          {msg.speakerTask && <span className={styles.speakerTask}>{msg.speakerTask}</span>}
+        </div>
+      )}
       {msg.mediaGenerating ? (
         <>
           {msg.content.trim() ? <p className={styles.mediaPlan}>{msg.content}</p> : null}

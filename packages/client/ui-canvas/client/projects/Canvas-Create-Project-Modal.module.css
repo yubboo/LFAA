@@ -1,0 +1,147 @@
+/* 无限画布新建项目命名弹窗样式：轻量居中对话框，全量消费 @lfaa/ui-theme 语义变量以适配深/浅双主题。 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal, 1400);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--color-scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(26rem, 92vw);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: var(--color-popover);
+  color: var(--color-ink);
+  box-shadow: var(--color-menu-shadow);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem 1.15rem 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: var(--color-active);
+  color: var(--color-ink);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.15rem 1.15rem 1.1rem;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 2.35rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  outline: none;
+  transition: border-color 140ms ease;
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+}
+
+.input::placeholder {
+  color: var(--color-muted);
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-muted);
+}
+
+.errorBanner {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgb(var(--color-danger-rgb) / 0.35);
+  border-radius: 0.55rem;
+  background: rgb(var(--color-danger-rgb) / 0.08);
+  color: var(--color-danger);
+  font-size: 0.78rem;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.cancelBtn {
+  height: 2rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.cancelBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.submitBtn {
+  height: 2rem;
+  padding: 0 1.05rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--color-ink);
+  color: var(--color-shell);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submitBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

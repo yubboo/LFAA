@@ -3,7 +3,7 @@
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import type { AgentsMessages } from "../locales";
 import type { ModelOption } from "../agents/agents-api";
-import type { AgentItem, BindingItem } from "../agents/agents-types";
+import type { AgentItem, BindingItem, CliRuntimeItem } from "../agents/agents-types";
 import styles from "./Agent-Editor.module.css";
 
 /** 编辑中的草稿；view 持有它，切换选中项时整体替换。 */
@@ -12,6 +12,8 @@ export interface AgentDraft {
   kind: "assistant" | "worker";
   instructions: string;
   bindingId: string;
+  /** 可选：绑定本机官方 CLI 运行时（留空表示使用内置引擎 + 下方模型绑定）。 */
+  cliAgentId: string;
   /** 逗号分隔的禁用工具名；空串表示不限制。 */
   denyTools: string;
 }
@@ -24,12 +26,14 @@ export interface BindingDraft {
 
 export interface AgentEditorProps {
   t: AgentsMessages;
+  isZh: boolean;
   creating: boolean;
   selected: AgentItem | null;
   draft: AgentDraft;
   onDraftChange: (next: AgentDraft) => void;
   bindings: BindingItem[];
   models: ModelOption[];
+  cliRuntimes: CliRuntimeItem[];
   /** 写/执行类工具名，用于「一键只读」预设。 */
   writeTools: string[];
   bindingDraft: BindingDraft | null;
@@ -46,7 +50,6 @@ export function AgentEditor(props: AgentEditorProps) {
 
   return (
     <section className={styles.editor}>
-      <h3 className={styles.editorTitle}>{creating ? t.newAgent : t.name}</h3>
       <label className={styles.field}>
         <span>{t.name}</span>
         <input
@@ -95,6 +98,23 @@ export function AgentEditor(props: AgentEditorProps) {
             {t.readOnlyPreset}
           </button>
         ) : null}
+      </label>
+      <label className={styles.field}>
+        <span>{props.isZh ? "执行运行时（可选本机 CLI）" : "Execution runtime (optional local CLI)"}</span>
+        <select
+          className={styles.input}
+          value={draft.cliAgentId}
+          onChange={(event) => onDraftChange({ ...draft, cliAgentId: event.target.value })}
+        >
+          <option value="">{props.isZh ? "LFAA 内置引擎（按下方模型绑定）" : "LFAA Built-in Engine (use model binding below)"}</option>
+          {props.cliRuntimes
+            .filter((item) => item.supportsChat)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {`${item.name} (CLI${item.installed ? "" : props.isZh ? " · 未安装" : " · Not installed"})`}
+              </option>
+            ))}
+        </select>
       </label>
       <label className={styles.field}>
         <span>{t.binding}</span>

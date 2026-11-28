@@ -20,6 +20,8 @@
 }
 
 .heroTitle {
+  position: relative;
+  width: 100%;
   max-width: 42rem;
   margin: 0.35rem 0 0;
   color: var(--color-ink);
@@ -32,9 +34,10 @@
   text-wrap: wrap;
 }
 
-/* 项目名是标题里的变量：浅底、同字号，用点状下划线提示“这是当前项目”，点击可切换。 */
+/* 项目名是标题里的变量：浅底、同字号，用点状下划线提示“这是当前项目”，点击可切换。
+   position: static 让下拉菜单以整行标题为定位基准，窄栏标题折行时不再压住第二行文字或贴右裁切。 */
 .projectAnchor {
-  position: relative;
+  position: static;
   display: inline-block;
   max-width: 100%;
   vertical-align: baseline;
@@ -72,12 +75,15 @@
   outline-offset: 2px;
 }
 
-/* 标题项目的选择器向下展开，覆盖在输入卡片上；输入栏的同一浮层仍向上展开。 */
+/* 标题项目的选择器向下居中展开，贴在整段标题下方，不遮挡折行文字也不超出窄栏左右边界。 */
 .hero .projectPopover {
   top: calc(100% + 0.5rem);
   bottom: auto;
   left: 50%;
-  width: min(18.5rem, calc(100vw - 2rem));
+  right: auto;
+  width: min(18.5rem, 100%);
+  max-width: calc(100cqi - 1.5rem);
+  z-index: 48;
   /* 浮层挂在 h1 里，必须重置标题字号与字重，否则菜单会继承标题的大字。 */
   font-size: 0.9rem;
   font-weight: 400;
@@ -85,6 +91,25 @@
   line-height: 1.45;
   text-align: left;
   transform: translateX(-50%);
+  transform-origin: top center;
+  animation: heroPopoverIn 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes heroPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero .projectPopover {
+    animation: none;
+  }
 }
 
 /* 聊天 / 工作分段：两段胶囊，选中项浅浮起。 */

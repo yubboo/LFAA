@@ -85,7 +85,8 @@ export function HoverTip({
         <span
           ref={tipRef}
           role="tooltip"
-          className={`${styles.tip} ${styles.tipOpen} ${multiline ? styles.tipMultiline : ""}`}
+          data-placement={placement}
+          className={`${styles.tip} ${size.height > 0 ? styles.tipOpen : ""} ${multiline ? styles.tipMultiline : ""}`}
           style={{ left: center, top, visibility: size.height > 0 ? "visible" : "hidden" }}
         >
           <span>{label}</span>

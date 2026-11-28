@@ -17,6 +17,7 @@
   border: 1px solid rgb(255 255 255 / 0.12);
   border-radius: 999px;
   background: var(--glass-card-bg);
+  backdrop-filter: blur(12px);
   color: var(--color-ink);
   font-size: 0.76rem;
   font-weight: 500;
@@ -25,10 +26,16 @@
   box-shadow: 0 10px 26px rgb(0 0 0 / 0.42);
   pointer-events: none;
   opacity: 0;
+  transform-origin: center bottom;
   /* 只做透明度过渡，且坐标取整像素，避免分数像素屏幕上的纵向重栅格化造成会话区抖动。 */
   transition: opacity 120ms ease;
-  will-change: opacity;
-  z-index: 80;
+  will-change: opacity, transform;
+  /* 需高于全屏设置弹窗（--z-dialog）与浮层卡片（--z-popover），避免弹窗内提示气泡被遮挡。 */
+  z-index: calc(var(--z-popover) + 10);
+}
+
+.tip[data-placement="bottom"] {
+  transform-origin: center top;
 }
 
 /* 长文案（完整路径等）：按内容取宽、上限受视口约束，超出时断词换行。 */
@@ -46,8 +53,27 @@
   min-width: 0;
 }
 
+/* 量出位置后再播放入场缩放淡入，避免首帧隐藏时把动画消耗掉导致瞬间闪出。 */
 .tipOpen {
   opacity: 1;
+  animation: lfaaTipIn 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lfaaTipIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tipOpen {
+    animation: none;
+  }
 }
 
 .kbd {

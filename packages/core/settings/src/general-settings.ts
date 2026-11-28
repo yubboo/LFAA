@@ -119,9 +119,9 @@ export function getGeneralSettingsFilePath(overridePath?: string): string {
   return join(resolveUserHome(), ".lfaa", "general-settings.json");
 }
 
-/** 默认项目外工作区：<系统文档>/lfaa/default-workspace，跟随用户的文档目录设置。 */
+/** 默认项目外工作区：<系统文档>/lfaa/default-workspace/code，与画布子区物理隔离。 */
 export async function resolveDefaultOutsideProjectFolder(overrideBaseDocs?: string): Promise<string> {
-  return join(await resolveDocumentsFolder(overrideBaseDocs), "lfaa", "default-workspace");
+  return join(await resolveDocumentsFolder(overrideBaseDocs), "lfaa", "default-workspace", "code");
 }
 
 /** 兼容旧版使用应用数据根作为默认值，项目外产物写入专用目录。 */
@@ -139,7 +139,7 @@ export async function resolveDefaultProjectsFolder(overrideBaseDocs?: string): P
 
 function createDefaultSettings(outsideProjectFolder: string, defaultProjectsFolder: string): GeneralSettingsConfig {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     outsideProjectFolder,
     defaultProjectsFolder,
     defaultFileOpener: "explorer",
@@ -209,18 +209,23 @@ export class GeneralSettingsStore {
       const parsed = JSON.parse(raw) as Partial<GeneralSettingsConfig>;
       const parsedVersion = parsed.schemaVersion ?? 1;
       let merged = this.mergePatch(defaults, parsed, defaultOutside);
-      // v3：项目外工作区默认值从 ~/.lfaa/workspace 迁到 <系统文档>/lfaa/default-workspace。
-      // 只改写「仍是旧默认值」的配置，用户显式选过的目录保持不动。
-      if (parsedVersion < 3) {
+      // v3→v4：项目外工作区默认值从 ~/.lfaa/workspace 与 <系统文档>/lfaa/default-workspace
+      // 迁到 <系统文档>/lfaa/default-workspace/code；只改写「仍是旧默认值」的配置，用户显式选过的目录保持不动。
+      if (parsedVersion < 4) {
         const storedKey = normalizePathKey(parsed.outsideProjectFolder);
+        const legacyDefaultWorkspace = join(defaultProjects, "default-workspace");
         const legacyKeys = new Set([
           normalizePathKey(join(resolveUserHome(), ".lfaa", "workspace")),
           normalizePathKey(join(resolveUserHome(), ".lfaa")),
+          normalizePathKey(legacyDefaultWorkspace),
         ]);
-        const looksLikeOldDefault = !storedKey || legacyKeys.has(storedKey) || storedKey.endsWith("/documents/lfaa");
+        const looksLikeOldDefault = !storedKey
+          || legacyKeys.has(storedKey)
+          || storedKey.endsWith("/documents/lfaa")
+          || storedKey.endsWith("/lfaa/default-workspace");
         merged = {
           ...merged,
-          schemaVersion: 3,
+          schemaVersion: 4,
           outsideProjectFolder: looksLikeOldDefault ? defaultOutside : merged.outsideProjectFolder,
           // v2 已经给过一次默认项目目录，保留用户改过的值；v1 沿用旧文档默认值时纠正。
           defaultProjectsFolder: parsedVersion < 2 ? defaultProjects : merged.defaultProjectsFolder,
@@ -229,7 +234,7 @@ export class GeneralSettingsStore {
         await mkdir(dirname(this.filePath), { recursive: true });
         await writeFile(this.filePath, JSON.stringify(merged, null, 2), "utf8");
       }
-      this.cached = { ...merged, schemaVersion: 3 };
+      this.cached = { ...merged, schemaVersion: 4 };
     } catch {
       this.cached = defaults;
     }

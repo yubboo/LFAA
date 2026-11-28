@@ -17,7 +17,7 @@ export function agentProfileClientPlugin(context: Context): void {
   const disposeView = context.workbench.registerView({
     id: "agents",
     title: "Agents",
-    render: () => <AgentsView isZh={detectIsZh()} />,
+    render: () => <AgentsView isZh={detectIsZh()} workbench={context.workbench} />,
   });
 
   context.effect(() => () => {

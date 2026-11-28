@@ -43,6 +43,9 @@ export interface ChatMessageItem {
   metrics?: ChatRunMetrics;
   /** 本轮按模型单价换算的人民币成本。 */
   cost?: { amount: number; currency: "CNY"; input: number; cachedInput: number; output: number };
+  /** 多 Agent 协作会话里的发言者 id 与分工摘要。 */
+  authorAgentId?: string;
+  speakerTask?: string;
   createdAt: number;
 }
 
@@ -75,6 +78,17 @@ export interface ChatSessionItem {
   messageCount: number;
   summary?: string;
   sessionPreset?: string;
+  /** 单聊指定的 agent id；缺省为内置小鱼。 */
+  agentId?: string;
+  /** 会话形态与多 Agent 协作配置（N≥2 自动进入群协作）。 */
+  kind?: "single" | "group";
+  group?: {
+    agentIds: string[];
+    memberRoles?: Record<string, string>;
+    hostAgentId?: string;
+    maxSpeakersPerRound?: number;
+    memberMaxSteps?: number;
+  };
   /** 等待用户回答的澄清问题；回答或开始新一轮后清除。 */
   pendingQuestion?: PendingQuestion;
   createdAt: number;
@@ -326,6 +340,8 @@ export interface ChatStoreSnapshot {
   /** 新会话草稿绑定的工作树；发送时只提交 id，由 Host 解析。 */
   draftWorktree?: ChatSessionWorktree | undefined;
   draftSessionPreset?: string | undefined;
+  /** 新聊天草稿态预设的协作 Agent 成员与分工；发首条消息时随会话一并创建。 */
+  draftTeam?: { agentIds: string[]; memberRoles?: Record<string, string> } | undefined;
   submittingMessage?: boolean;
   runningRunId: string | null;
   /** 正在运行 Agent 的会话 id：切走会话后仍用于在左二栏显示工作转圈。 */

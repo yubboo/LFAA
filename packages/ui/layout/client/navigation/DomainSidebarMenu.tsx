@@ -36,6 +36,57 @@ export function DomainSidebarMenu({
   const normalized = query.trim().toLowerCase();
 
   const rawGroups = useMemo<SidebarGroupConfig[]>(() => {
+    if (domain.id === "agents") {
+      return [
+        {
+          id: "agents-manage",
+          title: isZh ? "Agent 管理" : "Agent Management",
+          items: [
+            {
+              id: "agents-all",
+              label: isZh ? "全部 Agent" : "All Agents",
+              icon: "agents",
+              active: !activeDomainItem || activeDomainItem === "agents-all",
+              onClick: () => onSelectDomainItem("agents-all"),
+            },
+            {
+              id: "agents-roles",
+              label: isZh ? "自定义角色" : "Custom Roles",
+              icon: "plugins",
+              active: activeDomainItem === "agents-roles",
+              onClick: () => onSelectDomainItem("agents-roles"),
+            },
+          ],
+        },
+        {
+          id: "agents-links",
+          title: isZh ? "配置与跳转" : "Settings & Navigation",
+          items: [
+            {
+              id: "agents-settings",
+              label: isZh ? "CLI 账户与设置" : "CLI Accounts & Settings",
+              icon: "settings",
+              onClick: () => {
+                try {
+                  sessionStorage.setItem("lfaa:settings-config-tab", "cli-agents");
+                } catch {
+                  // 隐私模式下忽略存储异常
+                }
+                window.dispatchEvent(new CustomEvent("lfaa:settings-config-tab", { detail: "cli-agents" }));
+                onNavigate("settings:config" as NavigationView);
+              },
+            },
+            {
+              id: "agents-home",
+              label: locale.backToWorkspace,
+              icon: "home",
+              onClick: () => onNavigate("workspace"),
+            },
+          ],
+        },
+      ];
+    }
+
     if (domain.id === "library") {
       return [
         {

@@ -205,3 +205,32 @@
 .turnChangesTrigger:focus-visible { outline: 2px solid var(--color-accent); }
 .turnChangesTrigger [data-change="add"] { color: var(--color-accent); }
 .turnChangesTrigger [data-change="remove"] { color: var(--color-danger); }
+
+/* 多 Agent 协作消息头：标注当前发言 Agent 名称与分工。 */
+.speakerHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.speakerName {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.speakerCli {
+  color: var(--color-info);
+  background: var(--color-info-soft);
+}
+
+.speakerTask {
+  font-size: 0.72rem;
+  color: var(--color-muted);
+}

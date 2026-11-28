@@ -52,6 +52,7 @@ export function sanitizeAgents(raw: unknown, now = Date.now()): AgentDefinition[
     const skillIds = normalizeStringList(source.skillIds);
     const toolPolicy = sanitizeToolPolicy(source.toolPolicy);
     const bindingId = typeof source.bindingId === "string" ? source.bindingId.trim() : "";
+    const cliAgentId = typeof source.cliAgentId === "string" ? source.cliAgentId.trim() : "";
     const createdAt = typeof source.createdAt === "number" && Number.isFinite(source.createdAt) ? source.createdAt : now;
     const updatedAt = typeof source.updatedAt === "number" && Number.isFinite(source.updatedAt) ? source.updatedAt : createdAt;
     out.push({
@@ -72,6 +73,7 @@ export function sanitizeAgents(raw: unknown, now = Date.now()): AgentDefinition[
       ...(skillIds.length > 0 ? { skillIds } : {}),
       ...(toolPolicy ? { toolPolicy } : {}),
       ...(bindingId ? { bindingId } : {}),
+      ...(cliAgentId ? { cliAgentId } : {}),
     });
   }
   if (!seen.has(BUILTIN_AGENT_ID)) out.unshift(createBuiltinAgent(now));

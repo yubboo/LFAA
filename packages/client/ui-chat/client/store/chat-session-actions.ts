@@ -66,6 +66,7 @@ export class ChatSessionActions {
       draftSectionId: nextSectionId,
       draftWorktree: options.worktree,
       draftSessionPreset: undefined,
+      draftTeam: undefined,
       runningRunId: null,
       pendingApproval: null,
       streamStatusNotice: "",
@@ -101,6 +102,7 @@ export class ChatSessionActions {
         ...(exitingDraft ? { exitingDraftSession: exitingDraft } : {}),
         draftProjectId: res.session.projectId,
         draftSectionId: res.session.sectionId,
+        draftTeam: undefined,
         runningRunId: null,
         pendingApproval: null,
         streamStatusNotice: "",
@@ -416,5 +418,32 @@ export class ChatSessionActions {
     } finally {
       this.port.patchState({ submittingMessage: false });
     }
+  }
+
+  /** 设置当前会话（或新会话草稿）的协作 Agent 成员与分工；≥2 位自动升级为多 Agent 协作，1 位切回单聊。 */
+  async setSessionTeam(team: { agentIds: string[]; memberRoles: Record<string, string> }): Promise<void> {
+    const uniqueIds = [...new Set(team.agentIds.map((id) => id.trim()).filter(Boolean))];
+    if (uniqueIds.length === 0) return;
+    const cleanedRoles: Record<string, string> = {};
+    for (const id of uniqueIds) {
+      const role = team.memberRoles[id]?.trim();
+      if (role) cleanedRoles[id] = role;
+    }
+    const current = this.port.getState().activeSession;
+    if (!current) {
+      this.port.patchState({ draftTeam: { agentIds: uniqueIds, memberRoles: cleanedRoles } });
+      return;
+    }
+    const payload = uniqueIds.length >= 2
+      ? { kind: "group", group: { agentIds: uniqueIds, hostAgentId: uniqueIds[0], memberRoles: cleanedRoles } }
+      : { kind: "single", agentId: uniqueIds[0] ?? null, group: null };
+    const { session } = await fetchJson<{ session: ChatSessionDetail }>(`/api/chat/sessions/${encodeURIComponent(current.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+    this.port.patchState({
+      ...(this.port.getState().activeSessionId === current.id ? { activeSession: session } : {}),
+      sessions: this.port.getState().sessions.map((item) => (item.id === current.id ? session : item)),
+    });
   }
 }

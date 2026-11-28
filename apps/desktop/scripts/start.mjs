@@ -2,13 +2,13 @@
 // 关联：apps/desktop/scripts/start-diagnostics.mjs；运行环境：Node.js。
 // 不静默失败——缺产物、低完整性降权或目录 ACL 缺失时自动修复并给出明确命令。
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import {
   ALL_APP_PACKAGES_GRANT,
   MEDIUM_INTEGRITY_LEVEL,
   classifyLaunchFailure,
+  findStaleArtifacts,
   formatIntegrityRepairCommand,
   hasAllApplicationPackagesAcl,
   hasLowIntegrityLabel,
@@ -18,13 +18,76 @@ import {
 const APP_DIR = resolve(import.meta.dirname, "..");
 const ROOT = resolve(APP_DIR, "..", "..");
 const require = createRequire(join(APP_DIR, "package.json"));
+const TSDOWN = join(ROOT, "node_modules", "tsdown", "dist", "run.mjs");
 
-const requiredArtifacts = [
-  { path: join(ROOT, "packages", "host", "web-server", "lib", "index.js"), hint: "pnpm build" },
-  { path: join(ROOT, "apps", "web", "dist", "index.html"), hint: "pnpm build" },
-  { path: join(APP_DIR, "dist", "main.cjs"), hint: "pnpm build:desktop:app" },
-  { path: join(ROOT, "apps", "desktop-host", "lib", "index.js"), hint: "pnpm build:desktop:host" },
+const artifactSpecs = [
+  {
+    name: "@lfaa/web-server",
+    outputPath: join(ROOT, "packages", "host", "web-server", "lib", "index.js"),
+    sourceDirs: [join(ROOT, "packages", "host", "web-server", "src")],
+    rebuildKind: "workspace",
+  },
+  {
+    name: "@lfaa/workspace",
+    outputPath: join(ROOT, "packages", "workspace", "workspace", "lib", "index.js"),
+    sourceDirs: [join(ROOT, "packages", "workspace", "workspace", "src")],
+    rebuildKind: "workspace",
+  },
+  {
+    name: "@lfaa/canvas",
+    outputPath: join(ROOT, "packages", "media", "canvas", "lib", "index.js"),
+    sourceDirs: [join(ROOT, "packages", "media", "canvas", "src")],
+    rebuildKind: "workspace",
+  },
+  {
+    name: "@lfaa/bundle-web",
+    outputPath: join(ROOT, "packages", "bundle", "web", "lib", "index.js"),
+    sourceDirs: [join(ROOT, "packages", "bundle", "web", "src")],
+    rebuildKind: "workspace",
+  },
+  {
+    name: "@lfaa/app-web",
+    outputPath: join(ROOT, "apps", "web", "dist", "index.html"),
+    sourceDirs: [join(ROOT, "apps", "web", "src")],
+    rebuildKind: "workspace",
+  },
+  {
+    name: "@lfaa/app-desktop",
+    outputPath: join(APP_DIR, "dist", "main.cjs"),
+    sourceDirs: [join(APP_DIR, "src")],
+    rebuildKind: "desktop-app",
+  },
+  {
+    name: "@lfaa/app-desktop-host",
+    outputPath: join(ROOT, "apps", "desktop-host", "lib", "index.js"),
+    sourceDirs: [join(ROOT, "apps", "desktop-host", "src")],
+    rebuildKind: "desktop-host",
+  },
 ];
+
+function rebuildStep(command, args, cwd, label) {
+  console.log(`\n▸ ${label}`);
+  const result = spawnSync(command, args, { cwd, stdio: "inherit" });
+  return result.status === 0;
+}
+
+/** 启动前确保核心包 lib、Web 产物与桌面端入口均存在且未落后于源码。 */
+function ensureFreshArtifacts() {
+  const stale = findStaleArtifacts(artifactSpecs);
+  if (stale.length === 0) return true;
+  const names = stale.map((item) => `${item.name}(${item.reason === "missing" ? "缺失" : "已过期"})`).join("、");
+  console.warn(`检测到桌面端构建产物需要更新：${names}，正在自动重建…`);
+  if (stale.some((item) => item.rebuildKind === "workspace")) {
+    if (!rebuildStep(process.execPath, [join(ROOT, "scripts", "build.mjs")], ROOT, "重建包 lib 与 Web 产物")) return false;
+  }
+  if (stale.some((item) => item.rebuildKind === "desktop-app")) {
+    if (!rebuildStep(process.execPath, [TSDOWN], APP_DIR, "重建桌面主进程")) return false;
+  }
+  if (stale.some((item) => item.rebuildKind === "desktop-host")) {
+    if (!rebuildStep(process.execPath, [TSDOWN], join(ROOT, "apps", "desktop-host"), "重建桌面宿主入口")) return false;
+  }
+  return findStaleArtifacts(artifactSpecs).every((item) => item.reason !== "missing");
+}
 
 /** Windows 下查询目录 ACL，判断 Electron dist 是否缺少 ALL APPLICATION PACKAGES 读取权限。 */
 function isMissingAppPackagesAcl(dir) {
@@ -69,10 +132,8 @@ function printAclGuidance(grantCommand, detail) {
   console.error(`如需一并修复整个仓库目录（避免重装依赖后复现），可执行：\n  icacls "${ROOT}" /grant ${ALL_APP_PACKAGES_GRANT}\n`);
 }
 
-const missing = requiredArtifacts.filter((item) => !existsSync(item.path));
-if (missing.length > 0) {
-  console.error("桌面端构建产物不完整，请先执行对应的构建命令：");
-  for (const item of missing) console.error(`  · ${item.path}\n    → ${item.hint}`);
+if (!ensureFreshArtifacts()) {
+  console.error("桌面端构建产物重建失败，请手动执行：pnpm build && pnpm build:desktop:app");
   process.exitCode = 1;
 } else {
   // electron 包在 Node 下导出可执行文件路径。

@@ -11,7 +11,7 @@ import { usePaneAnimHost } from "./use-pane-anim";
 import { useShellShortcuts } from "./useShellShortcuts";
 import { buildSidebarWidthVars } from "./sidebar-resize";
 import { useViewportMode } from "./useViewportMode";
-import { useWorkspaceModeSync } from "./use-workspace-mode-sync";
+import { bindProjectContextOnSelect, useWorkspaceModeSync } from "./use-workspace-mode-sync";
 import { usePointerIdleGuard } from "./use-pointer-idle-guard";
 import { resolveNewChatProject } from "../navigation/navigation-items";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
@@ -181,12 +181,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     if (isCompact) service.setLeftSidebarOpen(false, false);
   }, [chatProvider, isCompact, service]);
 
-  // 单击左二项目行：展开/收起 + 高亮；没有打开中的会话时，把新聊天草稿真实改绑到该项目。
+  // 单击左二项目行：展开/收起 + 高亮；没有打开中的会话时，自动切到工作模式并把新聊天草稿改绑到该项目。
   const selectProjectContext = useCallback((project: LocalProject) => {
-    service.setActiveProject(project.id);
-    const snapshot = service.getSnapshot();
-    // 已打开的会话不改绑，避免污染历史聊天的项目归属。
-    if (!snapshot.activeChatSessionId) void snapshot.chatProvider?.setActiveProjectBinding?.(project.id);
+    bindProjectContextOnSelect(service, project.id);
   }, [service]);
 
   // 左二顶部「新聊天」始终沿用当前已选/已绑定的项目上下文，不再丢失项目绑定。

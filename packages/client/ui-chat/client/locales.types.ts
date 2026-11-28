@@ -211,6 +211,7 @@ export interface ChatLocaleMessages {
   settingsTitle: string;
   settingsSubtitle: string;
   tabModels: string;
+  tabCliAgents: string;
   tabRules: string;
   tabMemory: string;
   providerLabel: string;

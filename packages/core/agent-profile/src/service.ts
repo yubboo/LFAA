@@ -114,6 +114,7 @@ export class AgentProfileService extends Service {
     if (id === BUILTIN_AGENT_ID) throw new Error("内置 agent 已存在，不能重复创建。");
     const instructions = requireInstructions(input.instructions);
     const bindingId = input.bindingId?.trim() ?? "";
+    const cliAgentId = input.cliAgentId?.trim() ?? "";
     if (bindingId) await this.assertBindingExists(bindingId);
     const skillIds = input.skillIds?.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim()) ?? [];
     const toolPolicy = sanitizeToolPolicy(input.toolPolicy);
@@ -136,6 +137,7 @@ export class AgentProfileService extends Service {
         ...(skillIds.length > 0 ? { skillIds } : {}),
         ...(toolPolicy ? { toolPolicy } : {}),
         ...(bindingId ? { bindingId } : {}),
+        ...(cliAgentId ? { cliAgentId } : {}),
       };
       return { items: [...agents, agent], result: agent };
     });
@@ -182,6 +184,11 @@ export class AgentProfileService extends Service {
       if (bindingId !== undefined) {
         if (bindingId) next.bindingId = bindingId;
         else delete next.bindingId;
+      }
+      if (patch.cliAgentId !== undefined) {
+        const cliAgentId = patch.cliAgentId.trim();
+        if (cliAgentId) next.cliAgentId = cliAgentId;
+        else delete next.cliAgentId;
       }
       if (patch.enabled !== undefined) next.enabled = patch.enabled;
       return { items: agents.map((agent, position) => (position === index ? next : agent)), result: next };

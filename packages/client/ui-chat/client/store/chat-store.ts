@@ -400,6 +400,11 @@ export class ChatClientStore extends ChatDataFacade {
     return this.sessionActions.selectSessionPreset(id);
   }
 
+  /** 设置当前会话或草稿的协作 Agent 成员与分工（1 位单聊，≥2 位多 Agent 协作）。 */
+  setSessionTeam(team: { agentIds: string[]; memberRoles: Record<string, string> }): Promise<void> {
+    return this.sessionActions.setSessionTeam(team);
+  }
+
   // ---- 运行动作（实现见 chat-run-actions） ----
   sendMessage(text: string, skillIds?: string[], referenceSources?: import("@lfaa/client-ui-tool-media/client").MediaSource[], attachmentIds?: string[]): Promise<void> {
     return this.runActions.sendMessage(text, skillIds, referenceSources, attachmentIds);

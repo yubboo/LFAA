@@ -3,7 +3,7 @@
 > 本文件由 `pnpm map:sync`（[scripts/gen-repository-map.mjs](../../scripts/gen-repository-map.mjs)）按真实文件系统生成，**不要手改**。
 > 骨架发生变化（新增/删除/移动文件、包或目录）后，必须在同一轮运行 `pnpm map:sync` 并提交，否则 `pnpm check` 会失败。
 
-当前快照：**69 个包、3219 个文件、551 个子目录**（不含 node_modules、构建产物与运行数据）。
+当前快照：**69 个包、3251 个文件、552 个子目录**（不含 node_modules、构建产物与运行数据）。
 
 ## 1. 快速索引
 
@@ -67,15 +67,15 @@ lfaa/
 │   └── web/  (10 个文件)
 │       ├── public/  (2 个文件)
 │       └── src/  (3 个文件)
-├── docs/  (596 个文件)
+├── docs/  (599 个文件)
 │   ├── architecture/  (11 个文件)
 │   ├── dev-log/  (5 个文件)
 │   ├── features/  (34 个文件)
-│   ├── plans/  (32 个文件)
+│   ├── plans/  (35 个文件)
 │   ├── standards/  (4 个文件)
 │   ├── templates/  (2 个文件)
 │   └── updata-log/  (506 个文件)
-├── packages/  (2372 个文件)
+├── packages/  (2401 个文件)
 │   ├── api/  (7 个文件)
 │   │   └── gateway/  # @lfaa/api-gateway  (7 个文件)
 │   │       ├── src/  (1 个文件)
@@ -100,17 +100,17 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (7 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── client/  (687 个文件)
-│   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (13 个文件)
-│   │   │   ├── client/  (7 个文件)
+│   ├── client/  (707 个文件)
+│   │   ├── ui-agent-group/  # @lfaa/client-ui-agent-group  (17 个文件)
+│   │   │   ├── client/  (11 个文件)
 │   │   │   │   ├── group/  (1 个文件)
-│   │   │   │   └── view/  (3 个文件)
+│   │   │   │   └── view/  (7 个文件)
 │   │   │   └── src/  (1 个文件)
-│   │   ├── ui-agent-profile/  # @lfaa/client-ui-agent-profile  (16 个文件)
-│   │   │   ├── client/  (10 个文件)
+│   │   ├── ui-agent-profile/  # @lfaa/client-ui-agent-profile  (19 个文件)
+│   │   │   ├── client/  (13 个文件)
 │   │   │   │   ├── agents/  (2 个文件)
 │   │   │   │   ├── editor/  (2 个文件)
-│   │   │   │   └── view/  (3 个文件)
+│   │   │   │   └── view/  (6 个文件)
 │   │   │   └── src/  (1 个文件)
 │   │   ├── ui-browser/  # @lfaa/client-ui-browser  (34 个文件)
 │   │   │   ├── client/  (27 个文件)
@@ -120,23 +120,23 @@ lfaa/
 │   │   │   │   └── settings/  (7 个文件)
 │   │   │   ├── src/  (1 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (71 个文件)
-│   │   │   ├── client/  (62 个文件)
+│   │   ├── ui-canvas/  # @lfaa/client-ui-canvas  (76 个文件)
+│   │   │   ├── client/  (66 个文件)
 │   │   │   │   ├── api/  (1 个文件)
-│   │   │   │   ├── canvas/  (41 个文件)
+│   │   │   │   ├── canvas/  (43 个文件)
 │   │   │   │   ├── previs/  (6 个文件)
-│   │   │   │   └── projects/  (11 个文件)
+│   │   │   │   └── projects/  (13 个文件)
 │   │   │   ├── src/  (1 个文件)
-│   │   │   └── tests/  (3 个文件)
-│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (359 个文件)
-│   │   │   ├── client/  (288 个文件)
+│   │   │   └── tests/  (4 个文件)
+│   │   ├── ui-chat/  # @lfaa/client-ui-chat  (367 个文件)
+│   │   │   ├── client/  (296 个文件)
 │   │   │   │   ├── composer/  (49 个文件)
-│   │   │   │   ├── conversation/  (76 个文件)
-│   │   │   │   ├── models/  (16 个文件)
+│   │   │   │   ├── conversation/  (78 个文件)
+│   │   │   │   ├── models/  (17 个文件)
 │   │   │   │   ├── session/  (19 个文件)
-│   │   │   │   ├── settings/  (16 个文件)
+│   │   │   │   ├── settings/  (20 个文件)
 │   │   │   │   ├── shared/  (6 个文件)
-│   │   │   │   ├── store/  (20 个文件)
+│   │   │   │   ├── store/  (21 个文件)
 │   │   │   │   └── workbench/  (77 个文件)
 │   │   │   │       └── pane/  (4 个文件)
 │   │   │   ├── src/  (1 个文件)
@@ -201,17 +201,17 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (4 个文件)
 │   │       └── tests/  (3 个文件)
-│   ├── core/  (369 个文件)
-│   │   ├── agent/  # @lfaa/agent  (84 个文件)
+│   ├── core/  (372 个文件)
+│   │   ├── agent/  # @lfaa/agent  (85 个文件)
 │   │   │   ├── locale/  (2 个文件)
-│   │   │   ├── src/  (51 个文件)
+│   │   │   ├── src/  (52 个文件)
 │   │   │   │   ├── context/  (4 个文件)
-│   │   │   │   ├── run/  (35 个文件)
+│   │   │   │   ├── run/  (36 个文件)
 │   │   │   │   └── tools/  (5 个文件)
 │   │   │   └── tests/  (26 个文件)
-│   │   ├── agent-group/  # @lfaa/agent-group  (12 个文件)
-│   │   │   ├── src/  (4 个文件)
-│   │   │   └── tests/  (3 个文件)
+│   │   ├── agent-group/  # @lfaa/agent-group  (14 个文件)
+│   │   │   ├── src/  (5 个文件)
+│   │   │   └── tests/  (4 个文件)
 │   │   ├── agent-profile/  # @lfaa/agent-profile  (20 个文件)
 │   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (9 个文件)
@@ -489,16 +489,17 @@ lfaa/
 │   │       ├── locale/  (2 个文件)
 │   │       ├── src/  (1 个文件)
 │   │       └── tests/  (1 个文件)
-│   ├── host/  (35 个文件)
+│   ├── host/  (41 个文件)
 │   │   ├── terminal/  # @lfaa/terminal  (12 个文件)
 │   │   │   ├── locale/  (2 个文件)
 │   │   │   ├── src/  (4 个文件)
 │   │   │   └── tests/  (1 个文件)
-│   │   └── web-server/  # @lfaa/web-server  (23 个文件)
-│   │       ├── src/  (14 个文件)
-│   │       │   ├── handlers/  (6 个文件)
+│   │   └── web-server/  # @lfaa/web-server  (29 个文件)
+│   │       ├── src/  (19 个文件)
+│   │       │   ├── cli-agents/  (4 个文件)
+│   │       │   ├── handlers/  (7 个文件)
 │   │       │   └── trash/  (1 个文件)
-│   │       └── tests/  (4 个文件)
+│   │       └── tests/  (5 个文件)
 │   ├── interaction/  (9 个文件)
 │   │   └── commands/  # @lfaa/commands  (9 个文件)
 │   │       ├── locale/  (2 个文件)
@@ -752,7 +753,7 @@ lfaa/
 
 - `make-icon.mjs` — 生成桌面端占位图标（256×256，32 位 ICO）：深色圆角底 + 品牌蓝字标。
 - `package.mjs` — 桌面安装包构建：全量构建 → 生成 staging（真实文件、无符号链接）→ electron-builder 出 NSIS 安装包。
-- `start-diagnostics.mjs` — 桌面端启动失败诊断：识别 Windows 低完整性级别（Low Mandatory Level）与目录 ACL 缺失，避免误走 --no-sandbox。
+- `start-diagnostics.mjs` — 桌面端启动失败诊断：识别 Windows 低完整性级别（Low Mandatory Level）与目录 ACL 缺失，并检测陈旧构建产物避免前后端版本错配。
 - `start-diagnostics.test.mjs` — 桌面端启动失败诊断回归测试：覆盖低完整性标记识别、ACL 识别与 --no-sandbox 回退边界。
 - `start.mjs` — 启动桌面端：先校验构建产物存在，再在 Windows 下修复低完整性标记/ACL，最后用本机 Electron 打开 apps/desktop。
 
@@ -953,13 +954,17 @@ lfaa/
 
 ### packages/client/ui-agent-group/client/group
 
-- `group-api.ts` — @lfaa/agent-group 浏览器端接口封装：群会话的创建、读取与一轮群聊的启动。
+- `group-api.ts` — @lfaa/agent-group 浏览器端接口封装：群会话读写、混编成员（角色 + 本机 CLI）、项目绑定与 SSE 实时流式回合。
 
 ### packages/client/ui-agent-group/client/view
 
 - `Group-Composer.module.css` — @lfaa/agent-group 群聊发送区样式：输入框、@ 成员栏与发送按钮，只消费主题语义变量。
+- `Group-Composer.tsx` — 群聊输入区组件：支持 @ 成员补全浮层、成员点选标签、发送与中途停止本轮。
+- `Group-Message-Card.module.css` — 群聊富文本消息卡片样式（Markdown 代码块、折叠工具步骤与发言者标签），纯主题语义变量。
+- `Group-Message-Card.tsx` — 群聊富文本消息卡片：支持轻量 Markdown（标题、行内代码、可复制代码块）、可折叠工具步骤与流式状态。
+- `Group-Settings-Panel.tsx` — 群聊创建与群设置表单：支持绑定工作区项目、混编选择内置/自定义角色与本机 CLI 代理，以及指定主持人。
 - `Group-View.module.css` — @lfaa/agent-group 群聊页样式：群列表 + 消息流 + 发送区，只消费主题语义变量。
-- `Group-View.tsx` — @lfaa/agent-group 群聊页：左侧群列表与建群，右侧消息流与发送框。
+- `Group-View.tsx` — @lfaa/agent-group 群聊页：SSE 实时流式多成员对话、停止本轮、Markdown/步骤卡片、@ 成员补全、项目绑定与群设置。
 
 ### packages/client/ui-agent-group/src
 
@@ -986,14 +991,17 @@ lfaa/
 
 ### packages/client/ui-agent-profile/client/editor
 
-- `Agent-Editor.module.css` — @lfaa/agent-profile Agent 编辑卡样式：表单、子卡与操作按钮，只消费主题语义变量。
+- `Agent-Editor.module.css` — @lfaa/agent-profile Agent 编辑表单样式（位于居中弹窗内），只消费主题语义变量。
 - `Agent-Editor.tsx` — @lfaa/agent-profile Agent 编辑卡：名称、用途、人设指令、模型绑定与保存/删除。
 
 ### packages/client/ui-agent-profile/client/view
 
+- `AgentRoleCard.tsx` — Agents 页单个角色卡片与居中编辑弹窗外壳：与本机 CLI 卡片共享统一卡片密度。
 - `Agents-Toolbar.tsx` — @lfaa/agent-profile Agents 页工具条：刷新、导出、导入与新建，避免列表页继续膨胀。
-- `Agents-View.module.css` — @lfaa/agent-profile Agents 页样式：页头 + agent 列表 + 窄屏适配，只消费主题语义变量。
-- `Agents-View.tsx` — @lfaa/agent-profile Agents 页：左侧列出 agent，右侧编辑人设、用途与模型绑定。
+- `Agents-View.module.css` — @lfaa/agent-profile Agents 页样式：统一卡片网格 + 居中编辑弹窗，只消费 @lfaa/ui-theme 语义变量。
+- `Agents-View.tsx` — @lfaa/agent-profile Agents 页：统一采用「卡片网格 + 弹窗配置」交互，兼容内置角色、本机官方 CLI 与自定义角色。
+- `CliRuntimeGrid.module.css` — Agents 页本机 CLI 卡片样式：与角色卡片保持完全一致的高度、圆角与按钮密度，只消费 @lfaa/ui-theme 语义变量。
+- `CliRuntimeGrid.tsx` — Agents 页「本机官方 CLI」卡片集合：与角色卡片共享同一网格密度与视觉语言。
 
 ### packages/client/ui-agent-profile/src
 
@@ -1083,6 +1091,8 @@ lfaa/
 - `Canvas-Drawers.tsx` — 浏览器画布资料库、运行历史与全屏 Agent 对话抽屉。
 - `Canvas-Edge.tsx` — 自定义画布贝塞尔连线：默认精致细线/虚线，选中或运行态叠加流光脉冲，严格消费主题色变量。
 - `Canvas-Editor.tsx` — 沉浸式无限画布编辑器：无顶条浮层布局、5 大模板多卡片弹窗、流光连线、底部控制胶囊与全屏 Agent 对话抽屉。
+- `Canvas-Error-Boundary.module.css` — 无限画布错误边界降级卡片样式：消费 @lfaa/ui-theme 语义变量，兼容浅色/深色双主题。
+- `Canvas-Error-Boundary.tsx` — 无限画布错误边界：拦截动态分包过期（重新构建后旧 chunk 404）与运行时异常，避免整页白屏。
 - `Canvas-Loading-Skeleton.module.css` — 无限画布打开过渡骨架屏样式：纯 GPU transform 扫光与淡点阵底纹，严格消费主题语义变量，适配深浅双主题与减弱动效。
 - `Canvas-Loading-Skeleton.tsx` — 无限画布打开过渡骨架屏：淡点阵画布底纹 + 顶/底胶囊与居中三张扫光节点卡片骨架，平滑过渡至真实画布。
 - `Canvas-Media-Controls.tsx` — 画布媒体编辑参数控件，按功能显示必要的裁剪框、输出规格、区间或文字。
@@ -1130,6 +1140,8 @@ lfaa/
 
 ### packages/client/ui-canvas/client/projects
 
+- `Canvas-Create-Project-Modal.module.css` — 无限画布新建项目命名弹窗样式：轻量居中对话框，全量消费 @lfaa/ui-theme 语义变量以适配深/浅双主题。
+- `Canvas-Create-Project-Modal.tsx` — 无限画布新建项目命名弹窗：先输入项目名称再创建并进入画布，重名时实时提示无空格递增序号（如 短剧1）。
 - `Canvas-Hub-Card-Grid.tsx` — 无限画布「我的项目」网格卡片区：无外框极简缩略图 + 文件夹折耳造型卡片（支持行内改名）+ 下方独立标题/日期 + 右下更多操作触发按钮。
 - `Canvas-Hub-Card-Menu.module.css` — 无限画布「我的项目」卡片更多菜单样式：遵循悬浮卡片规范，消费 --popover-* 与语义变量。
 - `Canvas-Hub-Card-Menu.tsx` — 无限画布「我的项目」卡片更多操作浮层：支持打开、重命名、修改封面、创建副本、移动至分区与删除项目。
@@ -1150,6 +1162,7 @@ lfaa/
 
 - `canvas-media-image.test.ts` — 浏览器媒体变换的几何测试：在 Node.js 验证裁剪与宫格输出的源像素范围。
 - `canvas-node-move.test.ts` — 无限画布节点移动回归测试：在 Node.js 校验多选落点和无变化的拖动事件。
+- `canvas-project-context.test.ts` — 进入画布项目时的上下文同步单测：确保自动切到工作模式、同步左二高亮并绑定新聊天草稿，不篡改已有历史会话。
 - `project-hub-helpers.test.ts` — 画布项目大厅纯逻辑回归测试：覆盖画布项目过滤、关键字搜索、排序与相对时间格式化。
 
 ### packages/client/ui-chat
@@ -1244,8 +1257,8 @@ lfaa/
 - `ChatMessageList.tsx` — 聊天消息区：空会话引导（鱼形图标 / 可点项目变量的标题 / 聊天·工作分段 / 内嵌输入栏 / 统一轻量起步建议）与隔离记忆化的消息线程。
 - `ChatMessageRow.tsx` — 单条消息隔离渲染单元：用 React.memo 保护历史消息，在末尾流式输出期间避免整条消息线程重复重绘。
 - `ChatSuggestions.tsx` — 三条建议盒子：空会话引导区下方那一行建议，独立成件，改动它不会牵动会话区与输入区。
-- `ChatTopBar.module.css` — 中间区域顶栏盒子：对话 / 轨迹切换条。只负责自己这一行的排版，不参与会话区与输入区的布局。
-- `ChatTopBar.tsx` — 中间区域顶栏盒子：只管「对话 / 轨迹」两个视图入口与它自己的外壳，位置与会话区、输入区互不影响。
+- `ChatTopBar.module.css` — 中间区域顶栏盒子：对话 / 轨迹切换条与右侧协作 Agent 成员入口。
+- `ChatTopBar.tsx` — 中间区域顶栏盒子：对话 / 轨迹视图切换与右侧协作 Agent 成员入口。
 - `ChatWorkspace.attachments.module.css` — 输入区附件行与芯片样式：文件/路径标签、图片缩略图（可点开大图）与移除按钮，双主题变量适配。
 - `ChatWorkspace.composer.module.css` — 聊天输入区（上下文提示、输入卡片与工具栏）样式，双主题变量适配；附件芯片样式在 attachments 分册。
 - `ChatWorkspace.hero.module.css` — 聊天中心引导区：鱼形图标、标题、聊天/工作分段、内嵌输入栏、统一轻量起步建议与提示。
@@ -1264,6 +1277,8 @@ lfaa/
 - `MarkdownContent.tsx` — 助手消息富文本 Markdown 渲染组件：提供克制优雅的文档排版、表格、代码块语法高亮与块级流式缓存。
 - `MessageActionBars.module.css` — 消息操作栏（复制/评价/朗读/更多菜单/编辑消息）与已编辑文件折叠卡片样式。
 - `MessageActionBars.tsx` — 消息操作栏与文件变更汇总卡片：提供用户消息复制/编辑、助手消息复制/评价/朗读/分支与记忆引用菜单及已编辑文件折叠卡片。
+- `SessionMembersPicker.module.css` — 主聊天顶栏「协作 Agent 成员」按钮与弹窗样式：消费 @lfaa/ui-theme 语义变量，兼容深浅双主题。
+- `SessionMembersPicker.tsx` — 主聊天顶栏「协作 Agent 成员」选择器：1 位即单聊，拉入 ≥2 位即在同一聊天界面升级为多 Agent 协作并支持分工。
 - `Step-Detail.module.css` — 步骤详情面板样式：标签页 + 键值行 + 等宽文本块，全部使用主题变量。
 - `Step-Detail.tsx` — @lfaa/chat 步骤详情面板：点开某个动作后按「概览 / 参数 / 结果 / 计时」查看留痕，风格与聊天区一致。
 - `StepTraceList.approval.module.css` — 待审批工具卡片样式：卡片容器、标题提示、参数块与批准/拒绝按钮，从 StepTraceList.module.css 拆出。
@@ -1307,6 +1322,7 @@ lfaa/
 
 - `Ark-Models.module.css` — 方舟套餐目录沿用模型表单的主题变量，为窄屏保留可换行的模型 ID。
 - `Ark-Models.tsx` — 浏览器端方舟套餐模型目录：仅在已配置凭据时展示；按用途 → 品牌分组，并标注模型能力。
+- `CliAgentPickerSection.tsx` — 聊天模型选择器的「CLI 代理」订阅 Hook 与选项分区：联动设置中心开关，支持一键在 API 模型与本机 CLI 间切换。
 - `ModelProviderFooter.tsx` — 模型配置弹窗底部操作栏：左侧返回与删除，右侧测试连接、保存与保存并启用，窄屏下可分行。
 - `ModelProviderForm.tsx` — 模型提供商配置弹窗的表单主体：渲染协议、地址、模型目录、上下文窗口、成本单价与 API Key 字段。
 - `ModelProviderGrid.module.css` — 模型管理卡片网格与弹窗表单样式，配合 @lfaa/ui-primitives 居中弹窗使用。
@@ -1348,6 +1364,9 @@ lfaa/
 
 - `AgentSettingsView.module.css` — 设置中心「模型与规则」页样式：只保留标签切换与只读规则块；页面骨架、分组与表单字段由 @lfaa/ui-primitives 提供。
 - `AgentSettingsView.tsx` — 渲染设置中心「模型与规则」页：模型提供商网格、规则与长期记忆；表单按上下排字段组织，删除动作单独成组。
+- `CliAgentAccountEditor.tsx` — 单个官方 CLI 代理的本地隔离账户与附加参数编辑区（从 CliAgentsPanel 拆出以保持小文件职责边界）。
+- `CliAgentsPanel.module.css` — 设置中心「CLI 代理」面板样式：遵循 docs/standards/settings-ui.md，纯主题语义变量，不套外层卡片框。
+- `CliAgentsPanel.tsx` — 设置中心「CLI 代理」面板：探测本机已安装/可安装的官方 CLI，管理启用状态、附加参数与本地隔离订阅账户。
 - `GeneralSettingsGeneralGroup.tsx` — 渲染设置中心「常规」页的主体分组：位置、运行环境、界面、历史与性能、启动与扩展；每组只放同类设置。
 - `GeneralSettingsSecondary.tsx` — 渲染设置中心「常规」页下半部分分组：编辑器、Agent 行为、弹出窗口与趣味实验。
 - `GeneralSettingsView.overlays.module.css` — 设置中心「常规」页的浮层样式：许可证详情弹窗与庆祝叠层，页面外观由 @lfaa/ui-primitives 的 SettingsSurface 提供。
@@ -1359,6 +1378,7 @@ lfaa/
 - `ShortcutsSettingsView.module.css` — 键盘快捷键设置页：搜索框、键位芯片、冲突提示与页级重置按钮的局部样式；颜色一律取主题变量。
 - `ShortcutsSettingsView.tsx` — 设置中心「键盘快捷键」页：列出所有已注册的真实动作，支持搜索、录制改键、清除与恢复默认，并提示冲突。
 - `TerminalSettingsView.tsx` — 设置中心「终端」页：一行展示位置（右侧面板 / 底部面板），切换后立即生效并记住。
+- `cli-agents-client.ts` — 浏览器端官方 CLI 代理管理客户端：封装 /api/cli-agents/* 请求与公共类型，供设置页与聊天模型选择器共用。
 - `coding-settings-client.ts` — 客户端访问「设置 → 编码（Git 与代码审查）」与内置 Git / 审查接口的类型与请求函数。
 - `general-settings-client.ts` — 兼容重导出通用设置契约与辅助函数，实体定义统一收敛于 shared/general-settings.ts。
 - `memory-view.ts` — 记忆库的纯筛选与展示辅助：供设置中心记忆页与单测共用，不触碰 DOM 与网络。
@@ -1389,6 +1409,7 @@ lfaa/
 - `chat-store.ts` — 管理 @lfaa/chat 浏览器端会话列表、流式运行 SSE 订阅、工具审批、权限模式、模型配置、规则与长期记忆状态。
 - `chat-types.ts` — 声明 @lfaa/chat/client 浏览器端状态与 API 数据模型（无 Node 专有依赖）。
 - `draft-session-exit.ts` — 新会话草稿退场：先给侧栏行打上 draftExiting，让 CSS 收起高度，再由定时器从快照移除。
+- `group-turn-stream.ts` — 主聊天多 Agent 回合流式订阅：复用于单聊同一会话界面，实时推送各位协作 Agent 的增量与步骤。
 - `run-media-actions.ts` — 媒体生成动作：画幅计划、参考图上传、生成请求与本地占位插入/移除。
 - `run-stream-handler.ts` — 运行事件归并：把 Host 推送的快照、增量、步骤、审批与结束事件写进当前会话，断流时记录降级状态。
 - `stream-client.ts` — 浏览器端高可用流式订阅器：提供按片段序号幂等去重、RAF 节流批量渲染、心跳看门狗、指数退避重连与完整句边界续写辅助。
@@ -1953,16 +1974,18 @@ lfaa/
 
 ### packages/core/agent-group/src
 
-- `http-handler.ts` — @lfaa/agent-group HTTP 接口：启动一轮群聊（POST /api/group/runs）。
+- `http-handler.ts` — @lfaa/agent-group HTTP 接口：群聊启动（兼容阻塞与 SSE 流式）、SSE 事件流、回合中止与群设置更新。
 - `index.ts` — @lfaa/agent-group 入口：导出群聊编排、发言计划契约与 HTTP 处理器。
 - `orchestrator.ts` — @lfaa/agent-group 群聊编排：把用户一条消息展开成「按顺序逐个 agent 发言」，共享同一份会话历史。
 - `speaking-plan.ts` — @lfaa/agent-group 发言计划：代理人产出的「本轮谁发言、各自干什么」的严格契约与校验。
+- `turn-stream.ts` — @lfaa/agent-group 实时流式群聊回合管理：支持非阻塞启动、SSE 事件转发与中途一键中止整轮。
 
 ### packages/core/agent-group/tests
 
 - `http-handler.test.ts` — 验证群聊接口：只接管 /api/group/runs、缺 sessionId 报 400、非群会话把原因透出。
 - `orchestrator.test.ts` — 验证群聊编排：@ 顺序发言、第二位起不重复落用户消息、代理人兜底与发言人数上限。
 - `speaking-plan.test.ts` — 验证发言计划的解析/校验，以及编排层「计划通过就照做、不通过就降级」的行为。
+- `turn-stream.test.ts` — 验证群聊 SSE 流式回合（GroupTurnHub）与中途 abort 行为。
 
 ### packages/core/agent-profile
 
@@ -2037,6 +2060,7 @@ lfaa/
 - `model-round.ts` — Agent Host 模型轮次的超时与有限重试，保留已发出的正文和工具进度。
 - `peer-sessions.test.ts` — 回归测试：验证同项目多会话可并行登记且彼此能生成准确的实时感知提示。
 - `peer-sessions.ts` — 多会话并行协调器：允许同一工作区下多个会话并发运行，并向每个活跃会话动态注入同工作区其他并发会话的实时动作摘要，避免互相踩踏。
+- `resolve-external-cli.ts` — 解析角色绑定或直接指定的外部 CLI 执行器（cli:*），把自定义角色指令拼入请求上下文。
 - `run-begin.ts` — Agent 运行启动器：校验会话与授权根、落盘用户/助手消息、登记运行记录并把执行循环交给 agent-loop。
 - `run-compaction.ts` — 运行期压缩入口：优先使用挂载的压缩服务，未挂载时回落到 @lfaa/context 的内置实现。
 - `run-context.ts` — 运行上下文装配：召回规则/记忆/资料库，拼装工作区与技能提示，创建用量跟踪、系统消息与初始对话。
@@ -2848,11 +2872,19 @@ lfaa/
 - `static-files.ts` — @lfaa/web-server：生产静态托管的文件层实现：MIME、路径边界、Range、缓存头与响应工具。
 - `static-server.ts` — @lfaa/web-server：生产模式宿主：只监听本机，静态托管 Web 产物，并把 /api 交给同一套网关与一次性令牌。
 
+### packages/host/web-server/src/cli-agents
+
+- `catalog.ts` — 官方外部 CLI 代理目录与公共类型定义：供本机探测、账户隔离、终端启动与聊天后端路由共用。
+- `detector.ts` — 本机官方 CLI 代理探测器：跨平台定位可执行文件、读取版本号并只读判定系统默认登录态。
+- `runner.ts` — 官方 CLI 代理流式执行器：通过原生非交互 JSONL/NDJSON 协议驱动 codex / claude / agy，绝不窃取 token。
+- `store.ts` — CLI 代理配置与本地隔离账户持久化：保存在 ~/.lfaa/cli-agents.json，账户目录隔离在 ~/.lfaa/cli-accounts/。
+
 ### packages/host/web-server/src/handlers
 
 - `handlers-backgrounds.ts` — @lfaa/web-server：个人背景图接口：列表、上传、读取与删除；文件保存在本机 ~/.lfaa/backgrounds。
 - `handlers-canvas.ts` — Host 网关内的项目画布路由，所有操作先通过本机令牌及项目登记校验。
 - `handlers-chat.ts` — @lfaa/web-server：构造会话与运行相关处理器（聊天、编码会话、媒体直连生成、Agent 运行）。
+- `handlers-cli-agents.ts` — @lfaa/web-server：官方 CLI 代理管理 HTTP 路由（本机探测、配置、多账户隔离与终端命令生成）。
 - `handlers-notifications.ts` — @lfaa/web-server：提供自定义通知提示音的上传、列表、读取与删除接口；文件保存在本机 ~/.lfaa/notification-sounds。
 - `handlers-trash.ts` — 统一回收站 HTTP 处理器：提供 /api/trash/* 列表/预览/恢复/彻底删除/清空接口，并拦截画布、项目、素材与资料库资产的默认 DELETE 请求转入 30 天回收站。
 - `handlers.ts` — @lfaa/web-server：构造常规能力 HTTP 处理器（工作区、技能、插件、模型、记忆、媒体文件等），并集中提供
@@ -2864,6 +2896,7 @@ lfaa/
 ### packages/host/web-server/tests
 
 - `backgrounds.test.ts` — 验证个人背景图接口：上传、列表、读图、删除；直接放进目录的文件也会被发现；非图片与超大内容被拒绝。
+- `cli-agents.test.ts` — 验证官方 CLI 代理配置存储、本地隔离账户环境变量注入与 Codex/Claude 流式 JSON 解析。
 - `notification-sounds.test.ts` — 验证自定义提示音接口：上传、列表、读取文件与删除，并拒绝非音频与超大内容。
 - `static-server.test.ts` — 验证生产静态托管的关键边界：令牌注入、MIME 与缓存、目录穿越、SPA 回退、Range 与只读方法限制。
 - `trash-store.test.ts` — 统一回收站 TrashStore 回归测试：覆盖软删除、30 天自动清理、预览解析、彻底删除与清空。

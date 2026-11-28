@@ -246,17 +246,21 @@ test("Host 常规设置持久化、项目外聊天默认目录动态解析与 /a
 
   assert.equal(middleTruncatePath("C:\\Users\\Administrator\\Documents\\LFAA", 30).includes("..."), true);
   const autoOutside = await resolveDefaultOutsideProjectFolder();
-  assert.ok(autoOutside.endsWith(path.join("lfaa", "default-workspace")), "项目外聊天默认使用文档下的 default-workspace");
+  assert.ok(autoOutside.endsWith(path.join("lfaa", "default-workspace", "code")), "项目外聊天默认使用文档下的 default-workspace/code");
   const autoProjects = await resolveDefaultProjectsFolder();
   assert.ok(autoProjects.endsWith(`${path.sep}lfaa`), "默认新建项目目录应以 lfaa 结尾且不写死用户名");
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "lfaa-general-cfg-"));
   const legacy = path.join(tempRoot, "legacy-general.json");
-  // 旧默认值（~/.lfaa/workspace）在 v3 自动迁移到文档下的默认工作区。
+  // 旧默认值（~/.lfaa/workspace 与 v3 的 default-workspace）在 v4 自动迁移到文档下的 default-workspace/code。
   await fs.writeFile(legacy, JSON.stringify({ schemaVersion: 2, outsideProjectFolder: path.join(os.homedir(), ".lfaa", "workspace") }));
   const migrated = await new GeneralSettingsStore(legacy).get();
   assert.equal(migrated.outsideProjectFolder, autoOutside);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
+  await fs.writeFile(legacy, JSON.stringify({ schemaVersion: 3, outsideProjectFolder: path.join(autoProjects, "default-workspace") }));
+  const migratedV3 = await new GeneralSettingsStore(legacy).get();
+  assert.equal(migratedV3.outsideProjectFolder, autoOutside);
+  assert.equal(migratedV3.schemaVersion, 4);
   // 用户显式选过的目录不能被迁移覆盖。
   const customOutside = path.join(tempRoot, "custom-workspace");
   await fs.writeFile(legacy, JSON.stringify({ schemaVersion: 2, outsideProjectFolder: customOutside }));

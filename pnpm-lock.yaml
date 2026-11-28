@@ -375,6 +375,9 @@ importers:
       '@lfaa/ui-layout':
         specifier: workspace:*
         version: link:../../ui/layout
+      '@lfaa/ui-primitives':
+        specifier: workspace:*
+        version: link:../../ui/primitives
       '@tabler/icons-react':
         specifier: ^3.35.0
         version: 3.52.0(react@19.3.1)

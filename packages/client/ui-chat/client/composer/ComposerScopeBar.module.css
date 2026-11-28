@@ -34,7 +34,15 @@
   font-size: 0.84em;
   line-height: 1.25;
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  overflow: hidden;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .triggerBase:hover,
@@ -52,9 +60,13 @@
 }
 
 .triggerLabel {
+  display: inline-block;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 1;
+  transition: max-width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease;
 }
 
 .projectEmpty {
@@ -274,8 +286,8 @@
   .popover { width: min(17.5rem, 100%); }
 }
 
-/* 窄输入卡片下与底栏模式/模型按钮同口径：工作位置与项目触发器收成纯图标按钮，完整名称通过 HoverTip 展示。 */
-@container chat-composer (max-width: 30rem) {
+/* 窄输入卡片下与底栏模式/模型按钮同口径（36rem）：工作位置与项目触发器平滑收成纯图标按钮，完整名称通过 HoverTip 展示。 */
+@container chat-composer (max-width: 36rem) {
   .shelf {
     gap: 0.25rem;
   }
@@ -299,6 +311,8 @@
   }
 
   .triggerLabel {
-    display: none;
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
   }
 }

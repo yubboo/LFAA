@@ -34,16 +34,15 @@
 <defaultProjectsDir>/                   # 默认 D:\Documents\lfaa（用户在设置中心可改）
 ├── default-workspace/                  # 默认工作区整体（用户不想要时可二次确认整删）
 │   ├── code/                           # 默认代码工作区（代码 Agent 读写）
-│   └── canvas-sample/                  # 默认工作区画布样板（短剧/画布体验样板）
-├── canvas-projects/                    # 平级：画布「+ 开始创作」新建的独立画布/短剧项目
-│   └── <project-slug-or-id>/           # 独立子目录（boards / media / 未来 scripts 等）
+│   └── canvas/                         # 默认工作区画布区（短剧/画布体验样板）
+├── <canvas-project-name>/              # 平级：画布「+ 开始创作」新建的独立画布/短剧项目
 └── <code-project-name>/                # 平级：左二按名称新建的代码项目
 ```
 
 - **安全边界与默认回退**：
-  - **未绑定项目时的系统默认兜底**：当用户未创建或未绑定任何项目直接对话时，Agent 依然默认使用设置中心「默认工作区」（`D:\Documents\lfaa\default-workspace`）管理——代码/工作对话落在 `default-workspace/code/`，默认画布样板落在 `default-workspace/canvas-sample/`，保持与设置中心「默认工作区：未关联项目时，默认使用这个工作区」完全一致；
-  - 彻底删除单个画布项目时，后端强制校验目标路径位于 `<defaultProjectsDir>/canvas-projects/` 下，绝不触碰父目录或代码目录；
-  - 删除「默认工作区」时，仅删除 `<defaultProjectsDir>/default-workspace/`，不影响平级的 `canvas-projects/` 与其他代码项目；同时持久化 `defaultWorkspaceDismissed: true`，后续重启不再自动重建并从左二与画布大厅隐藏。若删除后用户在未绑定任何项目的情况下再次发起「工作」模式对话，由运行时按需提示绑定项目或一键恢复默认工作区（绝不直接因目录不存在报错崩溃）。
+  - **未绑定项目时的系统默认兜底**：当用户未创建或未绑定任何项目直接对话时，Agent 依然默认使用设置中心「默认工作区」（`D:\Documents\lfaa\default-workspace`）管理——代码/工作对话落在 `default-workspace/code/`，默认画布样板落在 `default-workspace/canvas/`，保持与设置中心「默认工作区：未关联项目时，默认使用这个工作区」完全一致；
+  - 彻底删除单个画布项目时，后端仅删除该画布项目自身目录与画布数据，绝不触碰父目录或其他平级项目；
+  - 删除「默认工作区」时，仅删除 `<defaultProjectsDir>/default-workspace/`，不影响其他平级画布项目与代码项目；同时持久化 `defaultWorkspaceDismissed: true`，后续重启不再自动重建并从左二与画布大厅隐藏。若删除后用户在未绑定任何项目的情况下再次发起「工作」模式对话，由运行时按需提示绑定项目或一键恢复默认工作区（绝不直接因目录不存在报错崩溃）。
 
 ### 3.2 项目模型扩展（`@lfaa/workspace`）
 
@@ -52,7 +51,7 @@
   - `trashedAt?: number | null`（软删除时间戳：非空表示已进入回收站，默认列表不返回）；
   - `canvasFolderId?: string | null`（画布大厅分类文件夹归属，仅 `kind === "canvas"` 使用）。
 - 公开 API 扩展：
-  - `createProject` 支持传 `kind: "canvas"` 与 `canvasFolderId`，自动在 `<defaultProjectsDir>/canvas-projects/` 下建子目录；
+  - `createProject` 支持传 `kind: "canvas"` 与 `canvasFolderId`，自动在 `<defaultProjectsDir>/<name>` 下平级建目录；
   - `trashProject(id)` / `restoreProject(id)` / `purgeProject(id)`：对 `kind === "canvas"` 项目实现「移入回收站 ↔ 还原 ↔ 彻底删除」，并广播项目列表刷新事件；
   - `deleteDefaultWorkspace()`：删除 `default-workspace` 目录 + 写入 `defaultWorkspaceDismissed` 标记 + 从项目列表移除。
 
@@ -82,11 +81,11 @@
 - **回收站双向同步**：
   - 大厅删除画布项目 → 移入回收站 + 左二同步消失；
   - 回收站「还原」→ 大厅与左二同步恢复；
-  - 回收站「彻底删除」→ 清理画布数据与 `canvas-projects/<id>` 目录。
+  - 回收站「彻底删除」→ 清理画布数据与回收站记录。
 
 ## 5. 分阶段实施计划
 
-1. **阶段 1（契约与后端）**：`@lfaa/workspace` 补齐 `kind`、`trashedAt`、`canvasFolderId`、`defaultWorkspaceDismissed`、`code/` + `canvas-sample/` 子目录隔离及 `deleteDefaultWorkspace` / 回收站 API；`@lfaa/canvas` 补齐 `/api/canvas/folders` CRUD 与路径安全校验，补齐单测。
+1. **阶段 1（契约与后端）**：`@lfaa/workspace` 补齐 `kind`、`trashedAt`、`canvasFolderId`、`defaultWorkspaceDismissed`、`code/` + `canvas/` 子目录隔离及 `deleteDefaultWorkspace` / 回收站 API；`@lfaa/canvas` 补齐 `/api/canvas/folders` CRUD 与路径安全校验，补齐单测。
 2. **阶段 2（左二栏标识与删除联动）**：`@lfaa/ui-layout` 为 `kind === "canvas"` 项目渲染画布专属图标；`@lfaa/client-ui-workspace` 接入画布项目软删进回收站，以及「默认工作区 → 删除工作区」的 `ConfirmDialog` 二次确认流。
 3. **阶段 3（画布大厅文件夹与双向同步）**：`@lfaa/client-ui-canvas` 过滤掉代码项目、保留「默认工作区（样板，不可删）」、将「+ 开始创作」定为唯一新建项目入口、将右上角「+ 新建」改为新建分类文件夹并接通文件夹浏览/移动/删除与回收站双向同步。
 4. **阶段 4（全链路验收）**：补齐单测、`pnpm check` / `pnpm lint` / `pnpm build:web` / `pnpm verify:web`，并在内置浏览器实测深/浅双主题下的新建项目、建文件夹、左二与画布双向删除/还原及默认工作区二次确认删除全流程。

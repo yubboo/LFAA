@@ -94,8 +94,7 @@ export function NavigationRail({
     >
       <div className={styles.topGroup}>
         <RailButton label={locale.home} icon="home" active={activeView === "workspace"} onClick={() => select("workspace")} />
-        {/* 首页=单聊，其后是群聊与 Agents：两个高频入口在前，配置入口紧随其后。 */}
-        <RailButton label={locale.group} icon="group" active={activeView === "group"} onClick={() => select("group")} />
+        {/* 首页同时承担单聊与多 Agent 群协作，其后紧跟 Agents 配置入口。 */}
         <RailButton label={locale.agents} icon="agents" active={activeView === "agents"} onClick={() => select("agents")} />
         {!isMobile && primaryActions.map(({ view, label, icon }) => (
           <RailButton

@@ -147,3 +147,25 @@ export interface AgentRunStatus {
   message?: ChatMessageRecord;
   error?: string;
 }
+
+
+export interface ExternalBackendRunInput {
+  runId: string;
+  sessionId: string;
+  profileId: string;
+  userMessage: string;
+  cwd: string;
+  permissionMode: "ask" | "smart" | "full";
+  signal: AbortSignal;
+  emit: (event: AgentRunEvent) => void;
+}
+
+export interface ExternalBackendRunResult {
+  content: string;
+  steps: AgentStepTrace[];
+  model?: string;
+  progressText?: string;
+  reasoning?: string;
+}
+
+export type ExternalBackendRunner = (input: ExternalBackendRunInput) => Promise<ExternalBackendRunResult>;

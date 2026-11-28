@@ -7,6 +7,7 @@ import {
   filterAndSortHubProjects,
   formatRelativeEditedTime,
   pickFallbackCoverPath,
+  resolveUniqueCanvasProjectName,
 } from "../client/projects/project-hub-helpers";
 
 describe("project-hub-helpers", () => {
@@ -59,5 +60,13 @@ describe("project-hub-helpers", () => {
     const first = pickFallbackCoverPath("proj-alpha", pool);
     assert.ok(first && pool.includes(first));
     assert.equal(pickFallbackCoverPath("proj-alpha", pool), first);
+  });
+
+  it("resolves duplicate canvas project names without spaces starting from 1", () => {
+    assert.equal(resolveUniqueCanvasProjectName(" 短剧 ", ["默认工作区"]), "短剧");
+    assert.equal(resolveUniqueCanvasProjectName("短剧", ["短剧"]), "短剧1");
+    assert.equal(resolveUniqueCanvasProjectName("短剧", ["短剧", "短剧1"]), "短剧2");
+    assert.equal(resolveUniqueCanvasProjectName("Drama", ["drama", "DRAMA1"]), "Drama2");
+    assert.equal(resolveUniqueCanvasProjectName("   ", ["短剧"]), "");
   });
 });

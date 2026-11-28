@@ -206,6 +206,7 @@ export const enMessages: ChatLocaleMessages = {
   settingsTitle: "Models, Rules & Memory",
   settingsSubtitle: "Manage Host-only LLM API credentials, hierarchical rules, and long-term memories.",
   tabModels: "LLM Profiles",
+  tabCliAgents: "CLI Agents",
   tabRules: "Rules",
   tabMemory: "Memory",
   providerLabel: "Provider",

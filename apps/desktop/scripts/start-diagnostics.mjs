@@ -1,5 +1,7 @@
-// 桌面端启动失败诊断：识别 Windows 低完整性级别（Low Mandatory Level）与目录 ACL 缺失，避免误走 --no-sandbox。
+// 桌面端启动失败诊断：识别 Windows 低完整性级别（Low Mandatory Level）与目录 ACL 缺失，并检测陈旧构建产物避免前后端版本错配。
 // 关联：apps/desktop/scripts/start.mjs；运行环境：Node.js。
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 /** Windows 内置 ALL APPLICATION PACKAGES 伪组的只读与执行继承授权参数。 */
 export const ALL_APP_PACKAGES_GRANT = "*S-1-15-2-1:(OI)(CI)(RX)";
@@ -71,4 +73,42 @@ export function classifyLaunchFailure({
   }
 
   return { kind: "exit" };
+}
+
+/** 递归读取目录下所有文件的最大 mtimeMs；目录不存在时返回 0。 */
+function latestMtimeMs(entryPath) {
+  if (!existsSync(entryPath)) return 0;
+  const info = statSync(entryPath, { throwIfNoEntry: false });
+  if (!info) return 0;
+  if (!info.isDirectory()) return info.mtimeMs;
+  let newest = 0;
+  for (const child of readdirSync(entryPath, { withFileTypes: true })) {
+    const childTime = latestMtimeMs(join(entryPath, child.name));
+    if (childTime > newest) newest = childTime;
+  }
+  return newest;
+}
+
+/**
+ * 检查一组桌面端启动产物是否缺失或落后于源码（避免新前端配旧宿主 lib 导致 404 接口错误）。
+ * 返回需要重建的目标清单，每项附带 reason: "missing" | "stale"。
+ */
+export function findStaleArtifacts(specs) {
+  const stale = [];
+  for (const spec of specs) {
+    const outStat = statSync(spec.outputPath, { throwIfNoEntry: false });
+    if (!outStat) {
+      stale.push({ ...spec, reason: "missing" });
+      continue;
+    }
+    let newestSource = 0;
+    for (const dir of spec.sourceDirs) {
+      const mtime = latestMtimeMs(dir);
+      if (mtime > newestSource) newestSource = mtime;
+    }
+    if (newestSource > outStat.mtimeMs) {
+      stale.push({ ...spec, reason: "stale" });
+    }
+  }
+  return stale;
 }

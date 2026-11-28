@@ -41,3 +41,16 @@ export function useWorkspaceModeSync(
     service.setActiveProject(target);
   }, [service]);
 }
+
+/** 选中具体项目时同步工作区上下文：未在历史会话中时自动进入工作模式并绑定新聊天草稿。 */
+export function bindProjectContextOnSelect(service: WorkbenchClientService, projectId: string): void {
+  const snapshot = service.getSnapshot();
+  if (!snapshot.activeChatSessionId && snapshot.workspaceMode !== "codex") {
+    service.setWorkspaceMode("codex");
+  }
+  service.setActiveProject(projectId);
+  // 已打开的会话不改绑，避免污染历史聊天的项目归属。
+  if (!snapshot.activeChatSessionId) {
+    void snapshot.chatProvider?.setActiveProjectBinding?.(projectId);
+  }
+}

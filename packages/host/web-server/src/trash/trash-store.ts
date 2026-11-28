@@ -203,6 +203,57 @@ export class TrashStore {
     return meta;
   }
 
+  /** 软删除默认工作区画布（支持 0 张或多张画布整体进入回收站，不触碰工作区本身）。 */
+  async trashDefaultWorkspaceCanvas(input: {
+    projectId: string;
+    projectName: string;
+    boards: Array<{
+      canvasId: string;
+      boardDir: string;
+      coverRelPath?: string;
+      coverMime?: string;
+    }>;
+    now?: number;
+  }): Promise<TrashItemMeta> {
+    const id = randomUUID();
+    const deletedAt = input.now ?? Date.now();
+    const boardsRoot = join(this.payloadDir(id), "boards");
+    await mkdir(boardsRoot, { recursive: true });
+    let previewRelPath: string | undefined;
+    let previewMime: string | undefined;
+    const boardIds: string[] = [];
+    let totalBytes = 0;
+    for (const board of input.boards) {
+      if (!existsSync(board.boardDir)) continue;
+      const destBoard = join(boardsRoot, board.canvasId);
+      await moveEntrySafe(board.boardDir, destBoard);
+      boardIds.push(board.canvasId);
+      totalBytes += await computeSizeBytes(destBoard);
+      if (!previewRelPath && board.coverRelPath) {
+        previewRelPath = join("boards", board.canvasId, board.coverRelPath);
+        previewMime = board.coverMime ?? guessMimeFromPath(previewRelPath);
+      }
+    }
+    const meta: TrashItemMeta = {
+      id,
+      kind: "canvas",
+      title: `${input.projectName}画布`,
+      deletedAt,
+      expiresAt: deletedAt + TRASH_RETENTION_MS,
+      originLabel: input.projectName,
+      ...(previewRelPath ? { previewRelPath, ...(previewMime ? { previewMime } : {}) } : {}),
+      sizeBytes: totalBytes,
+      origin: {
+        projectId: input.projectId,
+        projectName: input.projectName,
+        isDefaultCanvas: true,
+        boardIds,
+      },
+    };
+    await this.writeMeta(meta);
+    return meta;
+  }
+
   /** 软删除项目注册记录（绝不删除用户本地硬盘源码目录）。 */
   async trashProject(input: {
     project: {

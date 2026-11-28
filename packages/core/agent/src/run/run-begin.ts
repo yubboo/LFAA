@@ -20,7 +20,7 @@ import {
   type ActiveRunRecord,
 } from "./run-records";
 import type { RunLoopDeps } from "./run-types";
-import type { AgentRunEvent, ApprovalAnswer, ProjectScope, ResolvedSkillContext, StartAgentRunInput } from "../types";
+import type { AgentRunEvent, ApprovalAnswer, ExternalBackendRunner, ProjectScope, ResolvedSkillContext, StartAgentRunInput } from "../types";
 import type { RunChunkRecord } from "../stream-journal";
 
 export type SkillResolver = (skillIds: string[], projectRoots: string[]) => Promise<ResolvedSkillContext[]>;
@@ -38,6 +38,8 @@ export interface BeginRunDeps extends RunLoopDeps {
   resolveSessionModules?: (presetId: string | undefined, modules: readonly string[]) => readonly string[];
   /** 解析某个 agent 的工具策略；未装配 agent 定义服务或缺省时返回 undefined（不限制）。 */
   resolveToolPolicy?: (agentId?: string) => Promise<{ allow?: string[]; deny?: string[] } | undefined>;
+  /** 可选：外部 CLI 代理执行器（当 profileId 以 cli: 开头时接管本轮执行）。 */
+  externalBackendRunner?: ExternalBackendRunner;
   /** 把新运行登记到服务层运行表并计数。 */
   onRunCreated: (record: ActiveRunRecord) => void;
   /** 运行收口后回调：调度层用于释放工作区租约并判断目标续跑。 */
@@ -277,7 +279,26 @@ export async function beginAgentRun(
             emit({ type: "step_update", runId, step: gitStep });
           }
         };
-        const result = await executeAgentTaskLoop(
+        const isExternalCliRun = Boolean(deps.externalBackendRunner && input.profileId?.startsWith("cli:"));
+        const result = isExternalCliRun && deps.externalBackendRunner
+          ? {
+              ...(await deps.externalBackendRunner({
+                runId,
+                sessionId: session.id,
+                profileId: input.profileId!,
+                userMessage: effectiveUserMessage,
+                cwd: workspaceRoots[0] ?? process.cwd(),
+                permissionMode: record.permissionMode,
+                signal: controller.signal,
+                emit,
+              })),
+              reasoning: "",
+              clarification: undefined,
+              usage: undefined,
+              metrics: undefined,
+              cost: undefined,
+            }
+          : await executeAgentTaskLoop(
           {
             llm: deps.llm,
             tools,
@@ -349,8 +370,8 @@ export async function beginAgentRun(
         persistDirty = false;
         const runDurationMs = Date.now() - runStartedAt;
         await record.persistChain;
-        // 收口时落一次长期记忆：显式偏好兜底 + 每轮模型提炼，失败不影响答复。
-        const memorySteps = memoryAllowed && !continuationId && !result.clarification
+        // 收口时落一次长期记忆：显式偏好兜底 + 每轮模型提炼，失败不影响答复；外部 CLI 运行跳过。
+        const memorySteps = !isExternalCliRun && memoryAllowed && !continuationId && !result.clarification
           ? await settleRunMemories({ memory: deps.memory, llm: deps.llm }, {
             sessionId: session.id,
             projectId,
@@ -371,7 +392,7 @@ export async function beginAgentRun(
           ...(result.clarification ? { clarification: result.clarification } : {}),
           ...(result.model ? { model: result.model } : {}),
           ...(result.usage ? { tokenUsage: result.usage } : {}),
-          metrics: result.metrics,
+          ...(result.metrics ? { metrics: result.metrics } : {}),
           ...(result.cost ? { cost: result.cost } : {}),
         });
         // 后台生成完成先标记未读，若前端当前正停留在当前会话则由前端清除未读。
@@ -405,7 +426,7 @@ export async function beginAgentRun(
         record.status.content = result.content;
         record.status.reasoning = result.reasoning;
         if (result.usage) record.status.tokenUsage = result.usage;
-        record.status.metrics = result.metrics;
+        if (result.metrics) record.status.metrics = result.metrics;
         if (result.cost) record.status.cost = result.cost;
         if (message) record.status.message = message;
         emit({ type: "run_finished", runId, sessionId: session.id, assistantMessageId, status: "done", ...(message ? { message } : {}) });

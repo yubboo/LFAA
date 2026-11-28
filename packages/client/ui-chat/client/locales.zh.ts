@@ -206,6 +206,7 @@ export const zhMessages: ChatLocaleMessages = {
   settingsTitle: "模型、规则与记忆配置",
   settingsSubtitle: "管理 LLM 提供商凭据（仅保存在本机 Host）、用户全局规则及长期事实记忆。",
   tabModels: "LLM 大脑配置",
+  tabCliAgents: "CLI 代理",
   tabRules: "系统与用户规则",
   tabMemory: "长期记忆库",
   providerLabel: "提供商类型",

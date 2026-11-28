@@ -14,8 +14,18 @@ export function readGroupConfig(value: unknown): GroupSessionConfig | undefined 
     const parsed = typeof input === "number" && Number.isFinite(input) ? Math.floor(input) : fallback;
     return Math.min(max, Math.max(min, parsed));
   };
+  const rawRoles = raw.memberRoles && typeof raw.memberRoles === "object" ? raw.memberRoles : null;
+  const memberRoles: Record<string, string> = {};
+  if (rawRoles) {
+    for (const [k, v] of Object.entries(rawRoles)) {
+      if (agentIds.includes(k) && typeof v === "string" && v.trim()) {
+        memberRoles[k] = v.trim().slice(0, 120);
+      }
+    }
+  }
   return {
     agentIds,
+    ...(Object.keys(memberRoles).length > 0 ? { memberRoles } : {}),
     ...(typeof raw.hostAgentId === "string" && raw.hostAgentId.trim() ? { hostAgentId: raw.hostAgentId.trim() } : {}),
     autoRounds: clamp(raw.autoRounds, 1, 1, 3),
     maxSpeakersPerRound: clamp(raw.maxSpeakersPerRound, 3, 1, 6),

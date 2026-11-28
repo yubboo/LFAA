@@ -4,6 +4,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 0.4rem;
+  transition: gap 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .actionWrap {
@@ -24,10 +25,22 @@
   padding: 0;
   border-radius: 999px;
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease, transform 120ms ease;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 120ms ease;
 }
 
-@container chat-composer (max-width: 30rem) {
+.micBtn svg,
+.sendBtn svg,
+.pauseBtn svg,
+.continueBtn svg {
+  transition: width 220ms cubic-bezier(0.22, 1, 0.36, 1), height 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@container chat-composer (max-width: 36rem) {
   .actions {
     gap: 0.28rem;
   }

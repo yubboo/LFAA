@@ -55,8 +55,9 @@ export function RemoveProjectDialog({
   const title = isDefaultDeleteDisk
     ? `删除工作区「${project.name}」？`
     : `${locale.removeConfirmPrefix} ${project.name}?`;
+  const defaultDisplayPath = (project.rootPath ?? "default-workspace").replace(/[/\\]code$/u, "");
   const description = isDefaultDeleteDisk
-    ? `将删除默认工作区目录（${project.rootPath ?? "default-workspace"}）并从左二栏与无限画布同步移除，重启后不再自动重建。此操作不可恢复。`
+    ? `将删除默认工作区目录（${defaultDisplayPath}）并从左二栏与无限画布同步移除，重启后不再自动重建。此操作不可恢复。`
     : isDefaultUnbindOnly
       ? "仅从应用列表移出，不会删除硬盘上的默认工作区文件夹。"
       : isCanvasProject

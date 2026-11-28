@@ -148,7 +148,7 @@ export async function syncDefaultProjectDir(
     .filter((dir) => !ignoredKeys.has(pathKey(dir)))
     .filter((dir) => !basename(dir).toLowerCase().endsWith(WORKTREE_CONTAINER_SUFFIX));
 
-  // 1) 移出磁盘上已消失的项目（仅限默认项目目录下的项目），并自动清理被旧版误扫进来的容器目录（如 canvas-projects）。
+  // 1) 移出磁盘上已消失的项目（仅限默认项目目录下的项目），并自动清理被旧版误扫进来的默认工作区目录。
   const keptProjects = snapshot.projects.filter((project) => {
     if (!project.isDefault && ignoredKeys.has(pathKey(project.rootPath))) return false;
     const roots = project.rootPaths.length > 0 ? project.rootPaths : [project.rootPath];

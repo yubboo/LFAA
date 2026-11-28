@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { draftProjectBrief as buildProjectBriefDraft } from "./project-brief";
 import { inspectProjectDirectory, readProjectTextFile } from "./project-fs-read";
@@ -15,12 +15,10 @@ import {
 import { openFolderInExplorer, openNativeFolderPicker, resolveNamedSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
 import {
   buildDefaultWorkspaceProject,
-  CANVAS_PROJECTS_SUBDIR,
-  DEFAULT_CANVAS_SAMPLE_SUBDIR,
-  DEFAULT_CODE_SUBDIR,
   DEFAULT_OUTSIDE_SUBDIR,
   DEFAULT_WORKSPACE_SUBDIR,
   fallbackDefaultWorkspacePath,
+  resolveDefaultWorkspaceDirs,
 } from "./default-workspace";
 import type {
   CreateProjectInput,
@@ -94,16 +92,35 @@ export class WorkspaceService extends Service {
     return join(await resolveUserDocumentsDir(this.documentsOverride), DEFAULT_WORKSPACE_SUBDIR, DEFAULT_OUTSIDE_SUBDIR);
   }
 
-  /** 首次启动自动登记「默认工作区」项目；用户删除后路径进入 dismissedPaths，不再自动创建。 */
+  /** 首次启动自动登记「默认工作区」并准备 code/canvas 子目录；老环境自动补齐子目录并迁移至 code。 */
   private async ensureDefaultWorkspaceProject(snapshot: ProjectStoreSnapshot): Promise<ProjectStoreSnapshot> {
-    if (snapshot.projects.some((item) => item.isDefault)) return snapshot;
-    const rootPath = await this.resolveOutsideProjectDir().catch(() => fallbackDefaultWorkspacePath(homedir()));
+    const outsideDir = await this.resolveOutsideProjectDir().catch(() => fallbackDefaultWorkspacePath(homedir()));
+    const { containerDir, codeDir, canvasDir } = resolveDefaultWorkspaceDirs(outsideDir);
+    const containerKey = pathKey(containerDir);
+    const codeKey = pathKey(codeDir);
+    const existingDefault = snapshot.projects.find((item) => item.isDefault);
+    if (existingDefault) {
+      if (!existsSync(codeDir)) await mkdir(codeDir, { recursive: true }).catch(() => undefined);
+      if (!existsSync(canvasDir)) await mkdir(canvasDir, { recursive: true }).catch(() => undefined);
+      if (pathKey(existingDefault.rootPath) !== containerKey) return snapshot;
+      const nextRootPaths = existingDefault.rootPaths.map((entry) => (pathKey(entry) === containerKey ? codeDir : entry));
+      return {
+        projects: snapshot.projects.map((item) => (
+          item.id === existingDefault.id
+            ? { ...item, rootPath: codeDir, rootPaths: nextRootPaths.length > 0 ? nextRootPaths : [codeDir], exists: true }
+            : item
+        )),
+        dismissedPaths: snapshot.dismissedPaths,
+      };
+    }
     // 用户主动移除过就不再重建，删除才算真正生效。
-    if (snapshot.dismissedPaths.some((entry) => pathKey(entry) === pathKey(rootPath))) return snapshot;
-    await mkdir(join(rootPath, DEFAULT_CODE_SUBDIR), { recursive: true }).catch(() => undefined);
-    await mkdir(join(rootPath, DEFAULT_CANVAS_SAMPLE_SUBDIR), { recursive: true }).catch(() => undefined);
+    if (snapshot.dismissedPaths.some((entry) => pathKey(entry) === containerKey || pathKey(entry) === codeKey)) {
+      return snapshot;
+    }
+    await mkdir(codeDir, { recursive: true }).catch(() => undefined);
+    await mkdir(canvasDir, { recursive: true }).catch(() => undefined);
     return {
-      projects: [...snapshot.projects, buildDefaultWorkspaceProject(rootPath)],
+      projects: [...snapshot.projects, buildDefaultWorkspaceProject(codeDir)],
       dismissedPaths: snapshot.dismissedPaths,
     };
   }
@@ -113,11 +130,12 @@ export class WorkspaceService extends Service {
     const { workspaceBaseDir } = await this.getBaseWorkspaceRoot();
     const baseDir = resolve(workspaceBaseDir);
     const outsideProjectDir = await this.resolveOutsideProjectDir().catch(() => "");
-    // 默认工作区与平级画布项目容器目录不作为普通代码项目自动扫描。
+    const defaultDirs = outsideProjectDir ? resolveDefaultWorkspaceDirs(outsideProjectDir) : null;
+    // 默认工作区目录不作为普通项目自动扫描；其余子目录（含画布项目与普通项目）一律按平级项目处理。
     const ignoredDirs = [
-      outsideProjectDir,
+      defaultDirs?.containerDir ?? "",
+      defaultDirs?.codeDir ?? "",
       join(baseDir, DEFAULT_OUTSIDE_SUBDIR),
-      join(baseDir, CANVAS_PROJECTS_SUBDIR),
     ].filter(Boolean);
     return syncDefaultProjectDir(snapshot, { baseDir, ignoredDirs });
   }
@@ -218,10 +236,9 @@ export class WorkspaceService extends Service {
         throw new Error(`找不到所选文件夹：${resolvedPath}`);
       }
     } else if (projectKind === "canvas") {
-      // 画布项目统一落在 <默认新建项目目录>/canvas-projects/<名称>，与 default-workspace 平级隔离。
+      // 画布项目与其他项目平级落在 <默认新建项目目录>/<名称>（默认 D:\Documents\lfaa\<名称>）。
       const { workspaceBaseDir } = await this.getBaseWorkspaceRoot();
-      const canvasRoot = join(workspaceBaseDir, CANVAS_PROJECTS_SUBDIR);
-      resolvedPath = resolveNamedSubfolder(canvasRoot, name);
+      resolvedPath = resolveNamedSubfolder(workspaceBaseDir, name);
       await assertDefaultFolderAvailable(resolvedPath);
       await mkdir(resolvedPath, { recursive: true });
     } else {
@@ -355,9 +372,15 @@ export class WorkspaceService extends Service {
     const { workspaceBaseDir } = await this.getBaseWorkspaceRoot().catch(() => ({ documentsDir: "", workspaceBaseDir: "" }));
     const baseDir = workspaceBaseDir ? resolve(workspaceBaseDir) : "";
     if (target.isDefault) {
-      managedRoots.push(target.rootPath);
+      const outsideDir = await this.resolveOutsideProjectDir().catch(() => fallbackDefaultWorkspacePath(homedir()));
+      const { containerDir, codeDir } = resolveDefaultWorkspaceDirs(outsideDir);
+      managedRoots.push(containerDir, codeDir, target.rootPath);
       if (options?.deleteDisk) {
-        await rm(target.rootPath, { recursive: true, force: true }).catch(() => undefined);
+        const containerKey = pathKey(containerDir);
+        const isWithinContainer = pathKey(target.rootPath) === containerKey
+          || pathKey(dirname(target.rootPath)) === containerKey;
+        const diskTarget = isWithinContainer ? containerDir : target.rootPath;
+        await rm(diskTarget, { recursive: true, force: true }).catch(() => undefined);
       }
     } else if (baseDir) {
       for (const root of target.rootPaths.length > 0 ? target.rootPaths : [target.rootPath]) {
@@ -377,6 +400,39 @@ export class WorkspaceService extends Service {
     const { project, nextSnapshot } = buildRestoredProjectSnapshot(await this.readStore(), record);
     await this.writeStore(nextSnapshot);
     return project;
+  }
+
+  /** 彻底删除回收站画布项目时，安全清理默认项目目录下一级对应的物理目录及移出标记（绝不删默认工作区、外部目录或活跃项目目录）。 */
+  async purgeManagedCanvasProjectDir(targetPath: string): Promise<boolean> {
+    const raw = targetPath.trim();
+    if (!raw) return false;
+    const resolvedTarget = resolve(raw);
+    const { workspaceBaseDir } = await this.getBaseWorkspaceRoot().catch(() => ({ documentsDir: "", workspaceBaseDir: "" }));
+    if (!workspaceBaseDir) return false;
+    const baseDir = resolve(workspaceBaseDir);
+    if (!isManagedProjectPath(baseDir, resolvedTarget)) return false;
+
+    const outsideDir = await this.resolveOutsideProjectDir().catch(() => "");
+    const defaultDirs = outsideDir ? resolveDefaultWorkspaceDirs(outsideDir) : null;
+    const targetKey = pathKey(resolvedTarget);
+    if (defaultDirs && (targetKey === pathKey(defaultDirs.containerDir) || targetKey === pathKey(defaultDirs.codeDir))) {
+      return false;
+    }
+    if (targetKey === pathKey(join(baseDir, DEFAULT_OUTSIDE_SUBDIR))) return false;
+
+    const snapshot = await this.readStore();
+    const stillActive = snapshot.projects.some((project) => {
+      const roots = project.rootPaths.length > 0 ? project.rootPaths : [project.rootPath];
+      return roots.some((root) => pathKey(root) === targetKey);
+    });
+    if (stillActive) return false;
+
+    await rm(resolvedTarget, { recursive: true, force: true });
+    const nextDismissed = snapshot.dismissedPaths.filter((entry) => pathKey(entry) !== targetKey);
+    if (nextDismissed.length !== snapshot.dismissedPaths.length) {
+      await this.writeStore({ projects: snapshot.projects, dismissedPaths: nextDismissed });
+    }
+    return true;
   }
 
   async openProjectFolderInExplorer(projectId: string): Promise<{ opened: boolean; path?: string; error?: string }> {

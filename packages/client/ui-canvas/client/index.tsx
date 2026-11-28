@@ -2,6 +2,7 @@
 import { lazy, Suspense } from "react";
 import type { Context, Plugin } from "@deepseek-ai/cordis";
 import "@lfaa/ui-layout/client";
+import { CanvasErrorBoundary } from "./canvas/Canvas-Error-Boundary";
 import { CanvasLoadingSkeleton } from "./canvas/Canvas-Loading-Skeleton";
 
 const CanvasWorkspace = lazy(() => import("./canvas/Canvas-Workspace"));
@@ -14,9 +15,11 @@ export const canvasClientPlugin: Plugin.Object<void> = {
       id: "infinite-canvas",
       title: { zh: "无限画布", en: "Infinite canvas" },
       render: ({ projectId, isZh }) => (
-        <Suspense fallback={<CanvasLoadingSkeleton isZh={isZh} />}>
-          <CanvasWorkspace key={projectId ?? "none"} projectId={projectId} isZh={isZh} workbench={ctx.workbench} />
-        </Suspense>
+        <CanvasErrorBoundary isZh={isZh}>
+          <Suspense fallback={<CanvasLoadingSkeleton isZh={isZh} />}>
+            <CanvasWorkspace key={projectId ?? "none"} projectId={projectId} isZh={isZh} workbench={ctx.workbench} />
+          </Suspense>
+        </CanvasErrorBoundary>
       ),
     }));
   },

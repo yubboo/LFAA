@@ -1,6 +1,5 @@
 // 创建浏览器 Cordis 上下文，装配共享四栏 Shell、主题外观插件、自定义分区插件与工作区项目插件。
 import { Context } from "@deepseek-ai/cordis";
-import { agentGroupClientPlugin } from "@lfaa/client-ui-agent-group/client";
 import { agentProfileClientPlugin } from "@lfaa/client-ui-agent-profile/client";
 import { browserClientPlugin } from "@lfaa/client-ui-browser/client";
 import { chatClientPlugin } from "@lfaa/client-ui-chat/client";
@@ -19,6 +18,21 @@ import "./app.css";
 
 // 必须先装好令牌注入：插件在实例化时就会发起 /api 请求。
 installApiToken();
+
+// 桌面端/静态产物在后台重新构建后，旧页面动态加载分包会 404；按 Vite 官方建议防抖自动刷新一次，避免整页白屏。
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  const key = "lfaa-chunk-reload-at";
+  try {
+    const last = Number(sessionStorage.getItem(key) ?? "0");
+    if (Date.now() - last > 10_000) {
+      sessionStorage.setItem(key, String(Date.now()));
+      window.location.reload();
+    }
+  } catch {
+    window.location.reload();
+  }
+});
 
 const rootElement = document.getElementById("root");
 
@@ -44,19 +58,16 @@ const browser = context.plugin(browserClientPlugin);
 const skills = context.plugin(skillsClientPlugin);
 const connectors = context.plugin(connectorsClientPlugin);
 const plugins = context.plugin(pluginsClientPlugin);
-// Agents 页只依赖 workbench 注册接口，放在业务插件之后挂载。
+// Agents 页只依赖 workbench 注册接口，放在业务插件之后挂载；多 Agent 群协作已并入主聊天工作区。
 const agentProfile = context.plugin(agentProfileClientPlugin);
-// 群聊页只依赖 workbench 与现成接口，同样在业务插件之后挂载。
-const agentGroup = context.plugin(agentGroupClientPlugin);
 
-void Promise.allSettled([theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).then(() => markPluginsReady());
+void Promise.allSettled([theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile]).then(() => markPluginsReady());
 
 // 页面卸载时依次释放业务插件与 Shell 插件，确保所有贡献和 React 根节点清理。
 window.addEventListener("pagehide", () => {
   void plugins.dispose();
   void skills.dispose();
   void connectors.dispose();
-  void agentGroup.dispose();
   void agentProfile.dispose();
   void browser.dispose();
   void review.dispose();
@@ -70,6 +81,6 @@ window.addEventListener("pagehide", () => {
 }, { once: true });
 
 // 把插件安装失败显示在控制台，并保持页面可调试。
-void Promise.all([workbench, theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile, agentGroup]).catch((error: unknown) => {
+void Promise.all([workbench, theme, sections, workspace, chat, canvas, library, review, browser, skills, connectors, plugins, agentProfile]).catch((error: unknown) => {
   console.error("LFAA 工作区启动失败：", error);
 });

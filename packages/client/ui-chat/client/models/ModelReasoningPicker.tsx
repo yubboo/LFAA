@@ -24,6 +24,7 @@ import {
   resolveResetReasoning,
 } from "./model-reasoning-options";
 import { ConfigureModelTrigger, ModelReasoningTrigger } from "./ModelReasoningTrigger";
+import { CliAgentPickerSection, useEnabledChatCliAgents } from "./CliAgentPickerSection";
 import styles from "./ModelReasoningPicker.module.css";
 
 type PickerPanelMode = "closed" | "models" | "brands" | "reasoning";
@@ -74,6 +75,10 @@ export function ModelReasoningPicker({
     () => filterConfiguredProfiles(profiles),
     [profiles],
   );
+  const cliAgents = useEnabledChatCliAgents();
+  const activeCliAgent = activeProfileId.startsWith("cli:")
+    ? cliAgents.find((item) => `cli:${item.id}` === activeProfileId) ?? null
+    : null;
 
   const activeProfile = resolveActiveProfile(configuredProfiles, activeProfileId);
   const providerPlan = activeProfile ? findProviderPlan(activeProfile) : undefined;
@@ -133,7 +138,7 @@ export function ModelReasoningPicker({
     });
   }, [activeModelCap.reasoningMode, activeProfile]);
 
-  if (!activeProfile) {
+  if (!activeProfile && !activeCliAgent) {
     return (
       <div className={styles.anchor}>
         <ConfigureModelTrigger isZh={isZh} compact={compact} onOpenSettings={onOpenSettings} />
@@ -147,9 +152,9 @@ export function ModelReasoningPicker({
       <ModelReasoningTrigger
         isZh={isZh}
         isOpen={panelMode !== "closed"}
-        activeModelId={activeModelId}
-        activeLevelLabel={activeLevelLabel}
-        reasoningMode={activeModelCap.reasoningMode}
+        activeModelId={activeCliAgent ? activeCliAgent.name : activeModelId}
+        activeLevelLabel={activeCliAgent ? "CLI" : activeLevelLabel}
+        reasoningMode={activeCliAgent ? "none" : activeModelCap.reasoningMode}
         compact={compact}
         onToggle={() => setPanelMode((prev) => (prev === "closed" ? "models" : "closed"))}
       />
@@ -165,54 +170,49 @@ export function ModelReasoningPicker({
       >
         <div className={styles.modelPopoverCard}>
           <div className={styles.modelHeaderRow}>
-            <span className={styles.modelHeader}>{activeProfile.name}</span>
-            <button
-              type="button"
-              className={`${styles.iconActionBtn} ${
-                syncFeedback?.tone === "success"
-                  ? styles.syncBtnSuccess
-                  : syncFeedback?.tone === "error"
-                    ? styles.syncBtnError
-                    : ""
-              }`}
-              disabled={refreshing}
-              title={syncFeedback?.message || undefined}
-              aria-live="polite"
-              onClick={() => {
-                setRefreshing(true);
-                setSyncFeedback(null);
-                void onRefreshBrandModels(activeProfile.id)
-                  .then(() => {
-                    setSyncFeedback({ tone: "success" });
-                  })
-                  .catch((err) => {
-                    setSyncFeedback({
-                      tone: "error",
-                      message: err instanceof Error ? err.message : String(err),
-                    });
-                  })
-                  .finally(() => setRefreshing(false));
-              }}
-            >
-              {syncFeedback?.tone === "success" && !refreshing ? (
-                <IconCheck size={12} stroke={2.2} />
-              ) : syncFeedback?.tone === "error" && !refreshing ? (
-                <IconX size={12} stroke={2.2} />
-              ) : (
-                <IconRefresh size={12} stroke={1.9} className={refreshing ? styles.spinIcon : undefined} />
-              )}
-              <span>
-                {refreshing
-                  ? (isZh ? "同步中…" : "Syncing…")
-                  : syncFeedback?.tone === "success"
-                    ? (isZh ? `已同步 · ${brandModels.length} 个` : `Synced · ${brandModels.length}`)
+            <span className={styles.modelHeader}>{activeCliAgent ? activeCliAgent.name : (activeProfile?.name ?? "")}</span>
+            {activeProfile && !activeCliAgent && (
+              <button
+                type="button"
+                className={`${styles.iconActionBtn} ${
+                  syncFeedback?.tone === "success"
+                    ? styles.syncBtnSuccess
                     : syncFeedback?.tone === "error"
-                      ? (isZh ? "同步失败" : "Failed")
-                      : activeProfile.kind === "ollama"
-                        ? (isZh ? "同步本地" : "Sync Local")
-                        : (isZh ? "同步官方" : "Sync")}
-              </span>
-            </button>
+                      ? styles.syncBtnError
+                      : ""
+                }`}
+                disabled={refreshing}
+                title={syncFeedback?.message || undefined}
+                aria-live="polite"
+                onClick={() => {
+                  setRefreshing(true);
+                  setSyncFeedback(null);
+                  void onRefreshBrandModels(activeProfile.id)
+                    .then(() => setSyncFeedback({ tone: "success" }))
+                    .catch((err) => setSyncFeedback({ tone: "error", message: err instanceof Error ? err.message : String(err) }))
+                    .finally(() => setRefreshing(false));
+                }}
+              >
+                {syncFeedback?.tone === "success" && !refreshing ? (
+                  <IconCheck size={12} stroke={2.2} />
+                ) : syncFeedback?.tone === "error" && !refreshing ? (
+                  <IconX size={12} stroke={2.2} />
+                ) : (
+                  <IconRefresh size={12} stroke={1.9} className={refreshing ? styles.spinIcon : undefined} />
+                )}
+                <span>
+                  {refreshing
+                    ? (isZh ? "同步中…" : "Syncing…")
+                    : syncFeedback?.tone === "success"
+                      ? (isZh ? `已同步 · ${brandModels.length} 个` : `Synced · ${brandModels.length}`)
+                      : syncFeedback?.tone === "error"
+                        ? (isZh ? "同步失败" : "Failed")
+                        : activeProfile.kind === "ollama"
+                          ? (isZh ? "同步本地" : "Sync Local")
+                          : (isZh ? "同步官方" : "Sync")}
+                </span>
+              </button>
+            )}
           </div>
 
           {syncFeedback?.tone === "error" && syncFeedback.message && (
@@ -220,23 +220,34 @@ export function ModelReasoningPicker({
           )}
 
           {/* 模型列表的标题说明目录来源，协议标签显示当前档案使用的接口格式。 */}
-          <div className={styles.modelSubHeaderRow}>
-            <span className={styles.modelGroupLabel}>
-              {arkPlan ? (isZh ? "方舟官方模型目录" : "Official Ark catalog") : providerPlan
-                ? providerAccessMessages[isZh ? "zh" : "en"].selectedModel
-                : (isZh ? "当前品牌官方模型" : "Official Brand Models")}
-            </span>
-            <span className={styles.protocolTag}>{getProtocolShortLabel(activeProfile.apiProtocol)}</span>
-          </div>
+          {activeProfile && (
+            <div className={styles.modelSubHeaderRow}>
+              <span className={styles.modelGroupLabel}>
+                {arkPlan ? (isZh ? "方舟官方模型目录" : "Official Ark catalog") : providerPlan
+                  ? providerAccessMessages[isZh ? "zh" : "en"].selectedModel
+                  : (isZh ? "当前品牌官方模型" : "Official Brand Models")}
+              </span>
+              <span className={styles.protocolTag}>{getProtocolShortLabel(activeProfile.apiProtocol)}</span>
+            </div>
+          )}
           <div className={styles.modelList}>
-            {modelSections.map((section) => (
+            <CliAgentPickerSection
+              isZh={isZh}
+              agents={cliAgents}
+              activeProfileId={activeProfileId}
+              onSelect={(profileId) => {
+                onSelectProfile(profileId);
+                setPanelMode("closed");
+              }}
+            />
+            {activeProfile && modelSections.map((section) => (
               <div key={section.key} className={styles.modelSection} role="group" aria-label={section.label}>
                 <div className={styles.modelSectionLabel}>{section.label}</div>
                 {section.items.map((item) => (
                   <ModelOptionRow
                     key={item.id}
                     item={item}
-                    selected={item.id === activeModelId}
+                    selected={!activeCliAgent && item.id === activeModelId}
                     arkPlan={arkPlan}
                     arkLabels={arkLabels}
                     onSelect={() => {
@@ -334,7 +345,7 @@ export function ModelReasoningPicker({
               <ProfileSlotRow
                 key={p.id}
                 profile={p}
-                current={p.id === activeProfile.id}
+                current={!activeCliAgent && p.id === activeProfile?.id}
                 onSelect={() => {
                   onSelectProfile(p.id);
                   setPanelMode("models");
