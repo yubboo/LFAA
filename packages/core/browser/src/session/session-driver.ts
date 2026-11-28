@@ -66,7 +66,13 @@ export class SessionDriver {
         return { ...await this.host.capture(state, tab, true, fromAgent), downloadStarted: true };
       }
     } catch (error) {
-      throw formatNavigationError(error, url);
+      const message = formatNavigationError(error, url);
+      const raw = error instanceof Error ? error.message : String(error);
+      if (!fromAgent && /ERR_CONNECTION_REFUSED|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION_TIMED_OUT|Timeout/iu.test(raw)) {
+        state.lastError = message.message;
+        return this.host.capture(state, tab, true, false);
+      }
+      throw message;
     }
     await tab.page.waitForLoadState("networkidle", { timeout: fromAgent ? 2500 : 1000 }).catch(() => {});
     if (vpChanged && this.host.hasStreamSubscribers(sessionId)) {

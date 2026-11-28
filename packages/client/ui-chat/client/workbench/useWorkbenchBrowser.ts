@@ -1,6 +1,6 @@
 // 右侧工作台内置浏览器状态与宿主操作：标签列表、初始 URL、外部快照与新建/关闭/导航处理。
 import { useCallback, useRef, useState, type RefObject } from "react";
-import { controlBrowserNav, fetchBrowserState, manageBrowserTab, navigateBrowser, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/client-ui-browser/client";
+import { controlBrowserNav, fetchBrowserState, manageBrowserTab, type BrowserSessionSnapshot, type BrowserTabItem } from "@lfaa/client-ui-browser/client";
 import type { ChatClientStore } from "../store/chat-store";
 import type { FilePreviewTab } from "../store/chat-types";
 import { patchWorkbenchSessionState } from "../store/workbench-persist";
@@ -12,6 +12,7 @@ function isEmbeddedBrowserGuest(): boolean {
     && (window as unknown as { __LFAA_EMBEDDED_BROWSER__?: boolean }).__LFAA_EMBEDDED_BROWSER__ === true;
 }
 
+/** 只把真实网络失败交给 Chromium 错误页显示，其他导航错误继续反馈给启动页。 */
 export function useWorkbenchBrowser({
   sessionId,
   store,
@@ -139,14 +140,11 @@ export function useWorkbenchBrowser({
 
   const handleOpenUrl = async (url: string) => {
     stateRequest.current += 1;
-    const { state: snap } = await navigateBrowser(sessionId, url);
-    if (syncedSessionRef.current !== sessionId) return;
-    stateRequest.current += 1;
-    setBrowserInitialUrl(undefined);
-    setBrowserTabs(snap.tabs);
-    setBrowserExternalState((prev) => ({ snap, nonce: (prev?.nonce ?? 0) + 1 }));
+    const trimmed = url.trim();
+    const targetUrl = /^https?:\/\//iu.test(trimmed) ? trimmed : `https://${trimmed}`;
+    setBrowserInitialUrl(targetUrl);
     setBrowserOpen(true);
-    patchWorkbenchSessionState(sessionId, { browserOpen: true, browserUrl: snap.url });
+    patchWorkbenchSessionState(sessionId, { browserOpen: true, browserUrl: targetUrl });
     store.setRightStageKind("browser");
   };
 

@@ -9,7 +9,7 @@ import { BrowserViewport } from "./BrowserViewport";
 import { DownloadActivity } from "../downloads/DownloadActivity";
 import { getDesktopBrowserBridge } from "../api/desktop-browser-bridge";
 import type { FrameDrawer } from "./BrowserCanvasViewport";
-import { resolveEffectiveRenderMode } from "./browser-render-mode";
+import { prepareNativeErrorPageState, resolveEffectiveRenderMode } from "./browser-render-mode";
 import { useBrowserSessionSync } from "./useBrowserSessionSync";
 import {
   clearBrowserLogs,
@@ -38,6 +38,23 @@ function formatBrowserUiError(err: unknown): string {
     .split(/\bCall log:/u)[0]!
     .trim();
   return raw.replace(/^page\.goto:\s*/u, "") || "页面加载失败";
+}
+
+/** 网络导航失败时检查 Chromium 是否已生成自己的错误文档。 */
+function isBrowserNetworkFailure(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /连接被拒绝|无法解析地址|超时|ERR_(?:CONNECTION|NAME_NOT_RESOLVED)/iu.test(message);
+}
+
+/** Chromium 内部错误文档不替换地址栏里的真实目标网址。 */
+function isBrowserErrorDocument(url: string | undefined): boolean {
+  return Boolean(url && /^(?:chrome|edge)-error:/iu.test(url));
+}
+
+/** 与 Host 校验一致：未填写协议时默认按 HTTPS 导航。 */
+function normalizeBrowserTargetUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  return /^https?:\/\//iu.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 export function RightBrowserPane({
@@ -71,6 +88,7 @@ export function RightBrowserPane({
   const [urlInput, setUrlInput] = useState(isDisplayableBrowserUrl(initialUrl) ? initialUrl : "");
   const [navigating, setNavigating] = useState(false);
   const [error, setError] = useState("");
+  const nativeErrorUrlRef = useRef("");
   const [deviceBarOpen, setDeviceBarOpen] = useState(false);
   const [deviceId, setDeviceId] = useState("responsive");
   const [customViewport, setCustomViewport] = useState<{ width: number; height: number }>({ width: 1196, height: 873 });
@@ -103,11 +121,15 @@ export function RightBrowserPane({
   }, [customViewport, deviceBarOpen]);
 
   const applySnap = useCallback((next: BrowserSessionSnapshot) => {
-    setSnap(next);
-    if (!urlEditingRef.current && isDisplayableBrowserUrl(next.url)) {
-      setUrlInput(next.url);
+    const nativeErrorUrl = nativeErrorUrlRef.current;
+    const displayed = nativeErrorUrl && next.active
+      ? prepareNativeErrorPageState(next, nativeErrorUrl)
+      : next;
+    setSnap(displayed);
+    if (!urlEditingRef.current && isDisplayableBrowserUrl(displayed.url)) {
+      setUrlInput(displayed.url);
     }
-    onSnapshotChangeRef.current?.(next);
+    onSnapshotChangeRef.current?.(displayed);
   }, []);
 
   useBrowserSessionSync({
@@ -164,6 +186,32 @@ export function RightBrowserPane({
     }
   }, [applySnap, devtoolsOpen, sessionId]);
 
+  const recoverNavigationError = useCallback(async (err: unknown, failedUrl?: string) => {
+    const message = formatBrowserUiError(err);
+    if (isBrowserNetworkFailure(err)) {
+      try {
+        const res = await fetchBrowserState(sessionId);
+        if (res.state.active && failedUrl && /^https?:\/\//iu.test(failedUrl)) {
+          nativeErrorUrlRef.current = failedUrl;
+          applySnap(res.state);
+          return;
+        }
+        if (isBrowserErrorDocument(res.state.url)) {
+          applySnap(res.state);
+          return;
+        }
+      } catch {
+        // 获取不到浏览器状态时保留原始导航错误提示。
+      }
+    }
+    setError(message);
+  }, [applySnap, sessionId]);
+
+  const applyNavigationResult = useCallback((next: BrowserSessionSnapshot, failedUrl: string) => {
+    nativeErrorUrlRef.current = isBrowserNetworkFailure(next.lastError) ? failedUrl : "";
+    applySnap(next);
+  }, [applySnap]);
+
   // 原生直连且无 DevTools 打开且 Agent 未运行时无需每 2.2s 轮询，减少无谓请求与状态抖动。
   // 轮询本身交给可见性 Hook：面板被起始页盖住或标签页在后台时不再触发。
   const needsPolling = !((streamConnected || (effectiveMode === "native" && !agentRunning)) && !devtoolsOpen);
@@ -174,6 +222,7 @@ export function RightBrowserPane({
 
   useEffect(() => {
     if (snap === null || !isDisplayableBrowserUrl(initialUrl) || !/^https?:\/\//iu.test(initialUrl) || initialUrl === lastNavInitRef.current) return;
+    if (isBrowserErrorDocument(snap.url)) return;
     if (snap?.url === initialUrl) {
       lastNavInitRef.current = initialUrl;
       return;
@@ -182,24 +231,26 @@ export function RightBrowserPane({
     setUrlInput(initialUrl);
     setNavigating(true);
     setError("");
+    nativeErrorUrlRef.current = "";
     const vp = measureAutoViewport();
     void navigateBrowser(sessionId, initialUrl, vp)
-      .then((res) => applySnap(res.state))
-      .catch((err) => setError(formatBrowserUiError(err)))
+      .then((res) => applyNavigationResult(res.state, initialUrl))
+      .catch((err) => void recoverNavigationError(err, initialUrl))
       .finally(() => setNavigating(false));
-  }, [applySnap, initialUrl, measureAutoViewport, sessionId, snap?.url]);
+  }, [applyNavigationResult, initialUrl, measureAutoViewport, recoverNavigationError, sessionId, snap?.url]);
 
   const runNav = async (url: string) => {
-    const trimmed = url.trim();
-    if (!trimmed || navigating) return;
+    const targetUrl = normalizeBrowserTargetUrl(url);
+    if (!url.trim() || navigating) return;
     setNavigating(true);
     setError("");
     urlEditingRef.current = false;
+    nativeErrorUrlRef.current = "";
     try {
-      const res = await navigateBrowser(sessionId, trimmed, measureAutoViewport());
-      applySnap(res.state);
+      const res = await navigateBrowser(sessionId, targetUrl, measureAutoViewport());
+      applyNavigationResult(res.state, targetUrl);
     } catch (err) {
-      setError(formatBrowserUiError(err));
+      await recoverNavigationError(err, targetUrl);
     } finally {
       setNavigating(false);
     }
@@ -213,6 +264,7 @@ export function RightBrowserPane({
   const handleNavControl = (action: "back" | "forward" | "reload") => {
     const bridge = getDesktopBrowserBridge();
     if (bridge) void bridge.nav(action).catch(() => {});
+    if (action !== "reload") nativeErrorUrlRef.current = "";
     if (action === "reload" && effectiveMode === "native") {
       setNativeReloadNonce((n) => n + 1);
     }
@@ -220,7 +272,9 @@ export function RightBrowserPane({
     setError("");
     void controlBrowserNav(sessionId, action)
       .then((r) => applySnap(r.state))
-      .catch((err) => setError(formatBrowserUiError(err)))
+      .catch((err) => void recoverNavigationError(err, urlInputRef.current?.value
+        ? normalizeBrowserTargetUrl(urlInputRef.current.value)
+        : undefined))
       .finally(() => setNavigating(false));
   };
 

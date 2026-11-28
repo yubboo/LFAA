@@ -376,7 +376,7 @@ export class BrowserRuntime implements SessionDriverHost {
       throw new Error(`该网站已被浏览器访问控制规则屏蔽：${rawUrl}`);
     }
     const snap = await this.driver.navigate(sessionId, rawUrl, fromAgent, viewport, appearance);
-    if (!snap.downloadStarted && snap.url && snap.url !== "about:blank") void this.dataStore.recordHistory(snap.url, snap.title || snap.url, fromAgent).catch(() => {});
+    if (!snap.downloadStarted && !snap.lastError && snap.url && snap.url !== "about:blank") void this.dataStore.recordHistory(snap.url, snap.title || snap.url, fromAgent).catch(() => {});
     return snap;
   }
 

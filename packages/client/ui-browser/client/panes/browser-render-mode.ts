@@ -2,6 +2,20 @@
 import type { BrowserSessionSnapshot } from "../api/browser-client";
 
 export type EffectiveRenderMode = "native" | "cdp";
+type NativeErrorPageState = Pick<BrowserSessionSnapshot, "active" | "activeTabId" | "tabs" | "url" | "title" | "embeddable">;
+
+/** 将网络失败网址作为 UI 当前页，让原生 Chromium 直接显示其连接错误页。 */
+export function prepareNativeErrorPageState<T extends NativeErrorPageState>(state: T, failedUrl: string): T {
+  const title = new URL(failedUrl).hostname;
+  const activeTab = { tabId: state.activeTabId, title, url: failedUrl, active: true };
+  return {
+    ...state,
+    url: failedUrl,
+    title,
+    embeddable: true,
+    tabs: [...state.tabs.filter((tab) => tab.tabId !== state.activeTabId), activeTab],
+  };
+}
 
 /** 判断目标地址是否与宿主页面同源，避免在内置浏览器中打开 LFAA 自身引发无限递归嵌套。 */
 export function isSelfOriginUrl(rawUrl: string, hostOrigin: string): boolean {

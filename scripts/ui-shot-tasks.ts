@@ -5,6 +5,7 @@ import type { Page } from "playwright-core";
 /** 一步交互；按顺序执行，执行完再截图。 */
 export type ShotStep =
   | { click: string }
+  | { fill: string; text: string }
   | { clickText: string }
   | { hover: string }
   | { press: string }
@@ -91,6 +92,44 @@ export const TASKS: ShotTask[] = [
   // 应用壳层：四栏、宽屏、窄窗、手机、空白新聊天。
   { name: "app-home-light", group: "app", description: "工作区首页（浅色四栏）", theme: "light" },
   { name: "app-home-dark", group: "app", description: "工作区首页（深色四栏）", theme: "dark" },
+  {
+    name: "browser-connection-refused-dark",
+    group: "app",
+    description: "连接被拒绝时显示 Chromium 原生错误页（深色）",
+    theme: "dark",
+    steps: [
+      { click: 'button[aria-label="新建浏览器标签页"]' },
+      { fill: 'input[aria-label="搜索文件或输入 URL"]', text: "http://127.0.0.1:58476/blocked" },
+      { press: "Enter" },
+      { wait: 1800 },
+    ],
+  },
+  {
+    name: "browser-connection-refused-light",
+    group: "app",
+    description: "连接被拒绝时显示 Chromium 原生错误页（浅色）",
+    theme: "light",
+    steps: [
+      { click: 'button[aria-label="新建浏览器标签页"]' },
+      { fill: 'input[aria-label="搜索文件或输入 URL"]', text: "http://127.0.0.1:58476/blocked" },
+      { press: "Enter" },
+      { wait: 1800 },
+    ],
+  },
+  {
+    name: "browser-connection-refused-narrow",
+    group: "app",
+    description: "窄屏下显示 Chromium 原生连接错误页",
+    theme: "dark",
+    width: 1024,
+    height: 768,
+    steps: [
+      { click: 'button[aria-label="新建浏览器标签页"]' },
+      { fill: 'input[aria-label="搜索文件或输入 URL"]', text: "http://127.0.0.1:58476/blocked" },
+      { press: "Enter" },
+      { wait: 1800 },
+    ],
+  },
   { name: "app-home-wide", group: "app", description: "1920 宽屏首页", theme: "dark", width: 1920, height: 1080 },
   { name: "app-home-narrow", group: "app", description: "1024 窄窗首页", theme: "dark", width: 1024, height: 768 },
   { name: "app-mobile-home", group: "app", description: "390 手机首页", theme: "dark", width: 390, height: 844 },
@@ -555,6 +594,10 @@ export const TASKS: ShotTask[] = [
 async function applyStep(page: Page, step: ShotStep): Promise<void> {
   if ("click" in step) {
     await page.locator(step.click).first().click({ timeout: 15000 });
+    return;
+  }
+  if ("fill" in step) {
+    await page.locator(step.fill).first().fill(step.text, { timeout: 15000 });
     return;
   }
   if ("clickText" in step) {

@@ -248,6 +248,23 @@ test("BrowserService 驱动本机浏览器打开测试页、交互、截图并�
   const blockedSnap = await ctx.browser.navigate("sess-b1", `http://127.0.0.1:${port}/blocked`);
   assert.equal(blockedSnap.embeddable, false);
 
+  const refusedServer = createServer();
+  await new Promise<void>((resolve) => refusedServer.listen(0, "127.0.0.1", resolve));
+  const refusedAddress = refusedServer.address();
+  const refusedPort = typeof refusedAddress === "object" && refusedAddress ? refusedAddress.port : 0;
+  await new Promise<void>((resolve, reject) => refusedServer.close((error) => error ? reject(error) : resolve()));
+  const refusedSnap = await ctx.browser.navigate("sess-b1", `http://127.0.0.1:${refusedPort}/offline`);
+  assert.match(refusedSnap.lastError ?? "", /连接被拒绝/u);
+  assert.equal(refusedSnap.url, `http://127.0.0.1:${port}/blocked`);
+  assert.ok(refusedSnap.screenshotBase64);
+  const refusedAgentNav = await ctx.tools.executeTool(
+    "browser_navigate",
+    { url: `http://127.0.0.1:${refusedPort}/offline` },
+    execCtx,
+  );
+  assert.equal(refusedAgentNav.ok, false);
+  assert.match(refusedAgentNav.output, /连接被拒绝/u);
+
   await ctx.tools.executeTool("browser_tabs", { action: "close", tabId: parsedTabs[1]!.tabId }, execCtx);
 
   // 开启人工接管暂停后，Agent 调用会被礼貌阻断直到恢复

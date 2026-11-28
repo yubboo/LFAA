@@ -5,6 +5,7 @@ import {
   canUseNativeEngine,
   computeCdpModifiers,
   isSelfOriginUrl,
+  prepareNativeErrorPageState,
   resolveEffectiveRenderMode,
 } from "../client/panes/browser-render-mode";
 
@@ -35,6 +36,24 @@ test("可嵌入的普通预览走原生，Agent 操作与人工接管保留同�
   assert.equal(resolveEffectiveRenderMode(selfSnap, hostOrigin), "cdp");
 
   assert.equal(resolveEffectiveRenderMode(null, hostOrigin), "cdp");
+});
+
+test("网络导航失败时保留目标地址并切到 Chromium 原生错误页", () => {
+  const failedUrl = "http://127.0.0.1:58476/blocked";
+  const state = {
+    active: true,
+    activeTabId: "tab-a",
+    tabs: [{ tabId: "tab-a", title: "新标签页", url: "about:blank", active: true }],
+    url: "about:blank",
+    title: "新标签页",
+    embeddable: false,
+  };
+
+  const failedPage = prepareNativeErrorPageState(state, failedUrl);
+  assert.equal(failedPage.url, failedUrl);
+  assert.equal(failedPage.embeddable, true);
+  assert.equal(failedPage.tabs[0]?.url, failedUrl);
+  assert.equal(resolveEffectiveRenderMode(failedPage, "http://127.0.0.1:5173"), "native");
 });
 
 test("computeCdpModifiers 按 Alt=1、Ctrl=2、Meta=4、Shift=8 组合位掩码", () => {
