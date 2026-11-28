@@ -13,8 +13,8 @@ export const enMessages: ChatLocaleMessages = {
   heroHintChat: "Switch to Work to use files, plugins, and full access.",
   heroHintWork: "In Work, Xiaoyu can read files, call plugins, and run the terminal.",
   composerPlaceholderChat: "Ask Xiaoyu",
-  composerPlaceholderWork: "Work with Xiaoyu",
-  composerPlaceholderInProject: "Start a chat in \u201c{name}\u201d",
+  composerPlaceholderWork: "Ask anything, type @ to mention, / for actions",
+  composerPlaceholderInProject: "Ask anything, type @ to mention, / for actions",
 
   unbindWorktree: "Unbind worktree",
   composerPlaceholder: "Ask anything, type @ to mention, / for actions",

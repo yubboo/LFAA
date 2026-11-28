@@ -59,11 +59,17 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
         const confirmedDefaultPath = typeof body.confirmedDefaultPath === "string" ? body.confirmedDefaultPath : undefined;
         const description = typeof body.description === "string" ? body.description : undefined;
         const trusted = body.trusted === true;
+        const kind = body.kind === "canvas" ? "canvas" : body.kind === "workspace" ? "workspace" : undefined;
+        const canvasFolderId = body.canvasFolderId === null || typeof body.canvasFolderId === "string"
+          ? body.canvasFolderId
+          : undefined;
         const project = await service.createProject({
           name,
           ...(rootPath !== undefined ? { rootPath } : {}),
           ...(confirmedDefaultPath !== undefined ? { confirmedDefaultPath } : {}),
           ...(description !== undefined ? { description } : {}),
+          ...(kind !== undefined ? { kind } : {}),
+          ...(canvasFolderId !== undefined ? { canvasFolderId } : {}),
           trusted,
         });
         sendJson(res, 201, { project });
@@ -145,6 +151,7 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
           ...(typeof body.description === "string" ? { description: body.description } : {}),
           ...(typeof body.pinned === "boolean" ? { pinned: body.pinned } : {}),
           ...(body.sectionId === null || typeof body.sectionId === "string" ? { sectionId: body.sectionId } : {}),
+          ...(body.canvasFolderId === null || typeof body.canvasFolderId === "string" ? { canvasFolderId: body.canvasFolderId } : {}),
         });
         if (!updated) {
           sendJson(res, 404, { error: "项目不存在。" });
@@ -155,7 +162,9 @@ export function createWorkspaceHttpHandler(service: WorkspaceService) {
       }
 
       if (method === "DELETE" && itemMatch?.[1]) {
-        const removed = await service.removeProject(decodeURIComponent(itemMatch[1]));
+        const queryStart = rawUrl.indexOf("?");
+        const deleteDisk = queryStart >= 0 && new URLSearchParams(rawUrl.slice(queryStart + 1)).get("deleteDisk") === "1";
+        const removed = await service.removeProject(decodeURIComponent(itemMatch[1]), { deleteDisk });
         sendJson(res, removed ? 200 : 404, { removed });
         return true;
       }

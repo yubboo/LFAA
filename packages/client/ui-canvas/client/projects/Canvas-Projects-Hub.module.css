@@ -7,6 +7,7 @@
   min-height: 0;
   background: var(--color-shell);
   color: var(--color-ink);
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -319,11 +320,41 @@
 }
 
 @container (max-width: 36rem) {
-  .zoomPill {
-    display: none;
-  }
+  .zoomPill { display: none; }
+  .searchInput { width: 6.5rem; }
+}
 
-  .searchInput {
-    width: 6.5rem;
-  }
+@container (max-width: 20rem) {
+  .inner { padding: 1rem 0.7rem 1.75rem; gap: 1rem; }
+  .header { gap: 0.55rem; }
+  .heading { font-size: 1.05rem; }
+  .toolbar { width: 100%; gap: 0.35rem; }
+  .iconBtn { width: 1.85rem; height: 1.85rem; }
+  .viewSwitch { height: 1.85rem; }
+  .primaryBtn { height: 1.85rem; padding: 0 0.75rem; font-size: 0.78rem; }
+}
+
+.breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.breadcrumbLink {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.breadcrumbLink:hover {
+  color: var(--color-ink);
+}
+
+.breadcrumbSep {
+  color: var(--color-muted);
+  font-weight: 400;
 }

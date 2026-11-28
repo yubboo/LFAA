@@ -107,6 +107,13 @@ export const chatClientPlugin: Plugin.Object<void> = {
       context.workbench.setRightWorkbenchWide(true);
       context.workbench.setRightPanelOpen(true, false);
     };
+    const onOpenCanvas = () => {
+      store.requestRightPanel("infinite-canvas");
+      context.workbench.setRightWorkbenchWide(true);
+      context.workbench.setRightPanelOpen(true, false);
+    };
+    const onOpenSkills = () => context.workbench.navigate("skills");
+    const onOpenConnectors = () => context.workbench.navigate("settings:connectors");
 
     const unregisterWorkspace = context.workbench.registerView({
       id: "workspace",
@@ -126,6 +133,9 @@ export const chatClientPlugin: Plugin.Object<void> = {
             onOpenTurnChanges={onOpenTurnChanges}
             onOpenFilePreview={onOpenFilePreview}
             onOpenBrowser={onOpenBrowser}
+            onOpenCanvas={onOpenCanvas}
+            onOpenSkills={onOpenSkills}
+            onOpenConnectors={onOpenConnectors}
           />
         );
       },

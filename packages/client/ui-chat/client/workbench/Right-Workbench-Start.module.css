@@ -33,6 +33,12 @@
   overflow: hidden;
 }
 
+/* 搜索框外层：为历史记录联想浮层提供定位基准，不挤压下方快捷卡片。 */
+.searchWrap {
+  position: relative;
+  min-width: 0;
+}
+
 /* 搜索框：白色胶囊、极淡描边、轻微投影；聚焦时不加粉色描边或外发光。 */
 .field {
   display: flex;

@@ -10,27 +10,29 @@ import {
 } from "../client/projects/project-hub-helpers";
 
 describe("project-hub-helpers", () => {
-  it("only includes projects that have canvas summaries", () => {
+  it("only includes canvas projects and the default sample workspace", () => {
     const items = buildHubProjectItems(
       [
-        { id: "p1", name: "普通代码项目" },
-        { id: "p2", name: "剧本策划助手 项目" },
-        { id: "p3", name: "未命名项目" },
+        { id: "p1", name: "普通代码项目", kind: "workspace" },
+        { id: "p2", name: "剧本策划助手 项目", kind: "canvas", canvasFolderId: "f1" },
+        { id: "p3", name: "默认工作区", kind: "workspace", isDefault: true },
       ],
       [
-        { projectId: "p2", boardCount: 2, latestCanvasId: "c2", latestTitle: "分镜板", updatedAt: 2000 },
-        { projectId: "p3", boardCount: 1, latestCanvasId: "c3", latestTitle: "未命名画布", updatedAt: 5000, coverAssetId: "a1" },
+        { projectId: "p1", boardCount: 1, latestCanvasId: "c1", latestTitle: "不应出现", updatedAt: 9000 },
+        { projectId: "p2", boardCount: 2, latestCanvasId: "c2", latestTitle: "分镜板", updatedAt: 2000, coverAssetId: "a1" },
       ],
     );
     assert.deepEqual(items.map((item) => item.id), ["p2", "p3"]);
-    assert.equal(items[1]?.coverAssetId, "a1");
+    assert.equal(items[0]?.coverAssetId, "a1");
+    assert.equal(items[0]?.canvasFolderId, "f1");
+    assert.equal(items[1]?.isDefault, true);
   });
 
   it("filters by name/title and sorts by recent or name", () => {
     const items = buildHubProjectItems(
       [
-        { id: "p1", name: "B 项目" },
-        { id: "p2", name: "A 项目" },
+        { id: "p1", name: "B 项目", kind: "canvas" },
+        { id: "p2", name: "A 项目", kind: "canvas" },
       ],
       [
         { projectId: "p1", boardCount: 1, latestCanvasId: "c1", latestTitle: "分镜", updatedAt: 9000 },

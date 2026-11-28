@@ -135,7 +135,8 @@ export function ProjectOverlays({
           onOpenProject={() => onOpenProject(activeMenuProject.id)}
           onNewWorktreeSession={() => menuStore.openWorktree(activeMenuProject.id)}
           onOpenInExplorer={() => projectStore.openProjectInExplorer(activeMenuProject.id)}
-          onRemove={() => menuStore.openRemoveConfirm(activeMenuProject.id)}
+          onRemove={() => menuStore.openRemoveConfirm(activeMenuProject.id, false)}
+          onDeleteWorkspace={() => menuStore.openRemoveConfirm(activeMenuProject.id, true)}
           onClose={menuStore.closeActionMenu}
         />
       )}
@@ -149,7 +150,7 @@ export function ProjectOverlays({
             menuStore.closeEdit();
             onProjectUpdated(updated);
           }}
-          onRequestRemove={(projectId) => menuStore.openRemoveConfirm(projectId)}
+          onRequestRemove={(projectId) => menuStore.openRemoveConfirm(projectId, false)}
           onClose={menuStore.closeEdit}
         />
       )}
@@ -158,6 +159,7 @@ export function ProjectOverlays({
         <RemoveProjectDialog
           locale={locale}
           project={removingProject}
+          deleteDisk={snapshot.removingDeleteDisk}
           store={projectStore}
           onRemoved={(projectId) => {
             menuStore.closeRemoveConfirm();

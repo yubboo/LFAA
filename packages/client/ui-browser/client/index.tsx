@@ -4,6 +4,7 @@ import "@lfaa/ui-layout/client";
 import { BrowserSettingsView } from "./settings/BrowserSettingsView";
 
 export * from "./api/browser-client";
+export { fetchBrowserHistory, deleteBrowserHistoryItem, type BrowserHistoryItem } from "./api/browser-data-client";
 export { RightBrowserPane } from "./panes/RightBrowserPane";
 export { BrowserSettingsView } from "./settings/BrowserSettingsView";
 

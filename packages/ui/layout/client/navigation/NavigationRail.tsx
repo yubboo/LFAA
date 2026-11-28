@@ -1,5 +1,5 @@
 // 呈现工作台一级图标栏，负责直接导航、更多菜单及本地工作区状态。
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { WorkbenchAccountActionContribution } from "../../contract/index";
 import type { LocaleMessages } from "../locales";
 import type { NavigationView } from "./navigation";
@@ -37,9 +37,10 @@ export function NavigationRail({
   onOpenSettings: () => void;
 }) {
   const [openMenu, setOpenMenu] = useState<RailMenu>(null);
-  const [menuTop, setMenuTop] = useState(72);
   const rootRef = useRef<HTMLElement>(null);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMoreMenu = useCallback(() => setOpenMenu((menu) => (menu === "more" ? null : menu)), []);
 
   // 进入手机布局时关闭已经失去入口的竖栏弹层。
   useEffect(() => {
@@ -47,7 +48,7 @@ export function NavigationRail({
   }, [isMobile]);
 
   useEffect(() => {
-    if (!openMenu) return;
+    if (openMenu !== "status") return;
     const closeOnOutside = (event: PointerEvent) => {
       if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpenMenu(null);
     };
@@ -73,9 +74,6 @@ export function NavigationRail({
 
   const toggleMenu = (menu: Exclude<RailMenu, null>, event: MouseEvent<HTMLButtonElement>) => {
     triggerRef.current = event.currentTarget;
-    if (menu === "more") {
-      setMenuTop(Math.max(8, Math.min(event.currentTarget.getBoundingClientRect().top - 4, window.innerHeight - 380)));
-    }
     setOpenMenu((current) => current === menu ? null : menu);
   };
   // 主入口直接切换工作台路由，同时收起当前图标栏菜单。
@@ -109,10 +107,12 @@ export function NavigationRail({
           />
         ))}
         <RailButton
+          buttonRef={moreTriggerRef}
           label={locale.more}
           icon="more"
           active={openMenu === "more" || (isMobile && activeView !== "workspace" && activeDomain !== "settings")}
           expanded={openMenu === "more"}
+          controls="lfaa-app-menu"
           onClick={(event) => toggleMenu("more", event)}
         />
         {!isMobile && <div className={styles.divider} />}
@@ -134,44 +134,50 @@ export function NavigationRail({
         <UserMenu locale={locale} active={activeDomain === "settings"} accountActions={accountActions} onOpenAppearance={onOpenAppearance} onOpenSettings={onOpenSettings} />
       </div>
 
-      {openMenu === "more" && (
-        <AppMenu
-          actions={isMobile ? [...primaryActions, ...moreActions] : moreActions}
-          top={menuTop}
-          locale={locale}
-          isMobile={isMobile}
-          activeView={activeView}
-          pinnedApps={pinnedApps}
-          onSelect={(view) => {
-            select(view);
-            if (isMobile) triggerRef.current?.focus();
-          }}
-          onTogglePinned={onTogglePinned}
-        />
-      )}
+      <AppMenu
+        open={openMenu === "more"}
+        anchorRef={moreTriggerRef}
+        actions={isMobile ? [...primaryActions, ...moreActions] : moreActions}
+        locale={locale}
+        isMobile={isMobile}
+        activeView={activeView}
+        pinnedApps={pinnedApps}
+        onClose={closeMoreMenu}
+        onSelect={(view) => {
+          select(view);
+          if (isMobile) moreTriggerRef.current?.focus();
+        }}
+        onTogglePinned={onTogglePinned}
+      />
     </nav>
   );
 }
 
 function RailButton({
+  buttonRef,
   label,
   icon,
   active,
   expanded,
+  controls,
   onClick,
 }: {
+  buttonRef?: RefObject<HTMLButtonElement | null>;
   label: string;
   icon: NavigationIconName;
   active: boolean;
   expanded?: boolean | undefined;
+  controls?: string | undefined;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   return (
     <button
+      ref={buttonRef}
       className={`${styles.railButton} ${active ? styles.railButtonActive : ""}`}
       type="button"
       aria-label={label}
       aria-expanded={expanded}
+      aria-controls={controls}
       data-tooltip={label}
       onClick={onClick}
     >

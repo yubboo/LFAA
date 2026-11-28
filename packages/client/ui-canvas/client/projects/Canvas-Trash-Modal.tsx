@@ -37,7 +37,7 @@ export function CanvasTrashModal({
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/trash?kind=all");
+      const res = await fetch("/api/trash?kind=all&projectKind=canvas");
       const data = await res.json() as { items?: TrashItem[] };
       const all = Array.isArray(data.items) ? data.items : [];
       setItems(all.filter((item) => item.kind === "canvas" || item.kind === "project"));

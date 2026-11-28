@@ -19,6 +19,16 @@ import { customBackgroundUrl } from "./background-api";
 const MODE_STORAGE_KEY = "lfaa:appearance-mode";
 const CONFIG_STORAGE_KEY = "lfaa:appearance-config-v1";
 
+interface DesktopThemeBridge {
+  readConfig?: () => string | null;
+  syncTheme?: (payload: { mode: AppearanceMode; resolvedScheme: "light" | "dark"; configJson: string }) => void;
+}
+
+function getDesktopThemeBridge(): DesktopThemeBridge | undefined {
+  if (typeof window === "undefined") return undefined;
+  return (window as Window & { __LFAA_DESKTOP_THEME__?: DesktopThemeBridge }).__LFAA_DESKTOP_THEME__;
+}
+
 /** 描述 React 外观界面订阅的配置和解析后模式。 */
 export interface AppearanceSnapshot {
   config: AppearanceConfig;
@@ -54,6 +64,9 @@ function migrateLegacyDefaults(config: AppearanceConfig): AppearanceConfig {
 function readStoredConfig(): AppearanceConfig {
   if (typeof window === "undefined") return DEFAULT_APPEARANCE_CONFIG;
   try {
+    // 桌面端每次启动宿主端口可变，优先从主进程持久化文件读取，防止重启后主题丢失。
+    const desktopConfig = getDesktopThemeBridge()?.readConfig?.();
+    if (desktopConfig) return migrateLegacyDefaults(sanitizeAppearanceConfig(JSON.parse(desktopConfig)));
     const rawConfig = window.localStorage.getItem(CONFIG_STORAGE_KEY);
     if (rawConfig) return migrateLegacyDefaults(sanitizeAppearanceConfig(JSON.parse(rawConfig)));
     const legacyMode = window.localStorage.getItem(MODE_STORAGE_KEY);
@@ -177,11 +190,21 @@ export class AppearanceStore {
     root.style.setProperty("--app-bg-workspace", workspaceBackground ? `url("${workspaceBackground}")` : "none");
     root.style.setProperty("--app-bg-settings", settingsBackground ? `url("${settingsBackground}")` : "none");
 
+    const configJson = JSON.stringify(config);
     try {
       window.localStorage.setItem(MODE_STORAGE_KEY, config.mode);
-      window.localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+      window.localStorage.setItem(CONFIG_STORAGE_KEY, configJson);
     } catch {
       // 存储受限时保留当前会话主题状态。
+    }
+    try {
+      getDesktopThemeBridge()?.syncTheme?.({
+        mode: config.mode,
+        resolvedScheme,
+        configJson,
+      });
+    } catch {
+      // 桌面桥不可用时忽略，不影响 Web 端主题切换。
     }
   }
 

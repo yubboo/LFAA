@@ -1,8 +1,8 @@
 /* 三档外观开关：玻璃轨道 + 带辉光的圆角方块滑块 + 像素太阳/月亮；深色档冷光、浅色档暖光。 */
 .switch {
-  --switch-width: 3.75rem;
-  --switch-height: 1.875rem;
-  --switch-pad: 0.1875rem;
+  --switch-width: var(--theme-switch-width, 3.75rem);
+  --switch-height: var(--theme-switch-height, 1.875rem);
+  --switch-pad: var(--theme-switch-pad, 0.1875rem);
   --switch-thumb: calc(var(--switch-height) - var(--switch-pad) * 2);
   /* 圆角按同心规则推：外圈 = 内圈圆角 + 间隙，滑块与轨道才是同一套圆角语言。 */
   --switch-thumb-radius: calc(var(--switch-thumb) * 0.32);

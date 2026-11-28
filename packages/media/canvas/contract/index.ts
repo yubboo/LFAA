@@ -102,6 +102,14 @@ export interface CanvasProjectSummary {
   coverAssetId?: string;
 }
 
+/** 无限画布「我的项目」大厅分类文件夹：只用于画布项目分组，不污染左二代码项目栏。 */
+export interface CanvasFolder {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type PortKind = AssetKind | "text";
 
 export interface Port {

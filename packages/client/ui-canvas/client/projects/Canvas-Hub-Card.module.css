@@ -1,7 +1,7 @@
 /* 无限画布「我的项目」网格卡片样式：无外框极简布局（上方 16:10 满幅缩略图 + 下方独立标题与日期），保留跟随鼠标 1px 流光边框、扫光与悬停缩放。 */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--hub-card-min, 12rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--hub-card-min, 12rem)), 1fr));
   gap: 1.15rem 0.9rem;
 }
 
@@ -263,4 +263,53 @@
   .coverSheen {
     transition: none;
   }
+}
+
+/* 文件夹折耳造型缩略图：双层剪影呈现真实文件夹轮廓，完全消费主题语义变量。 */
+.folderThumb {
+  background: var(--color-panel);
+  overflow: hidden;
+}
+
+.folderTab {
+  position: absolute;
+  top: 14%;
+  left: 0;
+  width: 44%;
+  height: 18%;
+  border-top: 1px solid var(--color-line);
+  border-right: 1px solid var(--color-line);
+  border-top-right-radius: 0.6rem;
+  background: color-mix(in srgb, var(--color-surface) 82%, var(--color-ink) 6%);
+  clip-path: polygon(0 0, 78% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+.folderFront {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 74%;
+  border-top: 1px solid var(--color-line);
+  border-top-left-radius: 0.55rem;
+  border-top-right-radius: 0.65rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-surface) 88%, var(--color-ink) 5%) 0%,
+    var(--color-surface) 100%
+  );
+  pointer-events: none;
+}
+
+.sampleTag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color-active);
+  color: var(--color-muted);
+  font-size: 0.68rem;
+  font-weight: 500;
+  vertical-align: middle;
 }

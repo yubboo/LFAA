@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import type {} from "@lfaa/llm";
 import type { BoardDetail, CanvasBoard } from "../contract/index";
+import { CanvasFolderStore } from "./canvas-folders";
 import { CanvasRunner, snapshotRun } from "./canvas-runner";
 import { CanvasStore } from "./canvas-store";
 import { CanvasError, validateGraph } from "./graph";
@@ -13,12 +14,15 @@ import { CanvasError, validateGraph } from "./graph";
 export class CanvasService extends Service {
   static inject = ["llm"];
   readonly store: CanvasStore;
+  readonly folders: CanvasFolderStore;
   private readonly runner: CanvasRunner;
   private readonly pending = new Map<string, Promise<unknown>>();
 
   constructor(ctx: Context, config: { root?: string; mediaRoot?: string } = {}) {
     super(ctx, "canvas");
-    this.store = new CanvasStore(config.root ?? join(homedir(), ".lfaa", "canvas"), config.mediaRoot);
+    const root = config.root ?? join(homedir(), ".lfaa", "canvas");
+    this.store = new CanvasStore(root, config.mediaRoot);
+    this.folders = new CanvasFolderStore(root);
     this.runner = new CanvasRunner(this.store, ctx.llm);
     ctx.effect(() => () => this.runner.stop());
   }

@@ -39,6 +39,38 @@
   border-color: rgb(var(--color-accent-rgb) / 0.45);
 }
 
+.attachmentChip[data-kind="skill"],
+.attachmentChip[data-kind="plugin"] {
+  border-color: rgb(var(--color-accent-rgb) / 0.28);
+  background: rgb(var(--color-accent-rgb) / 0.08);
+  color: var(--color-accent);
+  font-weight: 500;
+  animation: capabilityChipPop 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes capabilityChipPop {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attachmentChip[data-kind="skill"],
+  .attachmentChip[data-kind="plugin"] {
+    animation: none;
+  }
+}
+
+.attachmentChipIcon {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
 .attachmentChipRemove {
   display: inline-flex;
   align-items: center;

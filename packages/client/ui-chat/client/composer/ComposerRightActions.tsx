@@ -10,6 +10,21 @@ import styles from "./ComposerRightActions.module.css";
 
 export { mergeDictationTranscript } from "./useVoiceDictation";
 
+/** 空态发送位图标：三根高低错落的圆角竖条 + 右上角内凹四角星芒，随按钮文字色切换深浅。 */
+function IdleSparkWaveIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <line x1="4.8" y1="8.4" x2="4.8" y2="14.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <line x1="8.4" y1="6.2" x2="8.4" y2="16.4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <line x1="12" y1="10.2" x2="12" y2="13.6" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path
+        d="M15.1 2.2Q15.45 5.45 18.7 5.8Q15.45 6.15 15.1 9.4Q14.75 6.15 11.5 5.8Q14.75 5.45 15.1 2.2Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 /** 按照录音、等待回复和空闲状态显示麦克风、取消或发送动作。 */
 export function ComposerRightActions({
   locale,
@@ -104,11 +119,12 @@ export function ComposerRightActions({
           <button
             type="button"
             className={styles.sendBtn}
+            data-ready={canSend ? "true" : "false"}
             aria-label={locale.send}
             disabled={!canSend}
             onClick={onSend}
           >
-            <IconArrowUp size={16} aria-hidden="true" />
+            {canSend ? <IconArrowUp size={16} aria-hidden="true" /> : <IdleSparkWaveIcon />}
           </button>
         </HoverTip>
       )}

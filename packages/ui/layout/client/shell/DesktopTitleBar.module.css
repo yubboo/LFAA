@@ -1,0 +1,172 @@
+/* 桌面端 34px 单行一体化顶栏与 A1 三级微色阶 + 贴底贴右 14px 左上圆角主画布样式。
+   所有色值均消费 @lfaa/ui-theme 语义变量，不写死颜色；图片背景模式自动退回透明避免遮挡壁纸。 */
+.frame {
+  --desktop-titlebar-height: 34px;
+  --a1-canvas-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--color-rail);
+}
+
+.frameBody {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 包裹在 frameBody 内的四栏 Shell 铺满剩余高度，桌面态自动扣除 34px 顶栏高度不溢出视口。 */
+.frameBody > :global([data-device]) {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 桌面端单行顶栏：与左一图标栏共享最沉底色（--color-rail），右侧预留 138px 给 Windows 原生控制键。 */
+.titleBar {
+  display: flex;
+  flex: 0 0 auto;
+  height: var(--desktop-titlebar-height);
+  min-height: var(--desktop-titlebar-height);
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 138px 0 0.65rem;
+  background-color: var(--color-rail);
+  color: var(--color-ink);
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.brand {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  margin-right: 0.15rem;
+}
+
+.brandMark {
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  place-items: center;
+  border-radius: 0.32rem;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.menuBar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.1rem;
+  -webkit-app-region: no-drag;
+}
+
+.menuButton {
+  display: inline-flex;
+  height: 1.5rem;
+  align-items: center;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.38rem;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast, 140ms) ease, color var(--motion-duration-fast, 140ms) ease;
+}
+
+.menuButton:hover,
+.menuButton:focus-visible {
+  background: var(--color-active);
+  color: var(--color-ink);
+  outline: none;
+}
+
+.dragSpacer {
+  flex: 1 1 auto;
+  min-width: 1rem;
+  height: 100%;
+}
+
+/* A1 桌面宽屏（>= 1024px）：
+   1. 三级微色阶：左一/顶栏（--color-rail）→ 1px 极细线 → 左二（--color-panel）→ 14px 圆角主画布（--color-shell）；
+   2. 左二右上角无缝衔接：Shell 在左二展开时以 --color-panel 承托 14px 圆角外侧三角区，
+      并去掉左二右侧重复描边，让主画布的 1px 左/顶边沿 14px 圆弧连续过渡，杜绝直角断层；
+   3. 主画布贴底贴右，底部与右侧零留白。 */
+@media (min-width: 1024px) {
+  .frameBody > :global([data-device="desktop"][data-left-open="true"]) {
+    background-color: var(--color-panel);
+  }
+
+  .frameBody > :global([data-device="desktop"][data-left-open="false"]) {
+    background-color: var(--color-rail);
+  }
+
+  .frameBody > :global([data-device="desktop"]) :global([data-region="section-navigation"]) {
+    border-right: 0;
+  }
+
+  /* 默认布局（chat-center）：中间主画布承担左上 14px 圆角与左/顶描边，右栏延续顶边实现整块贴底贴右画布。 */
+  .frameBody > :global([data-device="desktop"]:not([data-layout="preview-center"]):not([data-right-maximized="true"])) > :global([data-region="workspace"]) {
+    border-top-left-radius: var(--a1-canvas-radius);
+    border-top: 1px solid var(--color-line);
+    border-left: 1px solid var(--color-line);
+    background-color: var(--color-shell);
+  }
+
+  .frameBody > :global([data-device="desktop"]:not([data-layout="preview-center"]):not([data-right-maximized="true"])) :global([data-region="context-panel"]) {
+    border-top: 1px solid var(--color-line);
+  }
+
+  /* 预览区在左（preview-center）：预览列在左缘承担左上 14px 圆角，会话列延续顶边。 */
+  .frameBody > :global([data-device="desktop"][data-layout="preview-center"][data-preview-open="true"]) :global([data-region="context-panel"]) {
+    border-top-left-radius: var(--a1-canvas-radius);
+    border-top: 1px solid var(--color-line);
+    border-left: 1px solid var(--color-line);
+  }
+
+  .frameBody > :global([data-device="desktop"][data-layout="preview-center"][data-preview-open="true"]) > :global([data-region="workspace"]) {
+    border-top: 1px solid var(--color-line);
+    background-color: var(--color-shell);
+  }
+
+  .frameBody > :global([data-device="desktop"][data-layout="preview-center"][data-preview-open="false"]) > :global([data-region="workspace"]) {
+    border-top-left-radius: var(--a1-canvas-radius);
+    border-top: 1px solid var(--color-line);
+    border-left: 1px solid var(--color-line);
+    background-color: var(--color-shell);
+  }
+
+  /* 右栏最大化：右栏占满主画布区域，保留同一左上 14px 圆角与贴底贴右形态。 */
+  .frameBody > :global([data-device="desktop"][data-right-maximized="true"]) :global([data-region="context-panel"]) {
+    border-top-left-radius: var(--a1-canvas-radius);
+    border-top: 1px solid var(--color-line);
+    border-left: 1px solid var(--color-line);
+  }
+}
+
+/* 背景图模式：不盖住用户壁纸，外框与主画布背景退回透明/薄纱。 */
+:global(html[data-app-bg-workspace="image"]) .frame,
+:global(html[data-app-bg-workspace="image"]) .frameBody > :global([data-device="desktop"]),
+:global(html[data-app-bg-workspace="image"]) .frameBody > :global([data-device="desktop"]) > :global([data-region="workspace"]) {
+  background-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menuButton {
+    transition: none;
+  }
+}

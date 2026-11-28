@@ -1,0 +1,133 @@
+/* 无限画布打开过渡骨架屏样式：纯 GPU transform 扫光与淡点阵底纹，严格消费主题语义变量，适配深浅双主题与减弱动效。 */
+.skeleton {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0.9rem 1rem 1.2rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: var(--color-shell);
+  background-image: radial-gradient(color-mix(in srgb, var(--color-ink) 12%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+:global(html[data-app-bg-workspace="image"]) .skeleton,
+:global(html[data-settings-open="true"][data-app-bg-settings="image"]) .skeleton {
+  background-color: transparent;
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.85rem, 2.5vw, 1.6rem);
+  min-height: 0;
+  padding: 1rem 0;
+}
+
+.bottomRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar,
+.card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-panel) 84%, var(--color-ink) 4%);
+}
+
+.bar::after,
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-ink) 8%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeletonSweep 1.65s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.topLeft {
+  width: 10.5rem;
+  height: 2rem;
+  border-radius: 999px;
+}
+
+.topRight {
+  width: 5.5rem;
+  height: 2rem;
+  border-radius: 999px;
+}
+
+.card {
+  border-radius: 0.9rem;
+}
+
+.cardLeft {
+  width: clamp(5.5rem, 16vw, 9.5rem);
+  height: clamp(4.2rem, 12vw, 7rem);
+  transform: translateY(-0.35rem);
+}
+
+.cardCenter {
+  width: clamp(7.2rem, 21vw, 12.5rem);
+  height: clamp(5.2rem, 15vw, 8.5rem);
+}
+
+.cardCenter::after {
+  animation-delay: 0.2s;
+}
+
+.cardRight {
+  width: clamp(5rem, 14vw, 8.5rem);
+  height: clamp(3.9rem, 11vw, 6.4rem);
+  transform: translateY(0.35rem);
+}
+
+.cardRight::after {
+  animation-delay: 0.4s;
+}
+
+.bottomDock {
+  width: clamp(9rem, 26vw, 14.5rem);
+  height: 2.1rem;
+  border-radius: 999px;
+}
+
+.bottomDock::after {
+  animation-delay: 0.3s;
+}
+
+@keyframes skeletonSweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar::after,
+  .card::after {
+    animation: none;
+    display: none;
+  }
+}

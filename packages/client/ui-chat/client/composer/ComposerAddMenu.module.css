@@ -92,8 +92,10 @@
   left: 0;
   z-index: 46;
   display: grid;
-  gap: 0.15rem;
-  width: min(14.5rem, calc(100vw - 2rem));
+  gap: 0.12rem;
+  width: min(17.5rem, calc(100vw - 2rem));
+  max-height: 24rem;
+  overflow-y: auto;
   padding: 0.45rem;
   border: 1px solid var(--glass-border, var(--color-line));
   border-radius: 1rem;
@@ -103,6 +105,33 @@
   -webkit-backdrop-filter: blur(26px) saturate(180%);
   box-shadow: var(--glass-specular-shadow, none), var(--color-menu-shadow);
   color: var(--color-ink);
+}
+
+.sectionDivider {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: var(--color-line);
+}
+
+.menuTextGroup {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.menuTextGroup > span:first-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.menuDesc {
+  color: var(--color-muted);
+  font-size: 0.78em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menuHeader {

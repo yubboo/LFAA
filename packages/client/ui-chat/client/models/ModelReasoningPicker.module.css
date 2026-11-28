@@ -87,6 +87,13 @@
     width: 1.65rem;
     height: 1.65rem;
     padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .triggerPill:hover {
+    border-color: transparent;
+    background: var(--color-active);
   }
 
   .modelIcon {

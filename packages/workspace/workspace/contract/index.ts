@@ -55,6 +55,10 @@ export interface CreateProjectInput {
   /** 浏览器在信任弹窗中展示的默认路径，创建时由 Host 重新核对。 */
   confirmedDefaultPath?: string;
   trusted: boolean;
+  /** 项目类型：仅无限画布「+ 开始创作」传 "canvas"，其余均为 "workspace"。 */
+  kind?: "workspace" | "canvas";
+  /** 画布分类文件夹 ID（仅 kind === "canvas" 生效）。 */
+  canvasFolderId?: string | null;
 }
 
 /** 约定更新既有项目档案时提交的可编辑字段。 */
@@ -65,6 +69,7 @@ export interface UpdateProjectInput {
   description?: string;
   pinned?: boolean;
   sectionId?: string | null;
+  canvasFolderId?: string | null;
 }
 
 /** 项目简介初稿：依据目录内 README/清单与顶层条目生成，不写文件。 */

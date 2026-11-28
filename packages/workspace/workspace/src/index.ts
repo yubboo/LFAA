@@ -1,25 +1,33 @@
 // 声明工作区包的 Host 侧 Cordis 服务与无 DOM 领域契约，严禁导入 React、DOM 或 CSS。
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readdir, realpath, stat } from "node:fs/promises";
+import { mkdir, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { type Context, Service } from "@deepseek-ai/cordis";
 import { draftProjectBrief as buildProjectBriefDraft } from "./project-brief";
-import { isWithinRoot, normalizeProjectDescription, normalizeUniquePaths, resolveWithinProjectRoots } from "./project-records";
+import { inspectProjectDirectory, readProjectTextFile } from "./project-fs-read";
+import { normalizeProjectDescription, normalizeUniquePaths, resolveWithinProjectRoots } from "./project-records";
 import {
   assertDefaultFolderAvailable, buildRestoredProjectSnapshot, isManagedProjectPath,
   pathKey, readProjectStore, syncDefaultProjectDir, writeProjectStore, type ProjectStoreSnapshot,
 } from "./project-store";
 import { openFolderInExplorer, openNativeFolderPicker, resolveNamedSubfolder, resolveUserDocumentsDir, revealFileInExplorer } from "./system-paths";
-import { buildDefaultWorkspaceProject, DEFAULT_OUTSIDE_SUBDIR, DEFAULT_WORKSPACE_SUBDIR, fallbackDefaultWorkspacePath } from "./default-workspace";
+import {
+  buildDefaultWorkspaceProject,
+  CANVAS_PROJECTS_SUBDIR,
+  DEFAULT_CANVAS_SAMPLE_SUBDIR,
+  DEFAULT_CODE_SUBDIR,
+  DEFAULT_OUTSIDE_SUBDIR,
+  DEFAULT_WORKSPACE_SUBDIR,
+  fallbackDefaultWorkspacePath,
+} from "./default-workspace";
 import type {
   CreateProjectInput,
   DraftProjectBriefResult,
   FolderPickResult,
   ResolveDefaultPathResult,
   UpdateProjectInput,
-  WorkspaceDirectoryEntry,
   WorkspaceInspection,
   WorkspaceProjectSummary,
 } from "./types";
@@ -33,8 +41,6 @@ import type { WorkspacePluginConfig } from "./plugin-config";
 import { ProjectDirResolvers, type ProjectDirResolverPair } from "./dir-resolvers";
 
 const DEFAULT_STORE_PATH = join(homedir(), ".lfaa", "projects.json");
-const MAX_TREE_ENTRIES = 200;
-const MAX_PREVIEW_FILE_BYTES = 256 * 1024;
 
 // Host 侧工作区服务：持久化项目列表、动态检测默认工作目录、调起资源管理器选目录并读取真实目录内容。
 export class WorkspaceService extends Service {
@@ -94,7 +100,8 @@ export class WorkspaceService extends Service {
     const rootPath = await this.resolveOutsideProjectDir().catch(() => fallbackDefaultWorkspacePath(homedir()));
     // 用户主动移除过就不再重建，删除才算真正生效。
     if (snapshot.dismissedPaths.some((entry) => pathKey(entry) === pathKey(rootPath))) return snapshot;
-    await mkdir(rootPath, { recursive: true }).catch(() => undefined);
+    await mkdir(join(rootPath, DEFAULT_CODE_SUBDIR), { recursive: true }).catch(() => undefined);
+    await mkdir(join(rootPath, DEFAULT_CANVAS_SAMPLE_SUBDIR), { recursive: true }).catch(() => undefined);
     return {
       projects: [...snapshot.projects, buildDefaultWorkspaceProject(rootPath)],
       dismissedPaths: snapshot.dismissedPaths,
@@ -106,8 +113,12 @@ export class WorkspaceService extends Service {
     const { workspaceBaseDir } = await this.getBaseWorkspaceRoot();
     const baseDir = resolve(workspaceBaseDir);
     const outsideProjectDir = await this.resolveOutsideProjectDir().catch(() => "");
-    // 项目外聊天目录（含默认的 <文档>/lfaa/default-workspace）不是项目，扫描时跳过。
-    const ignoredDirs = [outsideProjectDir, join(baseDir, DEFAULT_OUTSIDE_SUBDIR)].filter(Boolean);
+    // 默认工作区与平级画布项目容器目录不作为普通代码项目自动扫描。
+    const ignoredDirs = [
+      outsideProjectDir,
+      join(baseDir, DEFAULT_OUTSIDE_SUBDIR),
+      join(baseDir, CANVAS_PROJECTS_SUBDIR),
+    ].filter(Boolean);
     return syncDefaultProjectDir(snapshot, { baseDir, ignoredDirs });
   }
 
@@ -198,6 +209,7 @@ export class WorkspaceService extends Service {
     const existing = snapshot.projects;
     this.assertUniqueInList(existing, name);
 
+    const projectKind = input.kind === "canvas" ? "canvas" : "workspace";
     let resolvedPath: string;
     if (input.rootPath && input.rootPath.trim()) {
       resolvedPath = resolve(input.rootPath.trim());
@@ -205,6 +217,13 @@ export class WorkspaceService extends Service {
       if (!info || !info.isDirectory()) {
         throw new Error(`找不到所选文件夹：${resolvedPath}`);
       }
+    } else if (projectKind === "canvas") {
+      // 画布项目统一落在 <默认新建项目目录>/canvas-projects/<名称>，与 default-workspace 平级隔离。
+      const { workspaceBaseDir } = await this.getBaseWorkspaceRoot();
+      const canvasRoot = join(workspaceBaseDir, CANVAS_PROJECTS_SUBDIR);
+      resolvedPath = resolveNamedSubfolder(canvasRoot, name);
+      await assertDefaultFolderAvailable(resolvedPath);
+      await mkdir(resolvedPath, { recursive: true });
     } else {
       const defaultTarget = await this.resolveDefaultProjectPath(name);
       resolvedPath = defaultTarget.targetPath;
@@ -228,6 +247,8 @@ export class WorkspaceService extends Service {
       pinned: false,
       sectionId: null,
       chatCount: 0,
+      kind: projectKind,
+      canvasFolderId: projectKind === "canvas" ? (input.canvasFolderId ?? null) : null,
       createdAt: Date.now(),
       exists: true,
     };
@@ -281,6 +302,7 @@ export class WorkspaceService extends Service {
       rootPath: nextRootPaths[0] ?? current.rootPath,
       pinned: input.pinned !== undefined ? input.pinned : current.pinned,
       sectionId: input.sectionId !== undefined ? input.sectionId : current.sectionId,
+      canvasFolderId: input.canvasFolderId !== undefined ? input.canvasFolderId : (current.canvasFolderId ?? null),
       exists: true,
     };
     if (input.description !== undefined) {
@@ -308,8 +330,22 @@ export class WorkspaceService extends Service {
     }
   }
 
-  /** 移出项目；默认项目目录下的项目会记录路径，避免下次刷新又被自动纳入。 */
-  async removeProject(projectId: string): Promise<boolean> {
+  /** 删除画布分类文件夹时，将该文件夹下的画布项目安全退回根目录。 */
+  async clearCanvasFolder(folderId: string): Promise<void> {
+    const snapshot = await this.readStore();
+    let changed = false;
+    const next = snapshot.projects.map((item) => {
+      if (item.canvasFolderId !== folderId) return item;
+      changed = true;
+      return { ...item, canvasFolderId: null };
+    });
+    if (changed) {
+      await this.writeStore({ projects: next, dismissedPaths: snapshot.dismissedPaths });
+    }
+  }
+
+  /** 移出项目；默认工作区与默认项目目录下的项目记录移出路径避免自动复活，支持整删默认工作区磁盘目录。 */
+  async removeProject(projectId: string, options?: { deleteDisk?: boolean }): Promise<boolean> {
     const snapshot = await this.readStore();
     const target = snapshot.projects.find((item) => item.id === projectId);
     if (!target) return false;
@@ -318,7 +354,12 @@ export class WorkspaceService extends Service {
     const managedRoots: string[] = [];
     const { workspaceBaseDir } = await this.getBaseWorkspaceRoot().catch(() => ({ documentsDir: "", workspaceBaseDir: "" }));
     const baseDir = workspaceBaseDir ? resolve(workspaceBaseDir) : "";
-    if (baseDir) {
+    if (target.isDefault) {
+      managedRoots.push(target.rootPath);
+      if (options?.deleteDisk) {
+        await rm(target.rootPath, { recursive: true, force: true }).catch(() => undefined);
+      }
+    } else if (baseDir) {
       for (const root of target.rootPaths.length > 0 ? target.rootPaths : [target.rootPath]) {
         if (isManagedProjectPath(baseDir, root)) managedRoots.push(root);
       }
@@ -370,58 +411,7 @@ export class WorkspaceService extends Service {
   async inspectProject(projectId: string, requestedRootPath?: string): Promise<WorkspaceInspection | null> {
     const projects = await this.readStoredProjects();
     const project = projects.find((item) => item.id === projectId);
-    if (!project) return null;
-
-    const resolved = resolveWithinProjectRoots(project, requestedRootPath);
-    const targetRoot = resolved ? resolved.resolvedPath : project.rootPath;
-
-    const rootInfo = await stat(targetRoot).catch(() => null);
-    if (!rootInfo || !rootInfo.isDirectory()) {
-      return {
-        projectId: project.id,
-        rootPath: targetRoot,
-        exists: false,
-        directoryCount: 0,
-        fileCount: 0,
-        entries: [],
-      };
-    }
-
-    const dirEntries = await readdir(targetRoot, { withFileTypes: true });
-    const entries: WorkspaceDirectoryEntry[] = [];
-    let directoryCount = 0;
-    let fileCount = 0;
-
-    for (const entry of dirEntries) {
-      const isDir = entry.isDirectory();
-      const isFile = entry.isFile();
-      if (!isDir && !isFile) continue;
-      if (isDir) directoryCount += 1;
-      else fileCount += 1;
-
-      if (entries.length >= MAX_TREE_ENTRIES) continue;
-      const itemStats = await stat(join(targetRoot, entry.name)).catch(() => null);
-      entries.push({
-        name: entry.name,
-        kind: isDir ? "directory" : "file",
-        ...(isFile && itemStats ? { size: itemStats.size } : {}),
-        updatedAt: itemStats ? itemStats.mtimeMs : 0,
-      });
-    }
-
-    entries.sort((left, right) => {
-      if (left.kind !== right.kind) return left.kind === "directory" ? -1 : 1;
-      return left.name.localeCompare(right.name);
-    });
-
-    return {
-      projectId: project.id,
-      rootPath: targetRoot,
-      exists: true,
-      directoryCount,
-      fileCount,
-      entries,
-    };
+    return project ? inspectProjectDirectory(project, requestedRootPath) : null;
   }
 
   /** 安全只读项目内单个文本文件，拦截路径穿越并限制最大预览字节数。 */
@@ -431,52 +421,7 @@ export class WorkspaceService extends Service {
   ): Promise<{ path: string; relativePath: string; content: string; truncated: boolean; size: number } | null> {
     const projects = await this.readStoredProjects();
     const project = projects.find((item) => item.id === projectId);
-    if (!project) return null;
-
-    const resolved = resolveWithinProjectRoots(project, requestedPath);
-    if (!resolved) {
-      throw new Error("文件路径超出当前项目授权目录边界。");
-    }
-    const info = await stat(resolved.resolvedPath).catch(() => null);
-    if (!info || !info.isFile()) {
-      throw new Error("目标路径不存在或不是可读文件。");
-    }
-    const [realRoot, realTarget] = await Promise.all([
-      realpath(resolved.matchedRoot).catch(() => resolved.matchedRoot),
-      realpath(resolved.resolvedPath).catch(() => null),
-    ]);
-    if (!realTarget || !isWithinRoot(realTarget, realRoot)) {
-      throw new Error("文件路径经符号链接越出当前项目授权目录边界。");
-    }
-
-    const readBytes = Math.min(info.size, MAX_PREVIEW_FILE_BYTES);
-    const truncated = info.size > MAX_PREVIEW_FILE_BYTES;
-    const handle = await open(resolved.resolvedPath, "r");
-    try {
-      const buffer = Buffer.alloc(readBytes);
-      let offset = 0;
-      while (offset < readBytes) {
-        const { bytesRead } = await handle.read(buffer, offset, readBytes - offset, offset);
-        if (bytesRead <= 0) break;
-        offset += bytesRead;
-      }
-      const slice = buffer.subarray(0, offset);
-      const sampleEnd = Math.min(slice.length, 4096);
-      for (let i = 0; i < sampleEnd; i += 1) {
-        if (slice[i] === 0) {
-          throw new Error("二进制文件暂不支持在代码查看器中直接预览。");
-        }
-      }
-      return {
-        path: resolved.resolvedPath.replace(/\\/gu, "/"),
-        relativePath: resolved.relativePath || basename(resolved.resolvedPath),
-        content: slice.toString("utf8"),
-        truncated,
-        size: info.size,
-      };
-    } finally {
-      await handle.close();
-    }
+    return project ? readProjectTextFile(project, requestedPath) : null;
   }
 }
 

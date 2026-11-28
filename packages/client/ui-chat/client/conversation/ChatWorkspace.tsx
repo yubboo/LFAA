@@ -39,7 +39,7 @@ export function ChatWorkspace({
   onOpenSettings,
   onOpenTurnChanges,
   onOpenFilePreview,
-  onOpenBrowser,
+  onOpenBrowser, onOpenCanvas, onOpenSkills, onOpenConnectors,
 }: {
   locale: ChatLocaleMessages;
   store: ChatClientStore;
@@ -53,7 +53,7 @@ export function ChatWorkspace({
   onOpenSettings: () => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
   onOpenFilePreview: (messageId: string, stepId: string) => void;
-  onOpenBrowser?: (() => void) | undefined;
+  onOpenBrowser?: (() => void) | undefined; onOpenCanvas?: (() => void) | undefined; onOpenSkills?: (() => void) | undefined; onOpenConnectors?: (() => void) | undefined;
 }) {
   const state = useChatSelector(store, selectWorkspaceSlice);
   const [view, setView] = useState<"chat" | "trace">("chat");
@@ -239,7 +239,7 @@ export function ChatWorkspace({
         void store.dismissClarification(sessionId).catch((error: unknown) => composer.setContextNotice(String(error)));
       }}
       onOpenSettings={onOpenSettings}
-      onOpenBrowser={onOpenBrowser}
+      onOpenBrowser={onOpenBrowser} onOpenCanvas={onOpenCanvas} onOpenSkills={onOpenSkills} onOpenConnectors={onOpenConnectors}
       onDeleteRequest={() => setDeleteConfirmOpen(true)}
       onOpenTurnChanges={onOpenTurnChanges}
     />

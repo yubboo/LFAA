@@ -49,7 +49,7 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
           onCreated={onCreated}
         />
       ),
-      quickCreateProject: async (baseName) => {
+      quickCreateProject: async (baseName, options) => {
         const prefix = baseName?.trim() || "未命名项目";
         const existing = new Set(store.getProjects().map((item) => item.name.trim().toLowerCase()));
         let candidate = prefix;
@@ -57,6 +57,14 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
         while (existing.has(candidate.toLowerCase())) {
           candidate = `${prefix} ${suffix}`;
           suffix += 1;
+        }
+        if (options?.kind === "canvas") {
+          return store.createProject({
+            name: candidate,
+            trusted: true,
+            kind: "canvas",
+            canvasFolderId: options.canvasFolderId ?? null,
+          });
         }
         const resolved = await store.resolveDefaultPath(candidate);
         return store.createProject({
@@ -66,8 +74,12 @@ export const workspaceClientPlugin: Plugin.Object<void> = {
         });
       },
       assignProjectSection: (projectId, sectionId) => store.assignSection(projectId, sectionId),
+      assignCanvasFolder: async (projectId, folderId) => {
+        await store.updateProject(projectId, { canvasFolderId: folderId });
+      },
       renameProject: (projectId, name) => store.updateProject(projectId, { name }),
       removeProject: (projectId) => store.removeProject(projectId),
+      requestDeleteWorkspace: (projectId) => menuStore.openRemoveConfirm(projectId, true),
       refreshProjects: async () => { await store.refreshProjects(); },
       togglePinProject: (projectId) => store.togglePinProject(projectId),
       onProjectRowEnter: (project, element) => menuStore.onRowEnter(project.id, element),

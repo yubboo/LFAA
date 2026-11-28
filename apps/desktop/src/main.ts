@@ -7,8 +7,15 @@ import type { BrowserWindow } from "electron";
 import { DesktopHostProcess } from "./host-process";
 import { attachEmbeddedBrowser } from "./embedded-browser";
 import { logDesktop, desktopLogPath } from "./log";
-import { installApplicationMenu } from "./menu";
+import { installApplicationMenu, popupApplicationSubmenu, type DesktopMenuId } from "./menu";
 import { resolveDesktopPaths } from "./paths";
+import {
+  applyDesktopNativeTheme,
+  loadDesktopThemeState,
+  resolveWindowBackgroundColor,
+  saveDesktopThemeState,
+  type DesktopThemeState,
+} from "./theme-state";
 import { createMainWindow } from "./window";
 
 /** Windows 任务栏/快捷方式分组标识，须与 electron-builder 的 appId 一致。 */
@@ -58,9 +65,43 @@ async function startDesktop(): Promise<void> {
   const devUrl = devMode ? process.env.LFAA_DESKTOP_URL?.trim() : undefined;
   const url = devUrl ? devUrl : await startLocalHost(paths);
 
+  // 启动即恢复上次保存的主题并同步 nativeTheme，确保 Windows 原生标题栏与菜单栏首帧即匹配浅/深色。
+  let currentTheme = loadDesktopThemeState();
+  applyDesktopNativeTheme(currentTheme);
+
   installApplicationMenu({ dataRoot: paths.dataRoot, devMode });
-  mainWindow = createMainWindow({ url, paths, devMode });
+  mainWindow = createMainWindow({
+    url,
+    paths,
+    devMode,
+    backgroundColor: resolveWindowBackgroundColor(currentTheme.resolvedScheme),
+    resolvedScheme: currentTheme.resolvedScheme,
+  });
   attachEmbeddedBrowser(mainWindow, desktopHost?.downloadChannel);
+
+  ipcMain.removeAllListeners("lfaa:menu:popup");
+  ipcMain.on("lfaa:menu:popup", (_event, payload?: { menuId?: DesktopMenuId; x?: number; y?: number }) => {
+    const id = payload?.menuId;
+    if (id !== "file" && id !== "edit" && id !== "view" && id !== "help") return;
+    popupApplicationSubmenu(mainWindow, id, payload?.x, payload?.y);
+  });
+
+  ipcMain.removeAllListeners("lfaa:theme:read");
+  ipcMain.on("lfaa:theme:read", (event) => {
+    event.returnValue = currentTheme.configJson ?? null;
+  });
+  ipcMain.removeAllListeners("lfaa:theme:sync");
+  ipcMain.on("lfaa:theme:sync", (_event, payload?: Partial<DesktopThemeState>) => {
+    if (!payload || (payload.mode !== "light" && payload.mode !== "dark" && payload.mode !== "system")) return;
+    const resolvedScheme = payload.resolvedScheme === "light" ? "light" : "dark";
+    currentTheme = {
+      mode: payload.mode,
+      resolvedScheme,
+      ...(typeof payload.configJson === "string" && payload.configJson.trim() ? { configJson: payload.configJson } : {}),
+    };
+    applyDesktopNativeTheme(currentTheme, mainWindow);
+    saveDesktopThemeState(currentTheme);
+  });
   ipcMain.removeHandler("lfaa:dialog:pickFolder");
   ipcMain.handle("lfaa:dialog:pickFolder", async (_event, opts?: { title?: string; defaultPath?: string }) => {
     const win = mainWindow;

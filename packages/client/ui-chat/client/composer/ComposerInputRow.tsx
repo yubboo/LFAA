@@ -13,6 +13,7 @@ export function ComposerInputRow({
   placeholder,
   rows,
   onPaste,
+  searchOverride,
 }: {
   composer: ReturnType<typeof useChatComposer>;
   store: ChatClientStore;
@@ -20,6 +21,12 @@ export function ComposerInputRow({
   placeholder: string;
   rows: number;
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
+  searchOverride?: {
+    value: string;
+    placeholder: string;
+    onChange: (next: string) => void;
+    onKeyDown: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
+  } | null;
 }) {
   const {
     draft, setDraft, textareaRef, syncMentionFromText,
@@ -33,47 +40,57 @@ export function ComposerInputRow({
     <textarea
       ref={textareaRef}
       className={styles.textarea}
-      placeholder={placeholder}
-      value={draft}
-      rows={rows}
+      placeholder={searchOverride ? searchOverride.placeholder : placeholder}
+      value={searchOverride ? searchOverride.value : draft}
+      rows={searchOverride ? 1 : rows}
       onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
         const nextVal = event.target.value;
+        if (searchOverride) {
+          searchOverride.onChange(nextVal);
+          return;
+        }
         setDraft(nextVal);
         syncMentionFromText(nextVal, event.target.selectionStart);
       }}
       onClick={(event) => {
-        syncMentionFromText(draft, event.currentTarget.selectionStart);
+        if (!searchOverride) syncMentionFromText(draft, event.currentTarget.selectionStart);
       }}
       onPaste={onPaste}
-      onKeyDown={(event: ReactKeyboardEvent<HTMLTextAreaElement>) => handleComposerKeydown(event, {
-        mention: mentionTrigger ? {
-          entries: visibleMentionEntries,
-          index: mentionIndex,
-          setIndex: setMentionIndex,
-          close: () => setMentionTrigger(null),
-          pick: handleSelectMentionEntry,
-        } : null,
-        slash: slashTrigger ? {
-          entries: visibleSlashCommands,
-          index: slashIndex,
-          setIndex: setSlashIndex,
-          close: () => setSlashTrigger(null),
-          complete: handleTabCompleteSlashCommand,
-          pick: handleSelectSlashCommand,
-        } : null,
-        skill: skillTrigger ? {
-          entries: visibleSkillEntries,
-          index: skillIndex,
-          setIndex: setSkillIndex,
-          close: () => setSkillTrigger(null),
-          pick: handleSelectSkillEntry,
-        } : null,
-        queuedCount: state.queuedMessages.length,
-        flushQueue: () => void store.flushQueuedMessages(),
-        sendShortcut: state.generalSettings.sendShortcut,
-        submit: (invertFollowUp) => void handleSubmit(undefined, invertFollowUp),
-        undoAttachment: undoAttachmentInsert,
-      })}
+      onKeyDown={(event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+        if (searchOverride) {
+          searchOverride.onKeyDown(event);
+          return;
+        }
+        handleComposerKeydown(event, {
+          mention: mentionTrigger ? {
+            entries: visibleMentionEntries,
+            index: mentionIndex,
+            setIndex: setMentionIndex,
+            close: () => setMentionTrigger(null),
+            pick: handleSelectMentionEntry,
+          } : null,
+          slash: slashTrigger ? {
+            entries: visibleSlashCommands,
+            index: slashIndex,
+            setIndex: setSlashIndex,
+            close: () => setSlashTrigger(null),
+            complete: handleTabCompleteSlashCommand,
+            pick: handleSelectSlashCommand,
+          } : null,
+          skill: skillTrigger ? {
+            entries: visibleSkillEntries,
+            index: skillIndex,
+            setIndex: setSkillIndex,
+            close: () => setSkillTrigger(null),
+            pick: handleSelectSkillEntry,
+          } : null,
+          queuedCount: state.queuedMessages.length,
+          flushQueue: () => void store.flushQueuedMessages(),
+          sendShortcut: state.generalSettings.sendShortcut,
+          submit: (invertFollowUp) => void handleSubmit(undefined, invertFollowUp),
+          undoAttachment: undoAttachmentInsert,
+        });
+      }}
     />
   );
 

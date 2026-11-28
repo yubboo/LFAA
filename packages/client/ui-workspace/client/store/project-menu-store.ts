@@ -15,6 +15,7 @@ export interface ProjectMenuSnapshot {
   actionMenu: PopoverAnchorState | null;
   editingProjectId: string | null;
   removingProjectId: string | null;
+  removingDeleteDisk: boolean;
   /** 正在为哪个项目打开「新建工作树会话」弹窗。 */
   worktreeProjectId: string | null;
 }
@@ -44,6 +45,7 @@ export class ProjectMenuStore {
   private actionMenuValue: PopoverAnchorState | null = null;
   private editingProjectIdValue: string | null = null;
   private removingProjectIdValue: string | null = null;
+  private removingDeleteDiskValue = false;
   private worktreeProjectIdValue: string | null = null;
   private suppressHoverId: string | null = null;
   private hoverTimer: number | null = null;
@@ -63,6 +65,7 @@ export class ProjectMenuStore {
         actionMenu: this.actionMenuValue,
         editingProjectId: this.editingProjectIdValue,
         removingProjectId: this.removingProjectIdValue,
+        removingDeleteDisk: this.removingDeleteDiskValue,
         worktreeProjectId: this.worktreeProjectIdValue,
       };
     }
@@ -171,12 +174,13 @@ export class ProjectMenuStore {
     this.emit();
   };
 
-  openRemoveConfirm(projectId: string): void {
+  openRemoveConfirm(projectId: string, deleteDisk = false): void {
     this.clearHoverTimer();
     this.hoverCardValue = null;
     this.actionMenuValue = null;
     this.suppressHoverId = null;
     this.removingProjectIdValue = projectId;
+    this.removingDeleteDiskValue = deleteDisk;
     this.emit();
   }
 
@@ -201,6 +205,7 @@ export class ProjectMenuStore {
   closeRemoveConfirm = (): void => {
     if (!this.removingProjectIdValue) return;
     this.removingProjectIdValue = null;
+    this.removingDeleteDiskValue = false;
     this.emit();
   };
 

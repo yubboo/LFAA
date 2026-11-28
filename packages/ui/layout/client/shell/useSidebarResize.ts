@@ -122,6 +122,7 @@ export function useSidebarResize({
     let snapAnimTimer: number | null = null;
     let latestClientX = startClientX;
     let lastVisualWidth = initialWidth;
+    let lastWrittenCssWidth = Number.NaN;
     let hasElasticTension = false;
     let dragActivated = false;
     let prevCursor = "";
@@ -197,6 +198,10 @@ export function useSidebarResize({
       if (snappedChanged) {
         triggerSnapAnim();
       }
+
+      const nextCssWidth = outcome.snappedCollapsed ? 0 : outcome.visualWidth;
+      if (!snappedChanged && Math.abs(nextCssWidth - lastWrittenCssWidth) < 0.5) return;
+      lastWrittenCssWidth = nextCssWidth;
 
       shellEl.style.setProperty(dragWidthVar, outcome.snappedCollapsed ? "0px" : `${outcome.visualWidth}px`);
       shellEl.style.setProperty("--resize-tension", String(outcome.tension));

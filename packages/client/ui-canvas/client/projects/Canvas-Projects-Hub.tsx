@@ -1,21 +1,12 @@
 // 无限画布「我的项目」入口大厅：展示已有画布的项目，支持首卡一键快建、顶栏弹窗自定义新建、缩放、搜索、排序、网格/列表切换与卡片更多操作菜单。
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import {
-  IconArrowsSort,
-  IconLayoutGrid,
-  IconList,
-  IconMinus,
-  IconPhoto,
-  IconPlus,
-  IconSearch,
-  IconTrash,
-  IconX,
-} from "@tabler/icons-react";
-import type { WorkbenchSectionItem } from "@lfaa/ui-layout/contract";
+import { IconPhoto } from "@tabler/icons-react";
+import type { CanvasFolder } from "@lfaa/canvas/contract";
 import { assetUrl, boardsPath, libraryMediaUrl, listLibraryMedia } from "../api/canvas-api";
 import type { CanvasLabels } from "../locales";
 import { CanvasHubCardGrid } from "./Canvas-Hub-Card-Grid";
 import { CanvasHubCardMenu, type HubCardMenuAnchor } from "./Canvas-Hub-Card-Menu";
+import { CanvasHubHeader } from "./Canvas-Hub-Header";
 import { CanvasHubList } from "./Canvas-Hub-List";
 import { CanvasTrashModal } from "./Canvas-Trash-Modal";
 import {
@@ -54,39 +45,48 @@ export function CanvasProjectsHub({
   t,
   isZh,
   items,
-  sections = [],
+  folders = [],
+  activeFolderId = null,
   loading,
   creating,
   error,
   onQuickCreate,
-  onOpenCreateDialog,
+  onSelectFolder,
+  onCreateAutoFolder,
+  onRenameFolder,
+  onDeleteFolder,
   onOpenProject,
   onRenameProject,
   onDuplicateProject,
-  onMoveProjectSection,
+  onMoveProjectFolder,
   onDeleteProject,
+  onDeleteWorkspace,
   onTrashRestored,
 }: {
   t: CanvasLabels;
   isZh: boolean;
   items: readonly HubProjectCardItem[];
-  sections?: readonly WorkbenchSectionItem[];
+  folders?: readonly CanvasFolder[];
+  activeFolderId?: string | null;
   loading: boolean;
   creating: boolean;
   error: string;
   onQuickCreate: () => void;
-  onOpenCreateDialog: () => void;
+  onSelectFolder?: (folderId: string | null) => void;
+  onCreateAutoFolder?: () => Promise<CanvasFolder | null>;
+  onRenameFolder?: (folderId: string, name: string) => void | Promise<void>;
+  onDeleteFolder?: (folderId: string) => void;
   onOpenProject: (projectId: string, canvasId: string) => void;
   onRenameProject?: (projectId: string, name: string) => void;
   onDuplicateProject?: (item: HubProjectCardItem) => void;
-  onMoveProjectSection?: (projectId: string, sectionId: string | null) => void;
+  onMoveProjectFolder?: (projectId: string, folderId: string | null) => void;
   onDeleteProject?: (projectId: string) => void;
+  onDeleteWorkspace?: (projectId: string) => void;
   onTrashRestored?: () => void;
 }) {
   const [zoomRem, setZoomRem] = useState<number>(readInitialZoom);
   const [viewMode, setViewMode] = useState<ProjectHubViewMode>(readInitialView);
   const [sort, setSort] = useState<ProjectHubSort>(readInitialSort);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [libraryImages, setLibraryImages] = useState<string[]>([]);
@@ -94,6 +94,8 @@ export function CanvasProjectsHub({
   const [menuAnchor, setMenuAnchor] = useState<HubCardMenuAnchor | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [folderRenameDraft, setFolderRenameDraft] = useState("");
   const coverTargetRef = useRef<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -116,10 +118,27 @@ export function CanvasProjectsHub({
     event.currentTarget.style.setProperty("--my", `${event.clientY - rect.top}px`);
   }
 
-  const visibleItems = useMemo(
-    () => filterAndSortHubProjects(items, query, sort),
-    [items, query, sort],
+  const activeFolder = useMemo(
+    () => (activeFolderId ? folders.find((item) => item.id === activeFolderId) ?? null : null),
+    [activeFolderId, folders],
   );
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      if (item.canvasFolderId) counts.set(item.canvasFolderId, (counts.get(item.canvasFolderId) ?? 0) + 1);
+    }
+    return counts;
+  }, [items]);
+  const scopedItems = useMemo(() => {
+    if (query.trim()) return items;
+    if (activeFolderId) return items.filter((item) => item.canvasFolderId === activeFolderId);
+    return items.filter((item) => !item.canvasFolderId);
+  }, [activeFolderId, items, query]);
+  const visibleItems = useMemo(
+    () => filterAndSortHubProjects(scopedItems, query, sort),
+    [scopedItems, query, sort],
+  );
+  const visibleFolders = !activeFolderId && !query.trim() ? folders : [];
 
   const now = Date.now();
 
@@ -153,130 +172,51 @@ export function CanvasProjectsHub({
     }
   }
 
+  function commitFolderRename(folderId: string, fallbackName: string) {
+    const trimmed = folderRenameDraft.trim();
+    setRenamingFolderId(null);
+    if (trimmed && trimmed !== fallbackName) {
+      void onRenameFolder?.(folderId, trimmed);
+    }
+  }
+
+  async function handleCreateAutoFolder() {
+    if (!onCreateAutoFolder) return;
+    if (activeFolderId) onSelectFolder?.(null);
+    const created = await onCreateAutoFolder();
+    if (created) {
+      setRenamingFolderId(created.id);
+      setFolderRenameDraft(created.name);
+    }
+  }
+
   return (
     <div className={styles.hub}>
       <div className={styles.inner}>
-        <header className={styles.header}>
-          <h1 className={styles.heading}>{t.myProjects}</h1>
-
-          <div className={styles.toolbar}>
-            {viewMode === "grid" && (
-              <div className={styles.zoomPill} title={t.cardZoom}>
-                <IconMinus size={13} stroke={1.8} aria-hidden="true" />
-                <input
-                  type="range"
-                  min={ZOOM_MIN}
-                  max={ZOOM_MAX}
-                  step={0.5}
-                  value={zoomRem}
-                  aria-label={t.cardZoom}
-                  className={styles.zoomSlider}
-                  onChange={(event) => updateZoom(Number(event.target.value))}
-                />
-                <IconPlus size={13} stroke={1.8} aria-hidden="true" />
-              </div>
-            )}
-
-            {searchOpen ? (
-              <label className={styles.searchWrap}>
-                <IconSearch size={14} stroke={1.8} aria-hidden="true" />
-                <input
-                  autoFocus
-                  type="search"
-                  className={styles.searchInput}
-                  value={query}
-                  placeholder={t.searchProjects}
-                  onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setQuery("");
-                      setSearchOpen(false);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  className={styles.clearBtn}
-                  aria-label={isZh ? "关闭搜索" : "Close search"}
-                  onClick={() => {
-                    setQuery("");
-                    setSearchOpen(false);
-                  }}
-                >
-                  <IconX size={13} stroke={1.8} />
-                </button>
-              </label>
-            ) : (
-              <button
-                type="button"
-                className={styles.iconBtn}
-                aria-label={t.searchProjects}
-                title={t.searchProjects}
-                onClick={() => setSearchOpen(true)}
-              >
-                <IconSearch size={15} stroke={1.8} />
-              </button>
-            )}
-
-            <button
-              type="button"
-              className={styles.iconBtn}
-              data-active={sort === "name" ? "true" : undefined}
-              aria-label={sort === "recent" ? t.sortRecent : t.sortName}
-              title={sort === "recent" ? t.sortRecent : t.sortName}
-              onClick={() => setSort((current) => {
-                const next = current === "recent" ? "name" : "recent";
-                localStorage.setItem(SORT_STORAGE_KEY, next);
-                return next;
-              })}
-            >
-              <IconArrowsSort size={15} stroke={1.8} />
-            </button>
-
-            <div className={styles.viewSwitch} role="group" aria-label={isZh ? "切换视图" : "View mode"}>
-              <button
-                type="button"
-                className={styles.viewBtn}
-                data-active={viewMode === "grid" ? "true" : undefined}
-                aria-label={t.gridView}
-                title={t.gridView}
-                onClick={() => updateView("grid")}
-              >
-                <IconLayoutGrid size={14} stroke={1.8} />
-              </button>
-              <button
-                type="button"
-                className={styles.viewBtn}
-                data-active={viewMode === "list" ? "true" : undefined}
-                aria-label={t.listView}
-                title={t.listView}
-                onClick={() => updateView("list")}
-              >
-                <IconList size={14} stroke={1.8} />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className={styles.iconBtn}
-              aria-label={isZh ? "回收站" : "Recycle Bin"}
-              title={isZh ? "回收站" : "Recycle Bin"}
-              onClick={() => setTrashOpen(true)}
-            >
-              <IconTrash size={15} stroke={1.8} />
-            </button>
-
-            <button
-              type="button"
-              className={styles.primaryBtn}
-              disabled={creating}
-              onClick={onOpenCreateDialog}
-            >
-              <IconPlus size={14} stroke={2.2} />
-              <span>{t.quickCreate}</span>
-            </button>
-          </div>
-        </header>
+        <CanvasHubHeader
+          t={t}
+          isZh={isZh}
+          activeFolder={activeFolder}
+          viewMode={viewMode}
+          sort={sort}
+          zoomRem={zoomRem}
+          zoomMin={ZOOM_MIN}
+          zoomMax={ZOOM_MAX}
+          query={query}
+          creating={creating}
+          onSelectFolder={onSelectFolder}
+          onUpdateZoom={updateZoom}
+          onQueryChange={setQuery}
+          onToggleSort={() => setSort((current) => {
+            const next = current === "recent" ? "name" : "recent";
+            localStorage.setItem(SORT_STORAGE_KEY, next);
+            return next;
+          })}
+          onUpdateView={updateView}
+          onOpenTrash={() => setTrashOpen(true)}
+          onQuickCreate={onQuickCreate}
+          onCreateFolderAuto={handleCreateAutoFolder}
+        />
 
         {error && <div role="alert" className={styles.errorBanner}>{error}</div>}
 
@@ -286,14 +226,27 @@ export function CanvasProjectsHub({
             isZh={isZh}
             zoomRem={zoomRem}
             creating={creating}
+            folders={visibleFolders}
+            folderCounts={folderCounts}
             items={visibleItems}
             now={now}
             renamingId={renamingId}
             renameDraft={renameDraft}
+            renamingFolderId={renamingFolderId}
+            folderRenameDraft={folderRenameDraft}
             openMenuProjectId={menuAnchor?.projectId ?? null}
             renderCover={renderCover}
             onTrackGlow={trackCardGlow}
             onQuickCreate={onQuickCreate}
+            onOpenFolder={(folderId) => onSelectFolder?.(folderId)}
+            onStartRenameFolder={(folder) => {
+              setRenamingFolderId(folder.id);
+              setFolderRenameDraft(folder.name);
+            }}
+            onFolderRenameDraftChange={setFolderRenameDraft}
+            onCommitFolderRename={commitFolderRename}
+            onCancelFolderRename={() => setRenamingFolderId(null)}
+            onDeleteFolder={onDeleteFolder}
             onOpenProject={onOpenProject}
             onRenameDraftChange={setRenameDraft}
             onCommitRename={commitRename}
@@ -350,7 +303,7 @@ export function CanvasProjectsHub({
         <CanvasHubCardMenu
           anchor={menuAnchor}
           isZh={isZh}
-          sections={sections}
+          folders={folders}
           onClose={() => setMenuAnchor(null)}
           onOpen={() => onOpenProject(menuAnchor.projectId, menuAnchor.canvasId)}
           onStartRename={() => {
@@ -365,8 +318,9 @@ export function CanvasProjectsHub({
             const target = items.find((item) => item.id === menuAnchor.projectId);
             if (target) onDuplicateProject?.(target);
           }}
-          onMoveSection={(sectionId) => onMoveProjectSection?.(menuAnchor.projectId, sectionId)}
+          onMoveFolder={(folderId) => onMoveProjectFolder?.(menuAnchor.projectId, folderId)}
           onDelete={() => onDeleteProject?.(menuAnchor.projectId)}
+          onDeleteWorkspace={onDeleteWorkspace ? () => onDeleteWorkspace(menuAnchor.projectId) : undefined}
         />
       )}
       {trashOpen && (

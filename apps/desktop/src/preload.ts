@@ -24,6 +24,22 @@ contextBridge.exposeInMainWorld("__LFAA_DESKTOP_DIALOG__", {
     ipcRenderer.invoke("lfaa:dialog:pickFolder", options ?? {}),
 });
 
+contextBridge.exposeInMainWorld("__LFAA_DESKTOP_THEME__", {
+  readConfig: (): string | null => ipcRenderer.sendSync("lfaa:theme:read") as string | null,
+  syncTheme: (payload: { mode: "light" | "dark" | "system"; resolvedScheme: "light" | "dark"; configJson: string }): void => {
+    ipcRenderer.send("lfaa:theme:sync", payload);
+  },
+});
+
+contextBridge.exposeInMainWorld("__LFAA_DESKTOP_CHROME__", {
+  isDesktop: true,
+  platform: process.platform,
+  titleBarHeight: 34,
+  popupMenu: (menuId: "file" | "edit" | "view" | "help", x?: number, y?: number): void => {
+    ipcRenderer.send("lfaa:menu:popup", { menuId, x, y });
+  },
+});
+
 contextBridge.exposeInMainWorld("__LFAA_DESKTOP_BROWSER__", {
   supportsManagedDownloads: (): Promise<boolean> => ipcRenderer.invoke("lfaa:browser:managed"),
   syncBounds: (payload: DesktopBrowserSyncPayload): Promise<DesktopBrowserNavState | null> =>

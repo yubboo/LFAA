@@ -112,12 +112,12 @@ test("工作模式绑定项目空会话：项目与模式在头行，+ 留在工
   const app1Triggers = html.match(/<button[^>]*>[^<]*<svg[\s\S]*?<\/svg>[^<]*<span[^>]*>app1<\/span><\/button>/gu) ?? [];
   assert.equal(app1Triggers.length, 1);
   assert.doesNotMatch(html, /data-project-picker-trigger="true"/u);
-  assert.match(html, /aria-label="添加文件等内容"/u);
-  assert.match(html, /在“app1”中新建聊天/u);
+  assert.match(html, /aria-label="添加上下文"/u);
+  assert.match(html, /输入任何问题，输入 @ 提及，\/ 触发操作/u);
   // 模式胶囊进卡片头行（textarea 之前）；+ 在工具行，素材库入口已并入「添加上下文」菜单。
   assert.ok(html.indexOf('aria-label="会话模式') > -1);
   assert.ok(html.indexOf('aria-label="会话模式') < html.indexOf("<textarea"));
-  assert.ok(html.indexOf('aria-label="添加文件等内容"') > html.indexOf("<textarea"));
+  assert.ok(html.indexOf('aria-label="添加上下文"') > html.indexOf("<textarea"));
   assert.doesNotMatch(html, /aria-label="生成素材库"/u);
 });
 
@@ -128,8 +128,8 @@ test("项目内会话固定工作形态：聊天模式也按工作布局渲染�
   assert.doesNotMatch(html, /aria-label="绑定项目 · app1"/u);
   assert.match(html, /aria-label="绑定项目"/u);
   assert.ok(html.indexOf('aria-label="绑定项目"') < html.indexOf("<textarea"));
-  assert.match(html, /aria-label="添加文件等内容"/u);
-  assert.match(html, /在“app1”中新建聊天/u);
+  assert.match(html, /aria-label="添加上下文"/u);
+  assert.match(html, /输入任何问题，输入 @ 提及，\/ 触发操作/u);
 });
 
 test("聊天模式未绑定项目（如从最近开新会话）：无项目胶囊且使用默认占位", () => {

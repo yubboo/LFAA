@@ -72,13 +72,12 @@
 
 以下浮层在本规范之前实现，宽度 / 密度仍是旧口径。新建或改到这些文件时必须顺手收敛，不搞一次性大改：
 
-- `packages/ui/layout/client/navigation/AppMenu.*`（图标栏「更多」菜单）：固定 `min(21.5rem, …)` 宽度、行高偏大。
 - `packages/ui/layout/client/navigation/NavigationSidebar.module.css`：搜索浮层。
 - `packages/ui/layout/client/navigation/GroupHeaderTools.tsx`：排序菜单。
 - `packages/client/ui-chat/client/models/ModelReasoningPicker.tsx`、`ModelReasoningTrigger.tsx`。
 - `packages/client/ui-chat/client/workbench/WorkbenchTabMenu.*`：标签页右键菜单。
 
-已符合新基线的参照实现：`UserMenu.*`（几何 + 密度 + 容器查询）、`NavigationSidebar` 的模式卡片（几何 + 密度 + 容器查询窄栏降级）与 `ThemeModeQuickSwitch.*`（60×30 三档开关、同心圆角）。
+已符合新基线的参照实现：`UserMenu.*`（几何 + 密度 + 容器查询）、`AppMenu.*`（图标栏「更多」菜单，几何 + 密度 + 同心圆角 + 容器查询）、`NavigationSidebar` 的模式卡片（几何 + 密度 + 容器查询窄栏降级）与 `ThemeModeQuickSwitch.*`（60×30 三档开关、同心圆角）。
 
 ## 9. 二次确认弹窗不适用本规范
 

@@ -38,15 +38,25 @@ export function useChatComposerHeight(
     const dock = dockRef.current;
     if (!root || !dock) return;
     let lastHeight = -1;
+    let rafId: number | null = null;
     const apply = () => {
+      rafId = null;
+      if (root.closest('[data-resizing="true"], [data-pane-animating="true"]')) return;
       const nextHeight = dock.offsetHeight;
       if (nextHeight === lastHeight) return;
       lastHeight = nextHeight;
       root.style.setProperty("--chat-composer-height", `${nextHeight}px`);
     };
+    const schedule = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(apply);
+    };
     apply();
-    const observer = new ResizeObserver(apply);
+    const observer = new ResizeObserver(schedule);
     observer.observe(dock);
-    return () => observer.disconnect();
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
   }, [rootRef, dockRef]);
 }

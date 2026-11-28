@@ -84,6 +84,27 @@
     height: 1.65rem;
     min-height: 0;
     padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .trigger:hover,
+  .triggerOpen {
+    border-color: transparent;
+    background: var(--color-active);
+  }
+
+  .triggerFull,
+  :global(html[data-resolved-theme="dark"]) .triggerFull,
+  :global(html[data-theme="dark"]) .triggerFull {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .triggerFull:hover,
+  .triggerFull.triggerOpen {
+    border-color: transparent;
+    background: rgb(var(--color-orange-rgb) / 0.16);
   }
 
   .trigger svg {

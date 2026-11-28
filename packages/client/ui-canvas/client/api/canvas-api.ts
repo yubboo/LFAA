@@ -1,5 +1,5 @@
 // 发起受工作台本机令牌保护的画布读写，媒体预览使用已有 URL 鉴权。
-import type { BoardDetail, CanvasAsset, CanvasBoard, CanvasGraph, CanvasProjectSummary, CanvasRun } from "@lfaa/canvas/contract";
+import type { BoardDetail, CanvasAsset, CanvasBoard, CanvasFolder, CanvasGraph, CanvasProjectSummary, CanvasRun } from "@lfaa/canvas/contract";
 
 export class CanvasApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -40,6 +40,27 @@ export async function listProjectSummaries(
     ...(signal ? { signal } : {}),
   });
   return data.items ?? [];
+}
+
+/** 画布大厅分类文件夹 CRUD：仅用于画布项目归类，不污染左二栏。 */
+export async function listCanvasFolders(signal?: AbortSignal): Promise<CanvasFolder[]> {
+  const data = await json<{ folders: CanvasFolder[] }>("/api/canvas/folders", signal ? { signal } : undefined);
+  return data.folders ?? [];
+}
+
+export async function createCanvasFolder(name: string): Promise<CanvasFolder> {
+  const data = await send<{ folder: CanvasFolder }>("/api/canvas/folders", { name }, "POST");
+  return data.folder;
+}
+
+export async function renameCanvasFolder(id: string, name: string): Promise<CanvasFolder> {
+  const data = await send<{ folder: CanvasFolder }>(`/api/canvas/folders/${encodeURIComponent(id)}`, { name }, "PATCH");
+  return data.folder;
+}
+
+export async function deleteCanvasFolder(id: string): Promise<boolean> {
+  const data = await json<{ removed: boolean }>(`/api/canvas/folders/${encodeURIComponent(id)}`, { method: "DELETE" });
+  return data.removed === true;
 }
 export const getBoard = (path: string, signal?: AbortSignal) => json<BoardDetail>(path, signal ? { signal } : undefined);
 export const saveBoard = (path: string, revision: number, graph: CanvasGraph) => send<CanvasBoard>(path, { revision, graph }, "PUT");

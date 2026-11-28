@@ -1,7 +1,7 @@
 // 会话模式选择与锁定展示：渲染在顶栏标题右侧，由 Host 提供可用预设。
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { IconCheck, IconChevronDown, IconLock, IconSparkles } from "@tabler/icons-react";
-import { PopoverCard } from "@lfaa/ui-primitives/client";
+import { HoverTip, PopoverCard } from "@lfaa/ui-primitives/client";
 import styles from "./Session-Mode.module.css";
 
 interface ModeCatalog {
@@ -151,35 +151,38 @@ export function SessionMode({ isZh, selected, locked, busy, compact = false, onS
   return (
     <div className={styles.root}>
       {locked ? (
-        <span className={styles.locked} data-compact={compact || undefined} title={lockedHint} aria-label={`${modeName}. ${lockedHint}`}>
-          <IconLock size={14} aria-hidden="true" />
-          {!compact && <span>{modeName}</span>}
-        </span>
+        <HoverTip label={`${modeName} · ${lockedHint}`}>
+          <span className={styles.locked} data-compact={compact || undefined} aria-label={`${modeName}. ${lockedHint}`}>
+            <IconLock size={14} aria-hidden="true" />
+            {!compact && <span>{modeName}</span>}
+          </span>
+        </HoverTip>
       ) : (
         <>
-          <button
-            ref={triggerRef}
-            type="button"
-            className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
-            data-compact={compact || undefined}
-            aria-label={`${label}: ${modeName}`}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            aria-controls={open ? listboxId : undefined}
-            title={current ? (isZh ? current.description : current.descriptionEn ?? current.description) : label}
-            disabled={disabled}
-            onClick={() => open ? closeMenu(true) : openMenu()}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                openMenu();
-              }
-            }}
-          >
-            <IconSparkles className={styles.icon} size={14} aria-hidden="true" />
-            {!compact && <span className={styles.triggerLabel}>{modeName}</span>}
-            {!compact && <IconChevronDown className={styles.chevron} size={13} aria-hidden="true" data-open={open || undefined} />}
-          </button>
+          <HoverTip label={`${label} · ${modeName}`} disabled={open}>
+            <button
+              ref={triggerRef}
+              type="button"
+              className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
+              data-compact={compact || undefined}
+              aria-label={`${label}: ${modeName}`}
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              aria-controls={open ? listboxId : undefined}
+              disabled={disabled}
+              onClick={() => open ? closeMenu(true) : openMenu()}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  openMenu();
+                }
+              }}
+            >
+              <IconSparkles className={styles.icon} size={14} aria-hidden="true" />
+              {!compact && <span className={styles.triggerLabel}>{modeName}</span>}
+              {!compact && <IconChevronDown className={styles.chevron} size={13} aria-hidden="true" data-open={open || undefined} />}
+            </button>
+          </HoverTip>
 
           <PopoverCard
             open={open}

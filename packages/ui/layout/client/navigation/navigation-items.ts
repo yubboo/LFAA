@@ -160,7 +160,8 @@ export function createProjectSidebarItem(
   return {
     id: rowId,
     label: project.name,
-    icon: "project",
+    // 画布项目使用四宫格画布图标，与普通代码项目的文件夹图标清晰区分。
+    icon: project.kind === "canvas" ? "sites" : "project",
     // 每行都带图钉：已置顶用强调色，未置顶保持中性色，点击即可切换。
     pinned,
     pinLabel: pinned ? deps.unpinProjectLabel : deps.pinProjectLabel,

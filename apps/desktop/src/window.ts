@@ -6,12 +6,17 @@ import { join } from "node:path";
 import { app, BrowserWindow, screen, shell } from "electron";
 import type { DesktopPaths } from "./paths";
 import { logDesktop } from "./log";
+import { resolveTitleBarOverlayOptions, type DesktopResolvedScheme } from "./theme-state";
 
 export interface MainWindowOptions {
   /** 主窗口加载地址（本机服务地址，或调试时指定的开发服务器地址）。 */
   url: string;
   paths: DesktopPaths;
   devMode: boolean;
+  /** 窗口加载首帧底色，与上次保存的主题明暗保持一致。 */
+  backgroundColor?: string;
+  /** 初始解析后的明暗主题，用于首帧 Windows 窗口控制按钮配色。 */
+  resolvedScheme?: DesktopResolvedScheme;
 }
 
 interface WindowBounds {
@@ -69,8 +74,13 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     minHeight: 680,
     title: "LFAA",
     show: false,
-    // 窗口底色只作用于加载前的空白帧；界面颜色仍由主题变量决定。
-    backgroundColor: "#171717",
+    titleBarStyle: "hidden",
+    autoHideMenuBar: true,
+    ...(process.platform === "win32"
+      ? { titleBarOverlay: resolveTitleBarOverlayOptions(options.resolvedScheme ?? "dark") }
+      : {}),
+    // 窗口底色只作用于加载前的空白帧；与上次保存的主题明暗一致。
+    backgroundColor: options.backgroundColor ?? "#171717",
     ...(options.paths.iconPath ? { icon: options.paths.iconPath } : {}),
     webPreferences: {
       preload: join(app.getAppPath(), "dist", "preload.cjs"),

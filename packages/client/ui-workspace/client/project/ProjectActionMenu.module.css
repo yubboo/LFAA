@@ -62,6 +62,15 @@
   background: var(--color-menu-hover);
 }
 
+.itemDanger,
+.itemDanger .icon {
+  color: var(--color-danger);
+}
+
+.itemDanger:hover:not(:disabled) {
+  background: rgb(var(--color-danger-rgb) / 0.12);
+}
+
 .itemDisabled {
   color: var(--color-muted);
   opacity: 0.48;

@@ -13,26 +13,37 @@ export interface HubProjectCardItem {
   latestTitle: string;
   updatedAt: number;
   coverAssetId?: string;
+  isDefault?: boolean;
+  canvasFolderId?: string | null;
 }
 
-/** 将左二栏项目列表与后端画布摘要对齐，只保留存在画布的项目。 */
+/** 硬边界过滤：画布大厅只收录画布项目（kind === "canvas"）与内置默认工作区样板，绝不混入代码项目。 */
 export function buildHubProjectItems(
-  projects: ReadonlyArray<{ id: string; name: string }>,
+  projects: ReadonlyArray<{
+    id: string;
+    name: string;
+    createdAt?: number;
+    kind?: "workspace" | "canvas";
+    isDefault?: boolean;
+    canvasFolderId?: string | null;
+  }>,
   summaries: readonly CanvasProjectSummary[],
 ): HubProjectCardItem[] {
   const byId = new Map(summaries.map((item) => [item.projectId, item]));
   const result: HubProjectCardItem[] = [];
   for (const project of projects) {
+    if (project.kind !== "canvas" && !project.isDefault) continue;
     const summary = byId.get(project.id);
-    if (!summary) continue;
     result.push({
       id: project.id,
       name: project.name,
-      boardCount: summary.boardCount,
-      latestCanvasId: summary.latestCanvasId,
-      latestTitle: summary.latestTitle,
-      updatedAt: summary.updatedAt,
-      ...(summary.coverAssetId ? { coverAssetId: summary.coverAssetId } : {}),
+      boardCount: summary?.boardCount ?? 0,
+      latestCanvasId: summary?.latestCanvasId ?? "",
+      latestTitle: summary?.latestTitle ?? "",
+      updatedAt: summary?.updatedAt ?? project.createdAt ?? 0,
+      ...(summary?.coverAssetId ? { coverAssetId: summary.coverAssetId } : {}),
+      ...(project.isDefault ? { isDefault: true } : {}),
+      canvasFolderId: project.isDefault ? null : (project.canvasFolderId ?? null),
     });
   }
   return result;

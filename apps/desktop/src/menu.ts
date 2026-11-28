@@ -1,5 +1,8 @@
-// 安装中文应用菜单：Windows 上菜单缺失会连带 Ctrl+C/V/A 失效，所以编辑角色的快捷键必须显式保留。
-import { app, dialog, Menu, shell, type MenuItemConstructorOptions } from "electron";
+// 安装中文应用菜单：Windows 上菜单缺失会连带 Ctrl+C/V/A 失效，所以编辑角色的快捷键必须显式保留；
+// 同时提供按顶层菜单 ID 弹出原生子菜单的能力，供单行一体化顶栏点击唤起。
+import { app, dialog, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from "electron";
+
+export type DesktopMenuId = "file" | "edit" | "view" | "help";
 
 export interface ApplicationMenuOptions {
   /** 与 Web 入口共享的数据根，供「文件 → 打开数据目录」使用。 */
@@ -25,6 +28,7 @@ export function installApplicationMenu(options: ApplicationMenuOptions): void {
 
   const template: MenuItemConstructorOptions[] = [
     {
+      id: "file",
       label: "文件",
       submenu: [
         { label: "打开数据目录", click: () => void shell.openPath(options.dataRoot) },
@@ -33,6 +37,7 @@ export function installApplicationMenu(options: ApplicationMenuOptions): void {
       ],
     },
     {
+      id: "edit",
       label: "编辑",
       submenu: [
         { label: "撤销", role: "undo" },
@@ -44,8 +49,9 @@ export function installApplicationMenu(options: ApplicationMenuOptions): void {
         { label: "全选", role: "selectAll" },
       ],
     },
-    { label: "视图", submenu: viewSubmenu },
+    { id: "view", label: "视图", submenu: viewSubmenu },
     {
+      id: "help",
       label: "帮助",
       submenu: [
         { label: "关于 LFAA", click: () => showAboutDialog(options.dataRoot) },
@@ -54,6 +60,23 @@ export function installApplicationMenu(options: ApplicationMenuOptions): void {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/** 供单行顶栏菜单按钮调用：在指定窗口坐标下弹出对应的原生子菜单。 */
+export function popupApplicationSubmenu(
+  win: BrowserWindow | null,
+  menuId: DesktopMenuId,
+  x?: number,
+  y?: number,
+): void {
+  if (!win || win.isDestroyed()) return;
+  const submenu = Menu.getApplicationMenu()?.getMenuItemById(menuId)?.submenu;
+  if (!submenu) return;
+  submenu.popup({
+    window: win,
+    ...(typeof x === "number" && Number.isFinite(x) ? { x: Math.round(x) } : {}),
+    ...(typeof y === "number" && Number.isFinite(y) ? { y: Math.round(y) } : {}),
+  });
 }
 
 /** 关于弹窗：只展示运行态真实版本与数据目录，不编造更新状态。 */

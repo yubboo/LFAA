@@ -84,3 +84,55 @@
   font-size: 0.76rem;
   color: var(--color-muted);
 }
+
+.newMenuWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* 「+ 新建」下拉菜单：对齐统一悬浮卡片语义变量（popover 底色、同心圆角、层级令牌）。 */
+.newMenu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  min-width: 9.5rem;
+  padding: var(--popover-pad, 0.45rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--popover-radius, 0.9rem);
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  z-index: var(--z-popover, 60);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.newMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: var(--popover-row-h, 1.9rem);
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: calc(var(--popover-radius, 0.9rem) - var(--popover-pad, 0.45rem));
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--popover-font, 0.8rem);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease;
+}
+
+.newMenuItem:hover {
+  background: var(--color-active);
+}
+
+@container (max-width: 20rem) {
+  .newMenu {
+    left: 0;
+    right: auto;
+  }
+}

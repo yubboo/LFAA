@@ -69,6 +69,10 @@ export function normalizeStoredProject(item: WorkspaceProjectSummary): Workspace
     chatCount: typeof storedRecord.chatCount === "number" && storedRecord.chatCount >= 0
       ? storedRecord.chatCount
       : 0,
+    kind: storedRecord.kind === "canvas" ? "canvas" : "workspace",
+    canvasFolderId: typeof storedRecord.canvasFolderId === "string" && storedRecord.canvasFolderId.trim()
+      ? storedRecord.canvasFolderId.trim()
+      : null,
   };
   if (description) next.description = description;
   else delete next.description;
@@ -144,15 +148,16 @@ export async function syncDefaultProjectDir(
     .filter((dir) => !ignoredKeys.has(pathKey(dir)))
     .filter((dir) => !basename(dir).toLowerCase().endsWith(WORKTREE_CONTAINER_SUFFIX));
 
-  // 1) 移出磁盘上已消失的项目（仅限默认项目目录下的项目）。
+  // 1) 移出磁盘上已消失的项目（仅限默认项目目录下的项目），并自动清理被旧版误扫进来的容器目录（如 canvas-projects）。
   const keptProjects = snapshot.projects.filter((project) => {
+    if (!project.isDefault && ignoredKeys.has(pathKey(project.rootPath))) return false;
     const roots = project.rootPaths.length > 0 ? project.rootPaths : [project.rootPath];
     if (!roots.some((root) => isManagedProjectPath(baseDir, root))) return true;
     return roots.some((root) => existsSync(root));
   });
 
-  // 2) 丢弃已不存在的移出记录：目录重新出现后可以再次被发现。
-  const dismissedPaths = snapshot.dismissedPaths.filter((entry) => existsSync(entry));
+  // 2) 丢弃普通项目已不存在的移出记录；但默认工作区等 ignoredDirs 即使被整删也要保留移出标记，防止重启复活。
+  const dismissedPaths = snapshot.dismissedPaths.filter((entry) => ignoredKeys.has(pathKey(entry)) || existsSync(entry));
   const dismissedKeys = new Set(dismissedPaths.map((entry) => pathKey(entry)));
 
   // 3) 纳入默认项目目录里尚未登记的项目文件夹。
@@ -211,6 +216,8 @@ export function buildRestoredProjectSnapshot(
     pinned?: boolean;
     trusted?: boolean;
     createdAt?: number;
+    kind?: "workspace" | "canvas";
+    canvasFolderId?: string | null;
   },
 ): { project: WorkspaceProjectSummary; nextSnapshot: ProjectStoreSnapshot } {
   const existing = snapshot.projects.find((item) => item.id === record.id);
@@ -232,6 +239,8 @@ export function buildRestoredProjectSnapshot(
     trusted: true,
     pinned: Boolean(record.pinned),
     sectionId: record.sectionId ?? null,
+    kind: record.kind === "canvas" ? "canvas" : "workspace",
+    canvasFolderId: record.canvasFolderId ?? null,
     createdAt: typeof record.createdAt === "number" ? record.createdAt : now,
   };
   const rootKeys = new Set(rootPaths.map((p) => pathKey(p)));

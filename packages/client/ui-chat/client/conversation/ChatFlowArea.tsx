@@ -27,6 +27,7 @@ export function ChatFlowArea({
       <div
         ref={scrollAreaRef}
         className={styles.scroller}
+        data-empty={fade ? undefined : "true"}
         hidden={hidden}
         onScroll={onScroll}
         onWheel={onWheel}

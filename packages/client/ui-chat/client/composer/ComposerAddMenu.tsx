@@ -1,75 +1,37 @@
-// 渲染输入框左下角 + 按钮、图一「添加文件等内容 @」提示条及图二「添加上下文」菜单。
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import {
-  IconAt,
-  IconBrandChrome,
-  IconCloud,
-  IconEdit,
-  IconFolder,
-  IconPaperclip,
-  IconPhoto,
-  IconPlus,
-} from "@tabler/icons-react";
+// 输入栏左下角「+」按钮与隐藏文件/文件夹选择器：点击直接展开输入框一体化上下文面板，避免悬浮卡片遮挡正文。
+// 关联：packages/client/ui-chat/client/composer/ChatComposer.tsx；运行环境：浏览器。
+import type { ChangeEvent, RefObject } from "react";
+import { IconPlus } from "@tabler/icons-react";
+import { HoverTip } from "@lfaa/ui-primitives/client";
 import type { ComposerAttachment } from "./composer-context";
 import { filesToAttachments } from "./composer-attachments";
 import type { ChatLocaleMessages } from "../locales";
 import styles from "./ComposerAddMenu.module.css";
 
-/** 从输入栏打开附件和上下文菜单，将选中的操作交给父级编辑器执行。 */
+/** 渲染左下角「+」按钮（带统一视口防越界 HoverTip）及原生文件/文件夹选择框。 */
 export function ComposerAddMenu({
   locale,
   sessionId,
+  active,
   fileInputRef,
+  folderInputRef,
   onAttachItems,
-  onTriggerMention,
-  onTriggerSlash,
-  onOpenBrowser,
-  onOpenMedia,
-  onPickProject,
+  onToggleOpen,
 }: {
   locale: ChatLocaleMessages;
-  /** 当前会话 id；为空（草稿）时附件只做前端预览，不上传。 */
   sessionId: string;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  active: boolean;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  folderInputRef: RefObject<HTMLInputElement | null>;
   onAttachItems: (items: ComposerAttachment[]) => void;
-  onTriggerMention: (initialQuery?: string) => void;
-  onTriggerSlash: () => void;
-  onOpenBrowser?: (() => void) | undefined;
-  /** 生成素材库入口由本菜单承载，工具行不再单独放按钮；聊天模式不提供时该行不出现。 */
-  onOpenMedia?: (() => void) | undefined;
-  /** 仅当界面当前无可见项目入口（如未绑定项目的聊天模式）时传入，提供选择项目入口。 */
-  onPickProject?: (() => void) | undefined;
+  onToggleOpen: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    };
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onOutside);
-    document.addEventListener("keydown", onEscape);
-    return () => {
-      document.removeEventListener("pointerdown", onOutside);
-      document.removeEventListener("keydown", onEscape);
-    };
-  }, [open]);
-
   const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     const items = await filesToAttachments(files, sessionId);
     onAttachItems(items);
     event.target.value = "";
-    setOpen(false);
   };
 
   const handleFolderSelected = (event: ChangeEvent<HTMLInputElement>) => {
@@ -91,29 +53,22 @@ export function ComposerAddMenu({
       },
     ]);
     event.target.value = "";
-    setOpen(false);
   };
 
   return (
-    <div ref={rootRef} className={styles.root}>
-      <button
-        type="button"
-        className={`${styles.plusBtn} ${open ? styles.plusBtnOpen : ""}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={locale.addContextTooltip}
-        onClick={() => {
-          setNotice("");
-          setOpen((prev) => !prev);
-        }}
-      >
-        <IconPlus size={16} aria-hidden="true" />
-      </button>
-
-      <span className={styles.tooltip} role="tooltip">
-        <span>{locale.addContextTooltip}</span>
-        <span className={styles.keycap}>@</span>
-      </span>
+    <div className={styles.root}>
+      <HoverTip label={locale.addContextMenuTitle}>
+        <button
+          type="button"
+          className={`${styles.plusBtn} ${active ? styles.plusBtnOpen : ""}`}
+          aria-expanded={active}
+          aria-label={locale.addContextMenuTitle}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={onToggleOpen}
+        >
+          <IconPlus size={16} aria-hidden="true" />
+        </button>
+      </HoverTip>
 
       <input
         ref={fileInputRef}
@@ -130,142 +85,6 @@ export function ComposerAddMenu({
         className={styles.hiddenInput}
         onChange={handleFolderSelected}
       />
-
-      {open && (
-        <div className={styles.popover} role="dialog" aria-label={locale.addContextMenuTitle}>
-          <div className={styles.menuHeader}>{locale.addContextMenuTitle}</div>
-
-          {/* 仅在界面没有可见项目入口时提供「选择项目」，避免与上方挂载条或独立项目胶囊重复。 */}
-          {onPickProject && (
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                setOpen(false);
-                onPickProject();
-              }}
-            >
-              <span className={styles.menuItemMain}>
-                <IconFolder size={15} aria-hidden="true" />
-                <span>{locale.selectProject}</span>
-              </span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              setOpen(false);
-              fileInputRef.current?.click();
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconPaperclip size={15} aria-hidden="true" />
-              <span>{locale.ctxFile}</span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              setOpen(false);
-              folderInputRef.current?.click();
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconFolder size={15} aria-hidden="true" />
-              <span>{locale.ctxFolder}</span>
-            </span>
-          </button>
-
-          {onOpenMedia && (
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                setOpen(false);
-                onOpenMedia();
-              }}
-            >
-              <span className={styles.menuItemMain}>
-                <IconPhoto size={15} aria-hidden="true" />
-                <span>{locale.ctxImage}</span>
-              </span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              setOpen(false);
-              onTriggerMention("");
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconAt size={15} aria-hidden="true" />
-              <span>{locale.ctxMention}</span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              setOpen(false);
-              onTriggerSlash();
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconEdit size={15} aria-hidden="true" />
-              <span>{locale.ctxActions}</span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              if (onOpenBrowser) {
-                setOpen(false);
-                onOpenBrowser();
-              } else {
-                setNotice(locale.ctxServiceUnavailable);
-              }
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconBrandChrome size={15} aria-hidden="true" />
-              <span>{locale.ctxBrowser}</span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className={styles.menuItem}
-            onClick={() => {
-              if (onOpenBrowser) {
-                setOpen(false);
-                onOpenBrowser();
-              } else {
-                setNotice(locale.ctxServiceUnavailable);
-              }
-            }}
-          >
-            <span className={styles.menuItemMain}>
-              <IconCloud size={15} aria-hidden="true" />
-              <span>{locale.ctxCloudDrive}</span>
-            </span>
-            <span className={styles.setupTag}>{locale.ctxSetUp}</span>
-          </button>
-
-          {notice && (
-            <p className={styles.noticeText} role="status">{notice}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

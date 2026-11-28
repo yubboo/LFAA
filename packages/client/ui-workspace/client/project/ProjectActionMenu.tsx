@@ -11,6 +11,7 @@ import {
   IconList,
   IconPin,
   IconSettings,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import type { WorkbenchProjectItem, WorkbenchSectionItem } from "@lfaa/ui-layout";
@@ -36,6 +37,7 @@ export function ProjectActionMenu({
   onNewWorktreeSession,
   onOpenInExplorer,
   onRemove,
+  onDeleteWorkspace,
   onClose,
 }: {
   locale: WorkspaceLocaleMessages;
@@ -54,6 +56,7 @@ export function ProjectActionMenu({
   onNewWorktreeSession: () => void;
   onOpenInExplorer: () => Promise<{ opened: boolean; error?: string }>;
   onRemove: () => void | Promise<void>;
+  onDeleteWorkspace?: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -277,6 +280,20 @@ export function ProjectActionMenu({
             <IconX className={styles.icon} aria-hidden="true" />
             <span>{locale.removeProjectMenu}</span>
           </button>
+          {project.isDefault && onDeleteWorkspace && (
+            <button
+              type="button"
+              role="menuitem"
+              className={`${styles.item} ${styles.itemDanger}`}
+              onClick={() => {
+                onClose();
+                void onDeleteWorkspace();
+              }}
+            >
+              <IconTrash className={styles.icon} aria-hidden="true" />
+              <span>删除工作区</span>
+            </button>
+          )}
         </>
       )}
 

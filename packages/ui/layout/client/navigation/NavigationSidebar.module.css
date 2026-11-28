@@ -130,6 +130,79 @@
   gap: 0.1rem;
 }
 
+/* 「项目工作区」按钮平滑展开/收起槽：切到「工作」模式时平滑展开并推开侧栏按钮，切回「聊天」时平滑收起。 */
+.modeActionSlot {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 2.2rem;
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    max-width var(--motion-duration-base, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity var(--motion-duration-fast, 140ms) ease,
+    transform var(--motion-duration-base, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.modeActionSlot[data-visible="false"] {
+  max-width: 0;
+  opacity: 0;
+  transform: scale(0.76);
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* 左二列表区切换动效：纯 GPU transform + opacity 轻滑淡入，不触发外部重排。 */
+.sidebarViewTransition {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebarViewTransition[data-dir="forward"] {
+  animation: sidebarViewFromRight 220ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.sidebarViewTransition[data-dir="backward"] {
+  animation: sidebarViewFromLeft 220ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+@keyframes sidebarViewFromRight {
+  from {
+    opacity: 0;
+    transform: translate3d(10px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes sidebarViewFromLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeActionSlot {
+    transition: none;
+  }
+
+  .sidebarViewTransition[data-dir="forward"],
+  .sidebarViewTransition[data-dir="backward"] {
+    animation: none;
+  }
+}
+
 /* 右侧「活动 / 搜索 / 关闭抽屉」与左侧按钮同平面：只做分组与对齐，不再垫胶囊底色，
    卡片内因此没有"盒子里的盒子"。 */
 .toolbarUtility {

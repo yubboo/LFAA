@@ -152,6 +152,18 @@ export function NavigationSidebar({
   const workspaceProjectId = activeProjectId
     ?? chatSessions?.find((session) => session.id === activeChatSessionId)?.projectId
     ?? null;
+  // 记录工作区模式与左二视图变化方向：首次挂载不做入场动画，切换时做轻量水平淡入滑移，告别生硬闪切。
+  const sidebarViewKey = domain.id === "workspace" ? `${mode}:${mode === "chatgpt" ? "chats" : sidebarMode}` : domain.id;
+  const prevViewKeyRef = useRef(sidebarViewKey);
+  const viewAnimDirRef = useRef<"none" | "forward" | "backward">("none");
+  if (prevViewKeyRef.current !== sidebarViewKey) {
+    const prevKey = prevViewKeyRef.current;
+    prevViewKeyRef.current = sidebarViewKey;
+    const forward = (prevKey.startsWith("chatgpt:") && sidebarViewKey.startsWith("codex:"))
+      || (prevKey === "codex:chats" && sidebarViewKey === "codex:project");
+    viewAnimDirRef.current = forward ? "forward" : "backward";
+  }
+  const viewAnimDir = viewAnimDirRef.current;
 
   return (
     <aside
@@ -212,11 +224,12 @@ export function NavigationSidebar({
                   onModeChange={onModeChange}
                 />
               </div>
-              {mode !== "chatgpt" && (
+              <span className={styles.modeActionSlot} data-visible={mode !== "chatgpt" ? "true" : "false"} aria-hidden={mode === "chatgpt"}>
                 <ToolbarTip label={locale.projectWorkspace}>
                   <button
                     className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "project" ? styles.headerButtonActive : ""}`}
                     type="button"
+                    tabIndex={mode === "chatgpt" ? -1 : 0}
                     aria-label={locale.projectWorkspace}
                     aria-pressed={sidebarMode === "project"}
                     onClick={() => onChangeSidebarMode("project")}
@@ -224,7 +237,7 @@ export function NavigationSidebar({
                     <NavigationIcon name="project" />
                   </button>
                 </ToolbarTip>
-              )}
+              </span>
               <ToolbarTip label={locale.chatList}>
                 <button
                   className={`${styles.headerButton} ${styles.toolbarButton} ${sidebarMode === "chats" ? styles.headerButtonActive : ""}`}
@@ -298,40 +311,44 @@ export function NavigationSidebar({
             onSelectDomainItem={onSelectDomainItem}
             onNavigate={onNavigate}
           />
-        ) : sidebarMode === "project" && mode !== "chatgpt" ? (
-          // 项目工作区：文件树由聊天插件经契约注入，左二只负责切换与容器；聊天模式不展示项目树。
-          <div className={styles.projectWorkspace}>
-            {chatProvider?.renderProjectWorkspace
-              ? chatProvider.renderProjectWorkspace({ projectId: workspaceProjectId, compact })
-              : <p className={styles.projectWorkspaceEmpty}>{locale.projectWorkspaceEmpty}</p>}
-          </div>
         ) : (
-          <NavigationGroups
-            locale={locale}
-            activeView={activeView}
-            newChatSelected={newChatSelected}
-            activeProjectId={activeProjectId}
-            activeChatSessionId={activeChatSessionId}
-            projects={projects}
-            sections={sections}
-            recents={recents}
-            chatSessions={chatSessions}
-            chatProvider={chatProvider}
-            projectProvider={projectProvider}
-            sectionProvider={sectionProvider}
-            workspaceMode={mode}
-            onNewChat={onNewChat}
-            onNewRecentChat={onNewRecentChat}
-            onNewChatInProject={onNewChatInProject}
-            onNewChatInSection={onNewChatInSection}
-            onSelectProjectContext={onSelectProjectContext}
-            onSelectChatSession={onSelectChatSession}
-            onNavigate={onNavigate}
-            onOpenProject={onOpenProject}
-            onProjectCreated={onProjectCreated}
-            onProjectUpdated={onProjectUpdated}
-            onProjectRemoved={onProjectRemoved}
-          />
+          <div key={sidebarViewKey} className={styles.sidebarViewTransition} data-dir={viewAnimDir}>
+            {sidebarMode === "project" && mode !== "chatgpt" ? (
+              // 项目工作区：文件树由聊天插件经契约注入，左二只负责切换与容器；聊天模式不展示项目树。
+              <div className={styles.projectWorkspace}>
+                {chatProvider?.renderProjectWorkspace
+                  ? chatProvider.renderProjectWorkspace({ projectId: workspaceProjectId, compact })
+                  : <p className={styles.projectWorkspaceEmpty}>{locale.projectWorkspaceEmpty}</p>}
+              </div>
+            ) : (
+              <NavigationGroups
+                locale={locale}
+                activeView={activeView}
+                newChatSelected={newChatSelected}
+                activeProjectId={activeProjectId}
+                activeChatSessionId={activeChatSessionId}
+                projects={projects}
+                sections={sections}
+                recents={recents}
+                chatSessions={chatSessions}
+                chatProvider={chatProvider}
+                projectProvider={projectProvider}
+                sectionProvider={sectionProvider}
+                workspaceMode={mode}
+                onNewChat={onNewChat}
+                onNewRecentChat={onNewRecentChat}
+                onNewChatInProject={onNewChatInProject}
+                onNewChatInSection={onNewChatInSection}
+                onSelectProjectContext={onSelectProjectContext}
+                onSelectChatSession={onSelectChatSession}
+                onNavigate={onNavigate}
+                onOpenProject={onOpenProject}
+                onProjectCreated={onProjectCreated}
+                onProjectUpdated={onProjectUpdated}
+                onProjectRemoved={onProjectRemoved}
+              />
+            )}
+          </div>
         )}
       </div>
     </aside>

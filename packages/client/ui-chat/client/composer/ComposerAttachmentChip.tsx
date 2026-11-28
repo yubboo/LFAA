@@ -1,6 +1,6 @@
 // 聊天输入附件：图片显示可点击查看大图的缩略图（右键可复制 / 另存为 / 移除），其他附件保留文件标签。
 import { useEffect, useState } from "react";
-import { IconCopy, IconDownload, IconPhotoSearch, IconX } from "@tabler/icons-react";
+import { IconCopy, IconDownload, IconPhotoSearch, IconPlugConnected, IconStack2, IconX } from "@tabler/icons-react";
 import { ContextMenu, ContextMenuItem, ContextMenuSeparator } from "@lfaa/ui-primitives/client";
 import type { ChatLocaleMessages } from "../locales";
 import type { ComposerAttachment } from "./composer-context";
@@ -61,8 +61,13 @@ export function ComposerAttachmentChip({
   };
 
   if (!preview) {
+    const chipKind = item.kind === "skill" || item.kind === "plugin"
+      ? item.kind
+      : (item.path ? "path" : undefined);
     return (
-      <span className={styles.attachmentChip} title={item.path ?? item.label} data-kind={item.path ? "path" : undefined}>
+      <span className={styles.attachmentChip} title={item.path ?? item.label} data-kind={chipKind}>
+        {item.kind === "skill" && <IconStack2 size={13} stroke={1.9} className={styles.attachmentChipIcon} aria-hidden="true" />}
+        {item.kind === "plugin" && <IconPlugConnected size={13} stroke={1.9} className={styles.attachmentChipIcon} aria-hidden="true" />}
         <span className={styles.attachmentChipLabel}>{item.label}</span>
         {item.detail && <span className={styles.attachmentChipDetail}>{item.detail}</span>}
         <button

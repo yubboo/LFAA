@@ -126,6 +126,30 @@ export const TASKS: ShotTask[] = [
     height: 800,
     steps: [{ click: 'button[aria-label="用户菜单"]' }, { wait: 600 }],
   },
+  // 更多应用卡片：与账号卡片同一套宽度/密度/实底，展开后落在左二栏内且不压住滚动条。
+  {
+    name: "app-more-menu-dark",
+    group: "app",
+    description: "深色下展开更多应用菜单（卡片落在左二栏内，悬停展示图钉）",
+    theme: "dark",
+    steps: [{ click: 'button[aria-label="更多"]' }, { wait: 400 }, { hover: '#lfaa-app-menu button:has-text("站点")' }, { wait: 200 }],
+  },
+  {
+    name: "app-more-menu-light",
+    group: "app",
+    description: "浅色下展开更多应用菜单（卡片落在左二栏内，实底不透出下层）",
+    theme: "light",
+    steps: [{ click: 'button[aria-label="更多"]' }, { wait: 400 }, { hover: '#lfaa-app-menu button:has-text("站点")' }, { wait: 200 }],
+  },
+  {
+    name: "app-more-menu-narrow",
+    group: "app",
+    description: "1024 窄窗展开更多应用菜单（窄栏下不越过栏边且文字省略）",
+    theme: "dark",
+    width: 1024,
+    height: 800,
+    steps: [{ click: 'button[aria-label="更多"]' }, { wait: 400 }],
+  },
   // 模式卡片：与账号卡片同一套宽度/密度，展开后不越出左二栏。
   {
     name: "app-mode-menu-dark",

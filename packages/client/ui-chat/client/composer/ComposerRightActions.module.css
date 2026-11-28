@@ -47,17 +47,22 @@
     width: 0.88rem;
     height: 0.88rem;
   }
+
+  .sendBtn[data-ready="false"] svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
 }
 
 .micBtn {
-  border: 1px solid transparent;
-  background: var(--color-active);
+  border: 0;
+  background: transparent;
   color: var(--color-muted);
 }
 
 .micBtn:hover {
+  background: var(--color-active);
   color: var(--color-ink);
-  border-color: var(--color-line);
 }
 
 .micBtn:disabled {
@@ -116,15 +121,74 @@
   }
 }
 
+/* 发送按钮：空态保持高对比实心圆钮（深色纯白、浅色纯黑，完全不发灰），输入内容后以主题强调色弹性亮起并伴随箭头上浮。 */
 .sendBtn {
   border: 0;
   background: var(--color-ink);
   color: var(--color-shell);
+  transition:
+    background-color 180ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1)),
+    color 180ms ease,
+    box-shadow 200ms ease,
+    transform 160ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.sendBtn svg {
+  transition: transform 160ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
 .sendBtn:disabled {
-  opacity: 0.36;
-  cursor: not-allowed;
+  cursor: default;
+}
+
+.sendBtn[data-ready="true"] {
+  border-color: transparent;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 2px 10px rgb(var(--color-accent-rgb) / 0.36);
+  animation: sendReadyPop 260ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.sendBtn[data-ready="true"] svg {
+  animation: sendArrowRise 220ms var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.sendBtn[data-ready="true"]:hover {
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 14px rgb(var(--color-accent-rgb) / 0.46);
+}
+
+.sendBtn[data-ready="true"]:hover svg {
+  transform: translateY(-1.5px);
+}
+
+.sendBtn[data-ready="true"]:active {
+  transform: scale(0.94);
+}
+
+@keyframes sendReadyPop {
+  0% { transform: scale(0.86); }
+  55% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes sendArrowRise {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sendBtn,
+  .sendBtn svg {
+    transition: none;
+    animation: none;
+  }
 }
 
 .pauseBtn {

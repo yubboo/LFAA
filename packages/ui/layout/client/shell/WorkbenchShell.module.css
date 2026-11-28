@@ -14,10 +14,10 @@
   --center-min-width: max(var(--center-min-pixels), calc(var(--content-width) * var(--center-min-share)));
   --panel-budget: calc(var(--content-width) - var(--center-min-width));
   --right-reserved-width: var(--panel-min-pixels);
-  /* 默认宽度最多占 15%，已保存的偏好和拖动中的宽度共用更大的上限。 */
-  --left-default-limit: calc(var(--content-width) * var(--left-default-max-share));
-  --left-min-width: min(var(--panel-min-pixels), var(--left-default-limit));
-  --left-sidebar-base-width: min(clamp(14.5rem, 19vw, 18.5rem), var(--left-default-limit));
+  /* 左二栏保底 240px（15rem），默认上限 18%，避免窄桌面被压扁变形；手动拖动可到 25%。 */
+  --left-default-limit: max(var(--left-min-pixels, 15rem), calc(var(--content-width) * var(--left-default-max-share)));
+  --left-min-width: var(--left-min-pixels, 15rem);
+  --left-sidebar-base-width: min(clamp(15rem, 17.5vw, 18.5rem), var(--left-default-limit));
   --left-sidebar-width: min(
     var(--left-drag-width, max(var(--left-min-width), var(--left-sidebar-base-width))),
     calc(var(--content-width) * var(--left-max-share)),
@@ -56,13 +56,17 @@
 .shell[data-resizing="true"][data-resize-snap-anim="true"] {
   transition: grid-template-columns var(--motion-duration-normal, 200ms) var(--motion-ease-emphasized, cubic-bezier(0.22, 1, 0.36, 1));
 }
-/* 拖拽期隔离各栏布局边界，并临时关闭壳层内毛玻璃模糊重算，避免长对话与悬浮胶囊每帧掉帧。 */
+/* 拖拽期与展开/收起轨道过渡期隔离各栏布局边界，并临时关闭壳层内毛玻璃模糊重算，避免长对话与悬浮胶囊每帧掉帧。 */
 .shell[data-resizing="true"] > .workspace,
 .shell[data-resizing="true"] > .leftPane,
-.shell[data-resizing="true"] > .rightPane {
+.shell[data-resizing="true"] > .rightPane,
+.shell[data-pane-animating="true"] > .workspace,
+.shell[data-pane-animating="true"] > .leftPane,
+.shell[data-pane-animating="true"] > .rightPane {
   contain: layout style;
 }
-.shell[data-resizing="true"] * {
+.shell[data-resizing="true"] *,
+.shell[data-pane-animating="true"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

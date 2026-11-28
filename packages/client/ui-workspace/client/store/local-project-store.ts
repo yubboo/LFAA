@@ -249,8 +249,12 @@ export class LocalProjectStore {
     await this.updateProject(projectId, { sectionId, ...(sectionId ? { pinned: false } : {}) });
   }
 
-  async removeProject(projectId: string): Promise<boolean> {
-    const response = await fetch(`/api/workspace/projects/${encodeURIComponent(projectId)}`, {
+  async removeProject(projectId: string, options?: { permanent?: boolean; deleteDisk?: boolean }): Promise<boolean> {
+    const params = new URLSearchParams();
+    if (options?.permanent) params.set("permanent", "1");
+    if (options?.deleteDisk) params.set("deleteDisk", "1");
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const response = await fetch(`/api/workspace/projects/${encodeURIComponent(projectId)}${qs}`, {
       method: "DELETE",
     });
     if (!response.ok) return false;

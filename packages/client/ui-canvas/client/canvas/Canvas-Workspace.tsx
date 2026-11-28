@@ -1,6 +1,6 @@
 // 项目画布入口：默认展示「我的项目」创建与管理大厅，新建或选择项目后同步左二栏并自动绑定进入无限画布编辑器。
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import type { BoardDetail, CanvasProjectSummary } from "@lfaa/canvas/contract";
+import type { BoardDetail, CanvasFolder, CanvasProjectSummary } from "@lfaa/canvas/contract";
 import type { WorkbenchClientService } from "@lfaa/ui-layout/client";
 import {
   boardsPath,
@@ -10,6 +10,7 @@ import {
   getBoard,
   getModels,
   listBoards,
+  listCanvasFolders,
   listProjectSummaries,
   type CanvasListItem,
   type CanvasModel,
@@ -24,6 +25,8 @@ import {
   type PersistedCanvasWorkspaceState,
 } from "../projects/project-hub-helpers";
 import { CanvasEditor } from "./Canvas-Editor";
+import { CanvasLoadingSkeleton } from "./Canvas-Loading-Skeleton";
+import { DEFAULT_CANVAS_HIDDEN_KEY, useCanvasHubActions } from "./useCanvasHubActions";
 import styles from "./Canvas.module.css";
 
 /** 切换激活项目可能触发右栏插件重挂载：短暂暂存待进入的画布目标，确保新建或点卡片后直达编辑器。 */
@@ -73,6 +76,11 @@ export default function CanvasWorkspace({
   const [screen, setScreen] = useState<CanvasWorkspaceScreen>(initialState.screen);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(initialState.projectId);
   const [summaries, setSummaries] = useState<CanvasProjectSummary[]>([]);
+  const [folders, setFolders] = useState<CanvasFolder[]>([]);
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [defaultCanvasHidden, setDefaultCanvasHidden] = useState<boolean>(
+    () => typeof localStorage !== "undefined" && localStorage.getItem(DEFAULT_CANVAS_HIDDEN_KEY) === "1",
+  );
   const [hubLoading, setHubLoading] = useState(false);
   const [hubRefresh, setHubRefresh] = useState(0);
   const [creating, setCreating] = useState(false);
@@ -91,27 +99,30 @@ export default function CanvasWorkspace({
 
   const effectiveProjectId = selectedProjectId ?? projectId ?? wbSnap?.activeProjectId ?? null;
   const activeProject = projects.find((item) => item.id === effectiveProjectId);
-  const hubItems = useMemo(() => buildHubProjectItems(projects, summaries), [projects, summaries]);
+  const hubItems = useMemo(
+    () => buildHubProjectItems(projects, summaries).filter((item) => !(defaultCanvasHidden && item.isDefault)),
+    [defaultCanvasHidden, projects, summaries],
+  );
 
   const base = effectiveProjectId ? boardsPath(effectiveProjectId) : "";
   const preference = "lfaa-canvas-board:" + effectiveProjectId;
   const path = boardId ? base + "/" + boardId : "";
 
-  // 在「我的项目」大厅批量拉取已有画布的项目摘要，过滤掉普通纯代码项目。
+  // 在「我的项目」大厅拉取画布项目摘要与画布分类文件夹，严格过滤普通代码项目。
   useEffect(() => {
     if (screen !== "hub") return;
     const ids = projectIdsKey ? projectIdsKey.split("\n") : [];
-    if (ids.length === 0) {
-      setSummaries([]);
-      setHubLoading(false);
-      return;
-    }
     const controller = new AbortController();
     setHubLoading(true);
     setError("");
-    void listProjectSummaries(ids, controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setSummaries(items);
+    void Promise.all([
+      ids.length > 0 ? listProjectSummaries(ids, controller.signal) : Promise.resolve([]),
+      listCanvasFolders(controller.signal).catch(() => [] as CanvasFolder[]),
+    ])
+      .then(([items, folderList]) => {
+        if (controller.signal.aborted) return;
+        setSummaries(items);
+        setFolders(folderList);
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) setError(String(cause));
@@ -211,7 +222,7 @@ export default function CanvasWorkspace({
     setCreating(true);
     setError("");
     try {
-      const created = await quickCreate(t.untitledProject);
+      const created = await quickCreate(t.untitledProject, { kind: "canvas", canvasFolderId: activeFolderId });
       await enterProjectCanvas(created.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -249,8 +260,8 @@ export default function CanvasWorkspace({
       const remaining = boards.filter((item) => item.canvasId !== targetCanvasId);
       setBoards(remaining);
       if (remaining.length === 0) {
-        // 纯画布项目（尚无对话）删空最后一张画布时同步移出左二栏空壳；回收站恢复画布时会自动连带还原项目。
-        if (activeProject && activeProject.chatCount === 0) {
+        // 仅对纯画布项目（且非内置默认工作区、尚无对话）在删空最后一张画布时同步移出左二栏空壳。
+        if (activeProject && activeProject.kind === "canvas" && !activeProject.isDefault && activeProject.chatCount === 0) {
           await wbSnap?.projectProvider?.removeProject?.(effectiveProjectId);
           await wbSnap?.projectProvider?.refreshProjects?.();
         }
@@ -281,49 +292,19 @@ export default function CanvasWorkspace({
 
   const renderFullscreenChat = wbSnap?.views.find((v) => v.id === "workspace")?.render;
 
-  async function handleRenameHubProject(targetId: string, name: string) {
-    try {
-      await wbSnap?.projectProvider?.renameProject?.(targetId, name);
-      setHubRefresh((count) => count + 1);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function handleDuplicateHubProject(item: { id: string; name: string }) {
-    const provider = wbSnap?.projectProvider;
-    if (!provider?.quickCreateProject) return;
-    setCreating(true);
-    setError("");
-    try {
-      const copyBase = isZh ? `${item.name} 副本` : `${item.name} Copy`;
-      const created = await provider.quickCreateProject(copyBase);
-      await createBoard(created.id, isZh ? "画布 1" : "Canvas 1");
-      setHubRefresh((count) => count + 1);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleMoveHubProjectSection(targetId: string, sectionId: string | null) {
-    try {
-      await wbSnap?.projectProvider?.assignProjectSection?.(targetId, sectionId);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
-
-  async function handleDeleteHubProject(targetId: string) {
-    try {
-      await wbSnap?.projectProvider?.removeProject?.(targetId);
-      await wbSnap?.projectProvider?.refreshProjects?.();
-      setHubRefresh((count) => count + 1);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
+  const hubActions = useCanvasHubActions({
+    isZh,
+    projects,
+    folders,
+    provider: wbSnap?.projectProvider,
+    activeFolderId,
+    setActiveFolderId,
+    setFolders,
+    setDefaultCanvasHidden,
+    setCreating,
+    setError,
+    bumpHubRefresh: () => setHubRefresh((count) => count + 1),
+  });
 
   if (screen === "hub") {
     return (
@@ -332,18 +313,25 @@ export default function CanvasWorkspace({
           t={t}
           isZh={isZh}
           items={hubItems}
-          sections={wbSnap?.sections ?? []}
+          folders={folders}
+          activeFolderId={activeFolderId}
           loading={hubLoading}
           creating={creating}
           error={error}
           onQuickCreate={() => void handleQuickCreateProject()}
-          onOpenCreateDialog={() => setCreateProjectOpen(true)}
-          onOpenProject={(targetId, latestCanvasId) => void enterProjectCanvas(targetId, latestCanvasId)}
-          onRenameProject={(targetId, name) => void handleRenameHubProject(targetId, name)}
-          onDuplicateProject={(item) => void handleDuplicateHubProject(item)}
-          onMoveProjectSection={(targetId, sectionId) => void handleMoveHubProjectSection(targetId, sectionId)}
-          onDeleteProject={(targetId) => void handleDeleteHubProject(targetId)}
+          onSelectFolder={setActiveFolderId}
+          onCreateAutoFolder={() => hubActions.createAutoFolder()}
+          onRenameFolder={(folderId, name) => void hubActions.renameFolder(folderId, name)}
+          onDeleteFolder={(folderId) => void hubActions.deleteFolder(folderId)}
+          onOpenProject={(targetId, latestCanvasId) => void enterProjectCanvas(targetId, latestCanvasId || undefined)}
+          onRenameProject={(targetId, name) => void hubActions.renameHubProject(targetId, name)}
+          onDuplicateProject={(item) => void hubActions.duplicateHubProject(item)}
+          onMoveProjectFolder={(targetId, folderId) => void hubActions.moveHubProjectFolder(targetId, folderId)}
+          onDeleteProject={(targetId) => void hubActions.deleteHubProject(targetId)}
+          onDeleteWorkspace={(targetId) => wbSnap?.projectProvider?.requestDeleteWorkspace?.(targetId)}
           onTrashRestored={() => {
+            if (typeof localStorage !== "undefined") localStorage.removeItem(DEFAULT_CANVAS_HIDDEN_KEY);
+            setDefaultCanvasHidden(false);
             void wbSnap?.projectProvider?.refreshProjects?.().then(() => setHubRefresh((count) => count + 1));
           }}
         />
@@ -381,17 +369,22 @@ export default function CanvasWorkspace({
     );
   }
 
-  return (
-    <div className={styles.start}>
-      {error ? (
+  if (error) {
+    return (
+      <div className={styles.start}>
         <div role="alert" className={styles.errorToast}>
           <span>{error}</span>
           <button type="button" onClick={() => setRetry((r) => r + 1)}>{t.reload}</button>
         </div>
-      ) : (
-        <p className={styles.startHint}>{isZh ? "正在打开画布…" : "Opening canvas…"}</p>
-      )}
+        {projectDialog}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <CanvasLoadingSkeleton isZh={isZh} />
       {projectDialog}
-    </div>
+    </>
   );
 }

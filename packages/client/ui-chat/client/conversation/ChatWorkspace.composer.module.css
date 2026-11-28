@@ -46,6 +46,15 @@
   border-radius: 1.15rem;
   background: var(--glass-card-bg, var(--color-surface));
   box-shadow: var(--glass-specular-shadow, 0 8px 24px rgb(0 0 0 / 0.08));
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 200ms ease;
+}
+
+/* 展开内联搜索面板时强制使用 100% 不透明实色表面（--color-shell 混入微量前景色），彻底防止底层对话文字透出。 */
+.composerCard[data-searching="true"] {
+  border-color: rgb(var(--color-accent-rgb) / 0.55);
+  background: color-mix(in srgb, var(--color-shell) 94%, var(--color-ink) 6%);
+  background-image: none;
+  box-shadow: var(--color-menu-shadow);
 }
 
 /* 工作位置/项目挂载条并入输入卡片头行：抵到卡片内边距外并画一条分隔线，
@@ -177,6 +186,8 @@
     height: 1.65rem;
     box-sizing: border-box;
     padding: 0;
+    border-color: transparent;
+    background: transparent;
   }
 
   .toolBtn svg {

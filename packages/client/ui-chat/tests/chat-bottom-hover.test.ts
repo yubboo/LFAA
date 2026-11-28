@@ -8,39 +8,34 @@ import { fileURLToPath } from "node:url";
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const readCss = (relative: string) => readFile(resolve(packageRoot, relative), "utf8");
 
-test("会话区盒子独占一行，底部渐隐画在视口内部", async () => {
+test("会话区滚动条直通面板最底部，底部渐隐不遮挡右侧滚动条", async () => {
   const flowCss = await readCss("client/conversation/ChatFlowArea.module.css");
   const boxRule = flowCss.match(/\.box\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
   const scrollerRule = flowCss.match(/\.scroller\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
   const fadeRule = flowCss.match(/\.fade\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
 
   assert.ok(boxRule && scrollerRule && fadeRule, "应能找到会话区的三块规则");
-  // 会话区只占第二行，不再跨到输入区那一行。
-  assert.match(boxRule, /grid-row:\s*2/u);
-  // 滚动视口不再给输入区预留高度：输入区已经不叠在上面了。
-  assert.doesNotMatch(scrollerRule, /chat-composer-height/u);
-  // 渐隐钉在盒子底缘（不随滚动），比底部内边距矮，滚到底时最后一行不会糊在它下面。
+  // 会话区从第 2 行跨到面板最底部，让滚动条一路画到底。
+  assert.match(boxRule, /grid-row:\s*2\s*\/\s*-1/u);
+  // 滚动视口底部预留输入区高度，确保最后一条消息与建议卡片不被输入栏盖住。
+  assert.match(scrollerRule, /chat-composer-height/u);
+  // 渐隐钉在底缘并给右侧滚动条留通道，不吃指针。
   assert.match(fadeRule, /position:\s*absolute/u);
-  assert.match(fadeRule, /inset:\s*auto 0 0 0/u);
   assert.match(fadeRule, /pointer-events:\s*none/u);
-  const fadeHeight = Number(fadeRule.match(/height:\s*([\d.]+)rem/u)?.[1] ?? "0");
-  const padBottom = Number(scrollerRule.match(/padding:\s*[\d.]+rem var\(--chat-side-padding\) ([\d.]+)rem/u)?.[1] ?? "0");
-  assert.ok(fadeHeight > 0 && padBottom >= fadeHeight, `底部内边距(${padBottom}rem)应不小于渐隐高度(${fadeHeight}rem)`);
 });
 
-test("输入框大盒子是普通栅格行：没有遮罩层，也不吞滚动条命中", async () => {
+test("输入框大盒子本体透传指针不挡滚动条，子控件正常命中", async () => {
   const dockCss = await readCss("client/conversation/ComposerDock.module.css");
   const dockRule = dockCss.match(/\.dock\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
+  const childRule = dockCss.match(/\.dock\s*>\s*\*\s*\{(?<body>[\s\S]*?)\n\}/u)?.groups?.body ?? "";
 
-  assert.ok(dockRule, "应能找到输入框大盒子的规则");
+  assert.ok(dockRule && childRule, "应能找到输入框大盒子及子控件命中规则");
   assert.match(dockRule, /grid-row:\s*4/u);
-  // 旧实现靠透明叠层 + pointer-events 让路，现在不需要了。
-  assert.doesNotMatch(dockCss, /::before/u);
-  assert.doesNotMatch(dockRule, /pointer-events/u);
+  assert.match(dockRule, /pointer-events:\s*none/u);
+  assert.match(childRule, /pointer-events:\s*auto/u);
 
   const workspaceCss = await readCss("client/conversation/ChatWorkspace.module.css");
   assert.doesNotMatch(workspaceCss, /composerDock/u);
-  // 主壳层只管四行的高度，不再持有会话区与输入区的规则。
   assert.match(workspaceCss, /grid-template-rows:\s*auto minmax\(0,\s*1fr\) auto auto/u);
 });
 

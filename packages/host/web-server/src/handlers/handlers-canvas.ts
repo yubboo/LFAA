@@ -18,6 +18,8 @@ function isWithinAllowedRoot(target: string, root: string): boolean {
 
 const pattern = /^\/api\/canvas\/projects\/([^/]+)\/boards(?:\/([^/]+)(?:\/(assets|runs|duplicate)(?:\/([^/]+))?)?)?$/u;
 const summariesPath = "/api/canvas/projects/summaries";
+const foldersPath = "/api/canvas/folders";
+const folderItemPattern = /^\/api\/canvas\/folders\/([^/]+)$/u;
 
 function send(res: ServerResponse, status: number, data: unknown): void {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -85,10 +87,46 @@ export function createCanvasHandler(ctx: Context) {
         const ids = Array.from(new Set(data.projectIds.filter((id): id is string => typeof id === "string" && id.trim() !== ""))).slice(0, 200);
         const items = (await Promise.all(ids.map(async (projectId) => {
           const project = await ctx.workspace.getProject(projectId);
-          if (!project) return null;
+          // 硬边界：仅画布项目与内置默认工作区样板参与画布摘要，代码项目绝不进入画布大厅。
+          if (!project || (project.kind !== "canvas" && !project.isDefault)) return null;
           return canvas.store.summarizeProject(projectId);
         }))).filter((item) => item !== null);
         send(res, 200, { items });
+      } catch (error) {
+        if (error instanceof CanvasError) send(res, error.status, { error: error.message });
+        else send(res, 500, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return true;
+    }
+
+    if (pathname === foldersPath || folderItemPattern.test(pathname)) {
+      try {
+        const canvas = ctx.get("canvas");
+        if (!canvas) throw new CanvasError(404, "画布插件未启用 / Canvas unavailable");
+        if (pathname === foldersPath) {
+          if (req.method === "GET") {
+            send(res, 200, { folders: await canvas.folders.list() });
+          } else if (req.method === "POST") {
+            const data = await body(req);
+            if (typeof data.name !== "string") throw new CanvasError(400, "文件夹名称无效 / Invalid folder name");
+            send(res, 201, { folder: await canvas.folders.create(data.name) });
+          } else {
+            throw new CanvasError(405, "请求方法不受支持 / Method not allowed");
+          }
+          return true;
+        }
+        const folderId = decodeURIComponent(folderItemPattern.exec(pathname)?.[1] ?? "");
+        if (req.method === "PATCH") {
+          const data = await body(req);
+          if (typeof data.name !== "string") throw new CanvasError(400, "文件夹名称无效 / Invalid folder name");
+          send(res, 200, { folder: await canvas.folders.rename(folderId, data.name) });
+        } else if (req.method === "DELETE") {
+          const removed = await canvas.folders.remove(folderId);
+          if (removed) await ctx.workspace.clearCanvasFolder(folderId);
+          send(res, removed ? 200 : 404, { removed });
+        } else {
+          throw new CanvasError(405, "请求方法不受支持 / Method not allowed");
+        }
       } catch (error) {
         if (error instanceof CanvasError) send(res, error.status, { error: error.message });
         else send(res, 500, { error: error instanceof Error ? error.message : String(error) });

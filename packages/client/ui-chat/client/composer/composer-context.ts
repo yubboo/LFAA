@@ -7,7 +7,7 @@ import type { MediaSource } from "@lfaa/client-ui-tool-media/client";
 /** 记录已加入输入框并随发送提交的上下文条目。 */
 export interface ComposerAttachment {
   id: string;
-  kind: "file" | "folder" | "session" | "mode" | "skill";
+  kind: "file" | "folder" | "session" | "mode" | "skill" | "plugin";
   label: string;
   detail?: string;
   contentPreview?: string;
@@ -21,6 +21,7 @@ export interface ComposerAttachment {
   path?: string;
   modeId?: "goal" | "plan";
   skillId?: string;
+  pluginName?: string;
 }
 
 /** 统一提及弹层中的项目、会话及其他可选项。 */
@@ -283,6 +284,10 @@ export function buildContextualMessage(userText: string, attachments: ComposerAt
       } else if (item.modeId === "plan") {
         blocks.push("[模式约束：计划模式] 请先将任务拆分为清晰的分步实施计划（含每步目标、涉及文件与验证方式），然后严格按步骤依次执行并在每步完成后汇报进度与结果。");
       }
+    } else if (item.kind === "skill") {
+      blocks.push(`[调用技能：${item.label}] 请优先遵循该技能的规范与流程完成本次请求。`);
+    } else if (item.kind === "plugin") {
+      blocks.push(`[调用插件：${item.label}] 本轮请求允许并优先使用该插件提供的能力。`);
     } else if (item.kind === "session") {
       blocks.push(`[引用历史对话：${item.label}]${item.detail ? `\n${item.detail}` : ""}`);
     } else if (item.kind === "folder") {

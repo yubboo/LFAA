@@ -69,6 +69,8 @@ export function createTrashHandler(deps: {
         pinned?: boolean;
         trusted?: boolean;
         createdAt?: number;
+        kind?: "workspace" | "canvas";
+        canvasFolderId?: string | null;
       } | undefined;
       if (!project?.id || !project.rootPath) throw new Error("项目元数据缺失。");
       await deps.context.workspace.restoreProject(project);
@@ -160,8 +162,17 @@ export function createTrashHandler(deps: {
     // 1) 回收站管理接口 /api/trash*
     if (pathname === "/api/trash" && method === "GET") {
       const rawKind = urlObj.searchParams.get("kind") ?? "all";
+      const projectKind = urlObj.searchParams.get("projectKind");
       const kind = (VALID_KINDS.has(rawKind) ? rawKind : "all") as TrashItemKind | "all";
-      const items = await store.list(kind);
+      let items = await store.list(kind);
+      if (projectKind === "canvas" || projectKind === "workspace") {
+        items = items.filter((item) => {
+          if (item.kind !== "project") return true;
+          const rec = item.origin.project as { kind?: string } | undefined;
+          const itemKind = rec?.kind === "canvas" ? "canvas" : "workspace";
+          return itemKind === projectKind;
+        });
+      }
       sendJson(res, 200, { items, retentionDays: 30 });
       return true;
     }
@@ -266,6 +277,8 @@ export function createTrashHandler(deps: {
           pinned: project.pinned,
           trusted: project.trusted,
           createdAt: project.createdAt,
+          kind: project.kind === "canvas" ? "canvas" : "workspace",
+          canvasFolderId: project.canvasFolderId ?? null,
         },
       });
       await deps.context.workspace.removeProject(projectId);

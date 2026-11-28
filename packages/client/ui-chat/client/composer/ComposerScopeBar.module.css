@@ -273,3 +273,32 @@
   .anchor { position: static; }
   .popover { width: min(17.5rem, 100%); }
 }
+
+/* 窄输入卡片下与底栏模式/模型按钮同口径：工作位置与项目触发器收成纯图标按钮，完整名称通过 HoverTip 展示。 */
+@container chat-composer (max-width: 30rem) {
+  .shelf {
+    gap: 0.25rem;
+  }
+
+  .triggerBase {
+    width: 1.75rem;
+    height: 1.75rem;
+    min-height: 1.75rem;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .triggerBase:hover,
+  .triggerOpen {
+    border-color: transparent;
+    background: var(--color-active);
+    color: var(--color-ink);
+  }
+
+  .triggerLabel {
+    display: none;
+  }
+}

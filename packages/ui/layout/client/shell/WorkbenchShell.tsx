@@ -6,7 +6,7 @@ import { isSettingsView, type LocalProject, type NavigationView } from "../navig
 import { usePinnedApps } from "../navigation/usePinnedApps";
 import { useSidebarResize, type ResizeSide } from "./useSidebarResize";
 import { useSidebarMode } from "./use-sidebar-mode";
-import { usePaneMotionSuspend } from "./usePaneMotionSuspend";
+import { usePaneAnimatingFlag, usePaneMotionSuspend } from "./usePaneMotionSuspend";
 import { usePaneAnimHost } from "./use-pane-anim";
 import { useShellShortcuts } from "./useShellShortcuts";
 import { buildSidebarWidthVars } from "./sidebar-resize";
@@ -17,6 +17,7 @@ import { resolveNewChatProject } from "../navigation/navigation-items";
 import { resolveWorkbenchDomain } from "../navigation/workbench-domains";
 import type { WorkbenchClientService } from "../workbench-service";
 
+import { DesktopChromeFrame } from "./DesktopTitleBar";
 import { ShellLeftColumn } from "./ShellLeftColumn";
 import { ShellRightColumn } from "./ShellRightColumn";
 import { ShellSettingsDialog } from "./ShellSettingsDialog";
@@ -70,8 +71,9 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
   const domain = resolveWorkbenchDomain(backgroundView, locale);
   const hasRightColumn = domain.columns === 4;
   const showRightPanel = hasRightColumn && rightPanelOpen;
-  // 窗口缩放期间暂停轨道过渡，宽度始终跟手。
+  // 窗口缩放期间暂停轨道过渡，展开/收起过渡期间标记 data-pane-animating 避免毛玻璃与 ResizeObserver 每帧卡顿。
   usePaneMotionSuspend(shellRef);
+  usePaneAnimatingFlag(shellRef, leftSidebarOpen, showRightPanel, isCompact);
   const handleDragCollapse = useCallback((side: ResizeSide) => {
     // 方案 A 拖拽期只移动预览线，松手后保留轨道过渡，让侧栏从当前宽度平滑滑收到 0。
     if (side === "left") {
@@ -298,17 +300,17 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
     rightWide: rightWorkbenchWide,
   }) as CSSProperties;
   return (
-    <div
-      ref={shellRef}
-      className={styles.shell}
-      style={shellStyle}
-      data-device={device}
-      data-columns={String(domain.columns)}
-      data-left-open={String(leftSidebarOpen)} data-right-open={String(showRightPanel)}
-      data-layout={previewCenter ? "preview-center" : undefined} data-preview-open={previewCenter ? String(snapshot.previewPaneOpen) : undefined}
-      data-right-wide={rightWorkbenchWide ? "true" : undefined} data-right-maximized={isRightMaximized ? "true" : undefined}
-      data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined} data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
-    >
+    <DesktopChromeFrame>
+      <div
+        ref={shellRef}
+        className={styles.shell}
+        style={shellStyle}
+        data-device={device} data-columns={String(domain.columns)}
+        data-left-open={String(leftSidebarOpen)} data-right-open={String(showRightPanel)}
+        data-layout={previewCenter ? "preview-center" : undefined} data-preview-open={previewCenter ? String(snapshot.previewPaneOpen) : undefined}
+        data-right-wide={rightWorkbenchWide ? "true" : undefined} data-right-maximized={isRightMaximized ? "true" : undefined}
+        data-left-drag-collapsed={leftDragCollapsed ? "true" : undefined} data-right-drag-collapsed={rightDragCollapsed ? "true" : undefined}
+      >
       <ShellLeftColumn
         snapshot={snapshot}
         locale={locale}
@@ -391,6 +393,7 @@ export function WorkbenchShell({ service }: { service: WorkbenchClientService })
         onNavigate={navigate}
         onClose={closeSettings}
       />
-    </div>
+      </div>
+    </DesktopChromeFrame>
   );
 }

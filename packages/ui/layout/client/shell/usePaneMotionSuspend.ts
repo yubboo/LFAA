@@ -32,3 +32,34 @@ export function usePaneMotionSuspend(shellRef: RefObject<HTMLDivElement | null>,
 
   return suspend;
 }
+
+/** 左右栏展开/收起过渡期间在 Shell 上打 data-pane-animating 标记，过渡结束自动撤除，供 CSS 关模糊与子区跳过回流。 */
+export function usePaneAnimatingFlag(
+  shellRef: RefObject<HTMLDivElement | null>,
+  leftOpen: boolean,
+  rightOpen: boolean,
+  isCompact: boolean,
+): void {
+  const prevRef = useRef<{ left: boolean; right: boolean } | null>(null);
+
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = { left: leftOpen, right: rightOpen };
+    if (!prev || isCompact) return;
+    if (prev.left === leftOpen && prev.right === rightOpen) return;
+    const shellEl = shellRef.current;
+    if (!shellEl) return;
+    shellEl.dataset.paneAnimating = "true";
+    const clear = () => { delete shellEl.dataset.paneAnimating; };
+    const onEnd = (event: TransitionEvent) => {
+      if (event.target === shellEl && event.propertyName === "grid-template-columns") clear();
+    };
+    shellEl.addEventListener("transitionend", onEnd);
+    const timer = window.setTimeout(clear, 320);
+    return () => {
+      shellEl.removeEventListener("transitionend", onEnd);
+      window.clearTimeout(timer);
+      clear();
+    };
+  }, [isCompact, leftOpen, rightOpen, shellRef]);
+}

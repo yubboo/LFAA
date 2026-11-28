@@ -10,6 +10,7 @@ import {
   computeResizeOutcome,
   DRAG_THRESHOLD_PX,
   hasExceededDragThreshold,
+  LEFT_MIN_PANEL_WIDTH,
   MIN_PANEL_WIDTH,
   SNAP_REOPEN_THRESHOLD_WIDTH,
   SNAP_THRESHOLD_WIDTH,
@@ -158,8 +159,8 @@ test("拖拽和键盘采用同一比例上限，同时保留中央的百分比�
     ...narrow, side: "right", key: "ArrowLeft", shiftKey: true, currentWidth: 650, oppositeWidth: 180,
   }), 660);
   assert.equal(computeKeyResizeWidth({
-    ...narrow, side: "left", key: "ArrowRight", shiftKey: true, currentWidth: 180, oppositeWidth: 660,
-  }), 228);
+    ...narrow, side: "left", key: "ArrowRight", shiftKey: true, currentWidth: 240, oppositeWidth: 660,
+  }), 288);
   assert.equal(computeKeyResizeWidth({
     ...wide, side: "left", key: "ArrowRight", shiftKey: true, currentWidth: 980, oppositeWidth: 2600,
   }), 1000);
@@ -167,23 +168,23 @@ test("拖拽和键盘采用同一比例上限，同时保留中央的百分比�
 
 test("computeResizeOutcome 保留弹性阻尼、半阈值吸附与重开滞回", () => {
   const metrics = { side: "left" as const, shellWidth: 2050, railWidth: 50, oppositeWidth: 280 };
-  // 低于半阈值 (< 110px) 触发吸附收起，视觉宽度收至 0px 同时保留回退展开宽度
+  // 低于半阈值 (< 120px) 触发吸附收起，视觉宽度收至 0px 同时保留回退展开宽度
   assert.deepEqual(
     computeResizeOutcome({ ...metrics, rawWidth: SNAP_THRESHOLD_WIDTH - 1 }),
-    { snappedCollapsed: true, width: MIN_PANEL_WIDTH, visualWidth: 0, tension: 1 },
+    { snappedCollapsed: true, width: LEFT_MIN_PANEL_WIDTH, visualWidth: 0, tension: 1 },
   );
 
-  // 位于 [110, 220) 区间内提供弹性阻尼收缩 visualWidth 与张力值
+  // 位于 [120, 240) 区间内提供弹性阻尼收缩 visualWidth 与张力值
   const elasticOutcome = computeResizeOutcome({
     ...metrics,
     rawWidth: SNAP_THRESHOLD_WIDTH,
   });
   assert.equal(elasticOutcome.snappedCollapsed, false);
-  assert.equal(elasticOutcome.width, MIN_PANEL_WIDTH);
-  assert.equal(elasticOutcome.visualWidth, 187);
+  assert.equal(elasticOutcome.width, LEFT_MIN_PANEL_WIDTH);
+  assert.equal(elasticOutcome.visualWidth, 204);
   assert.equal(elasticOutcome.tension, 1);
 
-  // 已处于吸附收起态时，带 14px 滞回窗口避免 110px 临界抖动；拉回超过 124px 即平滑重开
+  // 已处于吸附收起态时，带 14px 滞回窗口避免 120px 临界抖动；拉回超过 134px 即平滑重开
   assert.equal(
     computeResizeOutcome({
       ...metrics,
@@ -211,13 +212,13 @@ test("computeResizeOutcome 保留弹性阻尼、半阈值吸附与重开滞回",
     { snappedCollapsed: false, width: 500, visualWidth: 500, tension: 0 },
   );
 
-  // 窄桌面的默认 180px 宽度可直接开始拖动，同时保留原有吸附阈值。
+  // 窄桌面下左二仍保底 240px（不再压窄变形），按 120px 半阈值吸附。
   const narrow = { ...metrics, shellWidth: 1250, oppositeWidth: 660 };
-  assert.equal(computeResizeOutcome({ ...narrow, rawWidth: 183 }).visualWidth, 183);
-  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: 89 }),
-    { snappedCollapsed: true, width: 180, visualWidth: 0, tension: 1 });
-  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: 180, wasCollapsed: true }),
-    { snappedCollapsed: false, width: 180, visualWidth: 180, tension: 0 });
+  assert.equal(computeResizeOutcome({ ...narrow, rawWidth: 245 }).visualWidth, 245);
+  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: 119 }),
+    { snappedCollapsed: true, width: LEFT_MIN_PANEL_WIDTH, visualWidth: 0, tension: 1 });
+  assert.deepEqual(computeResizeOutcome({ ...narrow, rawWidth: LEFT_MIN_PANEL_WIDTH, wasCollapsed: true }),
+    { snappedCollapsed: false, width: LEFT_MIN_PANEL_WIDTH, visualWidth: LEFT_MIN_PANEL_WIDTH, tension: 0 });
 });
 
 test("左二能跨过 15%，在带小数的 25% 上限继续右拖时不会回退", () => {
@@ -275,12 +276,13 @@ test("buildSidebarWidthVars 保留基础宽度变量且仅在跨过拖拽阈值�
   assert.deepEqual(
     buildSidebarWidthVars({ isCompact: false, leftWidth: 232, rightWidth: 310 }),
     {
-      "--left-default-max-share": "0.15",
+      "--left-default-max-share": "0.18",
       "--left-max-share": "0.25",
       "--right-max-share": "0.75",
       "--center-min-share": "0.1",
       "--center-min-pixels": "360px",
       "--panel-min-pixels": "220px",
+      "--left-min-pixels": "240px",
       "--left-sidebar-base-width": "232px",
       "--right-panel-base-width": "310px",
     },
@@ -288,12 +290,13 @@ test("buildSidebarWidthVars 保留基础宽度变量且仅在跨过拖拽阈值�
   assert.deepEqual(
     buildSidebarWidthVars({ isCompact: false, leftWidth: 232, rightWidth: 310, rightWide: true }),
     {
-      "--left-default-max-share": "0.15",
+      "--left-default-max-share": "0.18",
       "--left-max-share": "0.25",
       "--right-max-share": "0.75",
       "--center-min-share": "0.1",
       "--center-min-pixels": "360px",
       "--panel-min-pixels": "220px",
+      "--left-min-pixels": "240px",
       "--left-sidebar-base-width": "232px",
       "--right-panel-base-width": "310px",
     },

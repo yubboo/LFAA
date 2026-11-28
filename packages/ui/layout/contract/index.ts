@@ -22,8 +22,12 @@ export interface WorkbenchProjectItem {
   pinned?: boolean;
   sectionId?: string | null;
   chatCount?: number;
-  /** 内置「默认工作区」：不可重命名/删除，目录取设置里的项目外工作目录。 */
+  /** 内置「默认工作区」：目录取设置里的默认工作区路径，可二次确认整删。 */
   isDefault?: boolean;
+  /** 项目领域类型："canvas" 为无限画布/短剧项目，"workspace"（或缺省）为代码/常规工作区项目。 */
+  kind?: "workspace" | "canvas";
+  /** 无限画布大厅分类文件夹 ID（仅 kind === "canvas" 使用）。 */
+  canvasFolderId?: string | null;
 }
 
 // 业务插件注册的自定义分区摘要结构。
@@ -214,15 +218,19 @@ export interface WorkbenchProjectProvider<TContent = unknown> {
     onCreated: (project: WorkbenchProjectItem) => void;
     onClose: () => void;
   }) => TContent;
-  /** 一键在默认工作区下快速新建项目并同步到左二栏，供无限画布等入口零摩擦创建。 */
-  quickCreateProject?: (baseName?: string) => Promise<WorkbenchProjectItem>;
+  /** 一键在默认目录或平级画布目录快速新建项目并同步到左二栏，供无限画布等入口零摩擦创建。 */
+  quickCreateProject?: (baseName?: string, options?: { kind?: "workspace" | "canvas"; canvasFolderId?: string | null }) => Promise<WorkbenchProjectItem>;
   /** 重命名项目并同步左二栏。 */
   renameProject?: (projectId: string, name: string) => Promise<WorkbenchProjectItem>;
   /** 删除项目并同步左二栏。 */
   removeProject?: (projectId: string) => Promise<boolean>;
+  /** 打开整删默认工作区的二次确认弹窗（与左二栏「删除工作区」共用同一确认流）。 */
+  requestDeleteWorkspace?: (projectId: string) => void;
   /** 强制刷新项目列表（如回收站恢复项目后立即同步左二栏）。 */
   refreshProjects?: () => Promise<void>;
   assignProjectSection?: (projectId: string, sectionId: string | null) => void | Promise<void>;
+  /** 更新画布项目所属的画布大厅分类文件夹。 */
+  assignCanvasFolder?: (projectId: string, folderId: string | null) => void | Promise<void>;
   togglePinProject?: (projectId: string) => void | Promise<void>;
   onProjectRowEnter?: (project: WorkbenchProjectItem, rowElement: HTMLElement) => void;
   onProjectRowLeave?: (project: WorkbenchProjectItem) => void;

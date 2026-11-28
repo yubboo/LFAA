@@ -1,0 +1,276 @@
+/* 输入卡片内联「技能 / 插件」搜索结果面板与底栏触发按钮样式：纯主题语义变量，窄栏自动收起文字。 */
+.panel {
+  max-height: 16.5rem;
+  overflow-y: auto;
+  margin: -0.2rem -0.25rem 0.25rem;
+  padding: 0.25rem 0.25rem 0.45rem;
+  border-bottom: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transform-origin: bottom center;
+  animation: capabilityPanelReveal 190ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes capabilityPanelReveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.sectionTitle {
+  padding: 0.2rem 0.55rem 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.28rem 0.55rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: background-color 110ms ease;
+}
+
+.row:hover,
+.row[data-active="true"] {
+  background: var(--color-active);
+}
+
+.iconSkill {
+  flex: 0 0 auto;
+  color: var(--color-teal, var(--color-accent));
+}
+
+.iconPlugin {
+  flex: 0 0 auto;
+  color: var(--color-accent);
+}
+
+.iconAction {
+  flex: 0 0 auto;
+  color: var(--color-ink-soft);
+}
+
+.rowTitle {
+  flex: 0 0 auto;
+  max-width: 45%;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowDesc {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matchText {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.rowLinkIcon {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--color-muted);
+}
+
+.empty {
+  padding: 1rem 0.65rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* 底栏「技能」「插件」按钮：常态通透，悬停与展开态轻胶囊高亮。 */
+.triggerBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  height: 1.85rem;
+  padding: 0 0.52rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.triggerBtn:hover,
+.triggerBtn[data-active="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+
+.triggerBtn[data-active="true"] {
+  color: var(--color-accent);
+  border-color: rgb(var(--color-accent-rgb) / 0.35);
+}
+
+.triggerChevron {
+  color: var(--color-muted);
+  transition: transform 140ms ease;
+}
+
+.triggerBtn[data-active="true"] .triggerChevron {
+  transform: rotate(90deg);
+  color: var(--color-accent);
+}
+
+.wideTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.overflowWrap {
+  position: relative;
+  display: none;
+  align-items: center;
+}
+
+.overflowBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.overflowBtn:hover,
+.overflowBtn[data-active="true"] {
+  background: var(--color-active);
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+
+.overflowBtn[data-active="true"] {
+  color: var(--color-accent);
+  border-color: rgb(var(--color-accent-rgb) / 0.35);
+}
+
+.overflowMenu {
+  position: absolute;
+  bottom: calc(100% + 0.45rem);
+  left: 0;
+  min-width: 9rem;
+  padding: var(--popover-pad, 0.45rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--popover-radius, 0.9rem);
+  background: var(--color-popover);
+  box-shadow: var(--color-menu-shadow);
+  z-index: var(--z-popover, 60);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  transform-origin: bottom left;
+  animation: overflowMenuPop 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes overflowMenuPop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .overflowMenu {
+    animation: none;
+  }
+}
+
+.overflowItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: var(--popover-row-h, 1.9rem);
+  padding: 0 0.55rem;
+  border: 0;
+  border-radius: calc(var(--popover-radius, 0.9rem) - var(--popover-pad, 0.45rem));
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--popover-font, 0.8rem);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 110ms ease;
+}
+
+.overflowItem:hover,
+.overflowItem[data-active="true"] {
+  background: var(--color-active);
+}
+
+.overflowItem[data-active="true"] {
+  color: var(--color-accent);
+}
+
+.overflowDivider {
+  height: 1px;
+  margin: 0.2rem 0.35rem;
+  background: var(--color-line);
+}
+
+.overflowDanger {
+  color: var(--color-danger);
+}
+
+@container chat-composer (max-width: 30rem) {
+  .wideTools {
+    display: none;
+  }
+
+  .overflowWrap {
+    display: inline-flex;
+  }
+}

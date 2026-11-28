@@ -2,14 +2,15 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconChevronRight } from "@tabler/icons-react";
-import type { WorkbenchSectionItem } from "@lfaa/ui-layout/contract";
+import type { CanvasFolder } from "@lfaa/canvas/contract";
 import styles from "./Canvas-Hub-Card-Menu.module.css";
 
 export interface HubCardMenuAnchor {
   projectId: string;
   canvasId: string;
   name: string;
-  sectionId?: string | null;
+  folderId?: string | null;
+  isDefault?: boolean;
   top: number;
   right: number;
 }
@@ -17,25 +18,27 @@ export interface HubCardMenuAnchor {
 export function CanvasHubCardMenu({
   anchor,
   isZh,
-  sections,
+  folders,
   onClose,
   onOpen,
   onStartRename,
   onPickCover,
   onDuplicate,
-  onMoveSection,
+  onMoveFolder,
   onDelete,
+  onDeleteWorkspace,
 }: {
   anchor: HubCardMenuAnchor;
   isZh: boolean;
-  sections: readonly WorkbenchSectionItem[];
+  folders: readonly CanvasFolder[];
   onClose: () => void;
   onOpen: () => void;
   onStartRename: () => void;
   onPickCover: () => void;
   onDuplicate: () => void;
-  onMoveSection: (sectionId: string | null) => void;
+  onMoveFolder: (folderId: string | null) => void;
   onDelete: () => void;
+  onDeleteWorkspace?: (() => void) | undefined;
 }) {
   const [subOpen, setSubOpen] = useState(false);
 
@@ -96,25 +99,25 @@ export function CanvasHubCardMenu({
 
           {subOpen && (
             <div role="menu" className={styles.subMenu}>
-              {sections.length === 0 ? (
-                <span className={styles.subEmpty}>{isZh ? "暂无自定义分区" : "No folders yet"}</span>
+              {folders.length === 0 ? (
+                <span className={styles.subEmpty}>{isZh ? "暂无文件夹" : "No folders yet"}</span>
               ) : (
                 <>
-                  {sections.map((section) => (
+                  {folders.map((folder) => (
                     <button
-                      key={section.id}
+                      key={folder.id}
                       type="button"
                       role="menuitem"
                       className={styles.item}
                       onClick={() => {
                         onClose();
-                        onMoveSection(section.id);
+                        onMoveFolder(folder.id);
                       }}
                     >
-                      <span>{section.name}</span>
+                      <span>{folder.name}</span>
                     </button>
                   ))}
-                  {anchor.sectionId && (
+                  {anchor.folderId && (
                     <>
                       <div className={styles.divider} />
                       <button
@@ -123,7 +126,7 @@ export function CanvasHubCardMenu({
                         className={styles.item}
                         onClick={() => {
                           onClose();
-                          onMoveSection(null);
+                          onMoveFolder(null);
                         }}
                       >
                         <span>{isZh ? "移出当前文件夹" : "Remove from folder"}</span>
@@ -141,11 +144,22 @@ export function CanvasHubCardMenu({
         <button
           type="button"
           role="menuitem"
-          className={`${styles.item} ${styles.danger}`}
+          className={anchor.isDefault ? styles.item : `${styles.item} ${styles.danger}`}
           onClick={() => { onClose(); onDelete(); }}
         >
-          <span>{isZh ? "删除项目" : "Delete project"}</span>
+          <span>{anchor.isDefault ? (isZh ? "删除画布" : "Delete canvas") : (isZh ? "删除项目" : "Delete project")}</span>
         </button>
+
+        {anchor.isDefault && onDeleteWorkspace && (
+          <button
+            type="button"
+            role="menuitem"
+            className={`${styles.item} ${styles.danger}`}
+            onClick={() => { onClose(); onDeleteWorkspace(); }}
+          >
+            <span>{isZh ? "删除工作区" : "Delete workspace"}</span>
+          </button>
+        )}
       </div>
     </>,
     document.body,

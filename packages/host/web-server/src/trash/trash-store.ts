@@ -214,6 +214,8 @@ export class TrashStore {
       pinned?: boolean;
       trusted?: boolean;
       createdAt?: number;
+      kind?: "workspace" | "canvas";
+      canvasFolderId?: string | null;
     };
     now?: number;
   }): Promise<TrashItemMeta> {

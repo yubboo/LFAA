@@ -1,7 +1,5 @@
 // 聊天输入区：范围/项目栏、@ 提及 / 斜杠命令 / 技能弹层、附件与排队提示、输入框及其工具条、统计栏。
-import { useEffect, useState } from "react";
-import { IconTrash } from "@tabler/icons-react";
-import { HoverTip } from "@lfaa/ui-primitives/client";
+import { useEffect, useRef, useState } from "react";
 import type { ChatClientStore } from "../store/chat-store";
 import { MediaLibraryDialog, mediaChatMessages } from "@lfaa/client-ui-tool-media/client";
 import type { ChatLocaleMessages } from "../locales";
@@ -11,18 +9,15 @@ import type { ComposerStoreSlice, useChatComposer } from "./useChatComposer";
 import { ClarificationCard } from "../conversation/Clarification-Card";
 import { ComposerAddMenu } from "./ComposerAddMenu";
 import { ComposerAttachmentChip } from "./ComposerAttachmentChip";
+import { ComposerBottomBar } from "./ComposerBottomBar";
+import { ComposerCapabilityPanel } from "./ComposerCapabilityPanel";
 import { ComposerInputRow } from "./ComposerInputRow";
+import { useCapabilitySearch } from "./useCapabilitySearch";
 import { ComposerNotice } from "./ComposerNotice";
-import { ComposerProjectChip } from "./ComposerProjectChip";
 import { ComposerFollowUpHint } from "./ComposerQueuePanel";
 import { ComposerQueueSection } from "./ComposerQueueSection";
-import { ComposerRightActions } from "./ComposerRightActions";
-import { MediaRatioPicker } from "@lfaa/client-ui-tool-media/client";
-import { MediaStylePicker } from "@lfaa/client-ui-tool-media/client";
 import { ComposerScopeBar } from "./ComposerScopeBar";
 import { ComposerTriggers } from "./ComposerTriggers";
-import { ModelReasoningPicker } from "../models/ModelReasoningPicker";
-import { PermissionModePicker } from "./PermissionModePicker";
 import { SessionModeBar } from "./SessionModeBar";
 import { ComposerStats } from "./ComposerStats";
 import styles from "../conversation/ChatWorkspace.module.css";
@@ -57,7 +52,7 @@ export function ChatComposer({
   onSkipClarification,
   onAnswerClarification,
   onOpenSettings,
-  onOpenBrowser,
+  onOpenBrowser, onOpenCanvas, onOpenSkills, onOpenConnectors,
   onDeleteRequest,
   onOpenTurnChanges,
 }: {
@@ -90,6 +85,7 @@ export function ChatComposer({
   onAnswerClarification: (answer: string) => void;
   onOpenSettings: () => void;
   onOpenBrowser?: (() => void) | undefined;
+  onOpenCanvas?: (() => void) | undefined; onOpenSkills?: (() => void) | undefined; onOpenConnectors?: (() => void) | undefined;
   onDeleteRequest: () => void;
   onOpenTurnChanges?: ((messageId: string) => void) | undefined;
 }) {
@@ -117,6 +113,34 @@ export function ChatComposer({
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   // 素材库入口已并入「添加上下文」菜单，弹窗开关由输入栏持有。
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const triggerMention = () => {
+    const nextDraft = draft.endsWith("@") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}@`;
+    setDraft(nextDraft);
+    setSlashTrigger(null);
+    setMentionTrigger({ query: "", startIndex: nextDraft.length - 1 });
+    setMentionIndex(0);
+    focusTextareaAt(nextDraft.length);
+  };
+  const triggerSlash = () => {
+    const nextDraft = draft.endsWith("/") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}/`;
+    setDraft(nextDraft);
+    setMentionTrigger(null);
+    setSlashTrigger({ query: "", startIndex: nextDraft.length - 1 });
+    setSlashIndex(0);
+    focusTextareaAt(nextDraft.length);
+  };
+  const capability = useCapabilitySearch({
+    isZh: locale.isZh, attachments, appendAttachments,
+    focusTextarea: () => focusTextareaAt(0), onOpenCanvas, onOpenSkills, onOpenConnectors,
+    onPickProject: !showScopeShelf && !activeProject ? () => setProjectMenuOpen(true) : undefined,
+    onPickFile: () => fileInputRef.current?.click(),
+    onPickFolder: () => folderInputRef.current?.click(),
+    onOpenMedia: isWorkMode ? () => setMediaLibraryOpen(true) : undefined,
+    onTriggerMention: triggerMention,
+    onTriggerSlash: triggerSlash,
+    onOpenBrowser,
+  });
   useEffect(() => {
     if (openProjectSignal > 0 && !isRunning && !bindingProject) setProjectMenuOpen(true);
   }, [openProjectSignal, isRunning, bindingProject]);
@@ -142,6 +166,7 @@ export function ChatComposer({
 // 或者切到「工作」模式，都用「占位行 + 工具行」的宽卡片，工具与输入各占一行不互相挤。
   const singleRow = !docked
     && !isWorkMode
+    && !capability.mode
     && !worktree
     && attachments.length === 0
     && state.queuedMessages.length === 0
@@ -181,27 +206,11 @@ export function ChatComposer({
     <ComposerAddMenu
       locale={locale}
       sessionId={activeSession?.id ?? ""}
+      active={capability.mode === "add"}
       fileInputRef={fileInputRef}
-      onPickProject={!showScopeShelf && !activeProject ? () => setProjectMenuOpen(true) : undefined}
+      folderInputRef={folderInputRef}
       onAttachItems={appendAttachments}
-      onTriggerMention={() => {
-        const nextDraft = draft.endsWith("@") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}@`;
-        setDraft(nextDraft);
-        setSlashTrigger(null);
-        setMentionTrigger({ query: "", startIndex: nextDraft.length - 1 });
-        setMentionIndex(0);
-        focusTextareaAt(nextDraft.length);
-      }}
-      onTriggerSlash={() => {
-        const nextDraft = draft.endsWith("/") ? draft : `${draft}${draft && !draft.endsWith(" ") ? " " : ""}/`;
-        setDraft(nextDraft);
-        setMentionTrigger(null);
-        setSlashTrigger({ query: "", startIndex: nextDraft.length - 1 });
-        setSlashIndex(0);
-        focusTextareaAt(nextDraft.length);
-      }}
-      onOpenBrowser={onOpenBrowser}
-      onOpenMedia={isWorkMode ? () => setMediaLibraryOpen(true) : undefined}
+      onToggleOpen={() => capability.toggleMode("add")}
     />
   );
 
@@ -231,8 +240,10 @@ export function ChatComposer({
         onSelectSkill={handleSelectSkillEntry}
       />
       <div
+        ref={capability.cardRef}
         className={composerStyles.composerCard}
         data-dragging={draggingFiles ? "true" : undefined}
+        data-searching={capability.mode ? "true" : undefined}
         onKeyDown={(event) => {
           // 焦点可能在缩略图或移除按钮上：整个卡片都接受 Ctrl+Z 撤回刚插入的图片；文本撤销仍由输入框原生处理。
           if (event.defaultPrevented || event.shiftKey || event.altKey) return;
@@ -275,6 +286,19 @@ export function ChatComposer({
           onDismiss={() => setContextNotice("")}
         />
 
+        {capability.mode && (
+          <ComposerCapabilityPanel
+            mode={capability.mode}
+            isZh={locale.isZh}
+            query={capability.query}
+            sections={capability.sections}
+            flatEntries={capability.flatEntries}
+            activeIndex={capability.activeIndex}
+            onHoverIndex={capability.setActiveIndex}
+            onSelect={capability.selectEntry}
+          />
+        )}
+
         <ComposerInputRow
           composer={composer}
           store={store}
@@ -282,6 +306,12 @@ export function ChatComposer({
           placeholder={placeholder}
           rows={isWorkMode && !singleRow ? 2 : 1}
           onPaste={handlePaste}
+          searchOverride={capability.mode ? {
+            value: capability.query,
+            placeholder: locale.isZh ? "搜索…" : "Search…",
+            onChange: capability.setQuery,
+            onKeyDown: capability.handleSearchKeyDown,
+          } : null}
         />
 
         <ComposerFollowUpHint
@@ -291,76 +321,39 @@ export function ChatComposer({
           queuedCount={state.queuedMessages.length}
         />
 
-        {/* 同一组入口随输入卡片宽度切换文字或图标，避免窄栏出现两排工具。 */}
-        <div className={composerStyles.composerBar}>
-          <div className={composerStyles.controls}>
-            {/* 空会话时模式胶囊跟项目行：工作模式在卡片头行，聊天模式才留在工具行。 */}
-            {messagesCount === 0 && !showScopeShelf && <SessionModeBar store={store} isZh={locale.isZh} compact={!isWorkMode} />}
-            {addMenu}
-            {showInlineProjectChip && activeProject && (
-              <ComposerProjectChip
-                locale={locale}
-                project={activeProject}
-                open={projectMenuOpen}
-                disabled={isRunning || bindingProject}
-                onToggle={() => setProjectMenuOpen((open) => !open)}
-              />
-            )}
-
-            {isWorkMode && (
-              <PermissionModePicker
-                locale={locale}
-                mode={state.permissionMode}
-                onSelectMode={(nextMode) => void store.setPermissionMode(nextMode)}
-              />
-            )}
-
-            {activeSession && (
-              <HoverTip label={locale.deleteChat}>
-                <button
-                  type="button"
-                  className={composerStyles.toolBtn}
-                  aria-label={locale.deleteChat}
-                  onClick={onDeleteRequest}
-                >
-                  <IconTrash size={14} aria-hidden="true" />
-                </button>
-              </HoverTip>
-            )}
-          </div>
-
-          <div className={composerStyles.rightCluster}>
-            {selectedMediaKind === "image" && <MediaStylePicker isZh={locale.isZh} value={mediaStyle} onChange={setMediaStyle} />}
-            {selectedMediaKind === "image" && <MediaRatioPicker isZh={locale.isZh} value={mediaRatio} onChange={setMediaRatio} />}
-            <ModelReasoningPicker
-              isZh={locale.isZh}
-              profiles={state.profiles}
-              activeProfileId={state.activeProfileId}
-              reasoningLevel={state.reasoningLevel}
-              compact={!isWorkMode}
-              onSelectProfile={(profileId) => void store.setActiveProfile(profileId)}
-              onSelectBrandModel={(profileId, modelId) => void store.selectBrandModel(profileId, modelId)}
-              onRefreshBrandModels={(profileId) => store.fetchRemoteModels({ profileId }).then(() => {})}
-              onSelectReasoning={(level) => store.setReasoningLevel(level)}
-              onOpenSettings={onOpenSettings}
-            />
-
-            <ComposerRightActions
-              locale={locale}
-              draft={draft}
-              canSend={!bindingProject && Boolean(draft.trim() || attachments.length > 0)}
-              isRunning={isRunning}
-              paused={showContinue}
-              onChangeDraft={setDraft}
-              onSend={() => void handleSubmit()}
-              onStop={() => void store.abortActiveRun()}
-              onContinue={() => {
-                if (pausedMessage) void store.continueInterruptedMessage(pausedMessage.id);
-              }}
-              onNotice={setContextNotice}
-            />
-          </div>
-        </div>
+        <ComposerBottomBar
+          locale={locale}
+          store={store}
+          state={state}
+          isWorkMode={isWorkMode}
+          messagesCount={messagesCount}
+          showScopeShelf={showScopeShelf}
+          addMenu={addMenu}
+          showInlineProjectChip={showInlineProjectChip}
+          activeProject={activeProject}
+          projectMenuOpen={projectMenuOpen}
+          isRunning={isRunning}
+          bindingProject={bindingProject}
+          capabilityMode={capability.mode}
+          hasActiveSession={Boolean(activeSession)}
+          selectedMediaKind={selectedMediaKind}
+          mediaStyle={mediaStyle}
+          mediaRatio={mediaRatio}
+          draft={draft}
+          canSend={!bindingProject && Boolean(draft.trim() || attachments.length > 0)}
+          showContinue={showContinue}
+          onToggleProjectMenu={() => setProjectMenuOpen((open) => !open)}
+          onToggleCapabilityMode={capability.toggleMode}
+          onDeleteRequest={onDeleteRequest}
+          onMediaStyleChange={setMediaStyle}
+          onMediaRatioChange={setMediaRatio}
+          onOpenSettings={onOpenSettings}
+          onChangeDraft={setDraft}
+          onSend={() => void handleSubmit()}
+          onStop={() => void store.abortActiveRun()}
+          onContinue={() => { if (pausedMessage) void store.continueInterruptedMessage(pausedMessage.id); }}
+          onNotice={setContextNotice}
+        />
       </div>
       <MediaLibraryDialog
         isZh={locale.isZh}

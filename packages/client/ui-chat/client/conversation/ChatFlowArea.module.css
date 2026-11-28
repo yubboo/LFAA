@@ -1,8 +1,6 @@
-/* 中间对话会话区盒子：唯一滚动视口 + 贴在视口内的底部渐隐。
-   输入区不再叠在它上面，所以这里不需要为输入区预留内边距，正文也不会从输入卡片里透出来。 */
-/* 会话区独占第二行；轮次刻度条定位在它自己的这一格里。 */
+/* 中间对话会话区盒子：唯一滚动视口（跨至面板最底部，让滚动条直通底缘）+ 不遮挡滚动条的底部渐隐。 */
 .box {
-  grid-row: 2;
+  grid-row: 2 / -1;
   grid-column: 1;
   position: relative;
   display: flex;
@@ -25,20 +23,30 @@
   /* 两侧各留一条滚动条槽：滚动条只占右侧时，正文列会比输入栏窄 6px 且居中轴左移 3px。 */
   scrollbar-gutter: stable both-edges;
   margin-inline-end: var(--chat-scrollbar-gap, 2px);
-  padding: 1.5rem var(--chat-side-padding) 1.5rem;
+  padding: 1.5rem var(--chat-side-padding) calc(var(--chat-composer-height, 140px) + 3.25rem);
   padding-inline-end: calc(var(--chat-side-padding) - var(--chat-scrollbar-gap, 2px));
+}
+
+/* 空会话引导区输入卡位于中央且 .hero 自身占满 100% 高度，底部无停靠输入栏，不加额外上下留白避免撑出虚假滚动条。 */
+.scroller[data-empty="true"] {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .scroller[hidden] {
   display: none;
 }
 
-/* 渐隐钉在会话区盒子的底缘（不随内容滚动）：高度比底部内边距小，
-   滚到底时最后一行停在它上方，不会被糊掉；也不需要为它多留一段空白。 */
+/* 渐隐钉在会话区底部并给右侧滚动条留出 14px 通道：正文滚到输入框下方前平滑淡出，滚动条始终可见可拖。 */
 .fade {
   position: absolute;
-  inset: auto 0 0 0;
-  height: 1.2rem;
+  inset: auto 14px 0 0;
+  height: calc(var(--chat-composer-height, 140px) + 1.2rem);
   pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--color-column, var(--color-shell)));
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--color-column, var(--color-shell)) 1.2rem,
+    var(--color-column, var(--color-shell)) 100%
+  );
 }

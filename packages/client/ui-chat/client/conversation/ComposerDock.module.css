@@ -1,4 +1,4 @@
-/* 输入框大盒子：独立占一行，排在会话区下方；层级高于刻度条（22/26），避免输入框向上弹出的浮层被刻度胶囊遮挡。 */
+/* 输入框大盒子：叠在会话区底缘之上，本体不吃指针（保证右侧直通到底的滚动条全程可悬停可拖），子控件恢复命中。 */
 .dock {
   grid-row: 4;
   grid-column: 1;
@@ -9,6 +9,11 @@
   gap: 0.4rem;
   padding: 0.5rem var(--chat-side-padding) 1.15rem;
   background: transparent;
+  pointer-events: none;
+}
+
+.dock > * {
+  pointer-events: auto;
 }
 
 /* 任务盒子与目标盒子沿用正文列宽，和输入卡片同一条中轴。 */
