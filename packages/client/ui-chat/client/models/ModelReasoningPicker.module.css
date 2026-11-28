@@ -354,5 +354,7 @@
 
 .triggerPill[data-compact] .modelIcon {
   display: block;
+  width: 0.88rem;
+  opacity: 1;
   color: var(--color-ink);
 }
